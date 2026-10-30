@@ -34,6 +34,7 @@ import {
   teleport,
 } from "./bricks";
 import { type Paddle, createPaddle, movePaddle } from "./paddle";
+import { FADE_STEPS } from "../render/fade";
 import { BRICK_UNITS, type Player, addScore, checkExtraLife, createPlayer } from "./score";
 
 /** Game modes, numbered after [0x411000] where the original has one. */
@@ -51,6 +52,10 @@ export const GameMode = {
   LevelEnd: 8,
   /** Past the last level (0x408710); the congratulations screen comes with task 14. */
   Finished: 9,
+  /** Palette fade to black before a new level (0x4065EF). */
+  FadeOut: 10,
+  /** Background load (0x407336) then fade in on the bare background (0x406681). */
+  FadeIn: 11,
 } as const;
 export type GameMode = (typeof GameMode)[keyof typeof GameMode];
 
@@ -118,8 +123,14 @@ export class Game {
   paddleAnim: PaddleAnim | null = null;
   /** Sounds started during the last tick. */
   readonly sounds: SoundName[] = [];
+  /** Fade step shown, 0 (normal) to FADE_STEPS − 1 (darkest). */
+  fade = 0;
+  /** Only the background is on screen: 0x407430 copies it over the whole screen. */
+  bare = false;
   private interval = 0;
   private pause = 0;
+  private fadeStep = 0;
+  private nextLevel = false;
   private readonly probe: BrickProbe = {
     hit: (x, y, ball) => this.hitBrick(x, y, ball),
     endSweep: () => clearMarks(this.grid),
@@ -138,13 +149,14 @@ export class Game {
     return this.levels.length;
   }
 
-  /** 0x401D4C */
+  /** 0x401D4C: background load and fade in, without a fade out. */
   newGame(): void {
     this.level = this.config.startLevel;
     this.player = createPlayer(this.config.nbsLife, this.config.extraLife);
     this.livesShown = this.player.lives;
+    this.balls = [];
     this.loadLevel();
-    this.startRound();
+    this.startFadeIn();
   }
 
   tick(input: GameInput): void {
@@ -158,6 +170,12 @@ export class Game {
       case GameMode.GameOver:
       case GameMode.LevelEnd:
         this.waitAnim();
+        break;
+      case GameMode.FadeOut:
+        this.fadeOut();
+        break;
+      case GameMode.FadeIn:
+        this.fadeIn();
         break;
       case GameMode.GameOverWait:
       case GameMode.Finished:
@@ -290,7 +308,6 @@ export class Game {
   }
 
   private afterAnim(): void {
-    this.paddleAnim = null;
     switch (this.mode) {
       case GameMode.LifeLost:
         this.message = this.config.texts.status.ready;
@@ -302,12 +319,47 @@ export class Game {
         this.mode = GameMode.GameOverWait;
         break;
       case GameMode.LevelEnd:
-        // The level number is redrawn with the new grid (0x404D46).
-        this.level++;
-        this.loadLevel();
-        this.startRound();
+        this.mode = GameMode.FadeOut;
+        this.fadeStep = 0;
         break;
     }
+  }
+
+  /** 0x4065EF: one darker palette per tick, from step 0 to the last. */
+  private fadeOut(): void {
+    this.fade = this.fadeStep++;
+    if (this.fadeStep < FADE_STEPS) return;
+    this.mode = GameMode.FadeIn;
+    this.nextLevel = true;
+  }
+
+  private startFadeIn(): void {
+    this.mode = GameMode.FadeIn;
+    this.bare = true;
+    this.fade = FADE_STEPS - 1;
+    this.fadeStep = FADE_STEPS;
+  }
+
+  /**
+   * 0x407336 takes one tick (shown at the darkest step), then 0x406681 brings the
+   * palette back over FADE_STEPS ticks. The grid and the round come after (0x401DB5).
+   */
+  private fadeIn(): void {
+    if (this.fadeStep === FADE_STEPS) {
+      // 0x407336 loads the background of [0x411031], raised by 0x401C54.
+      if (this.nextLevel) this.level++;
+      this.nextLevel = false;
+      this.bare = true;
+      this.fade = FADE_STEPS - 1;
+      this.fadeStep--;
+      return;
+    }
+    this.fade = this.fadeStep;
+    if (this.fadeStep-- > 0) return;
+    this.bare = false;
+    // The level number is redrawn with the new grid (0x404D46).
+    this.loadLevel();
+    this.startRound();
   }
 
   /** 0x404D08 and 0x404DB4 */
@@ -318,6 +370,8 @@ export class Game {
 
   /** 0x401DB5: new ball and paddle, ball stuck in the paddle's middle (0x404FBE). */
   private startRound(): void {
+    // The paddle stays hidden from its animation until here (0x40256C).
+    this.paddleAnim = null;
     this.mode = GameMode.Ready;
     this.message = this.config.texts.status.ready;
     this.paddle.x = createPaddle().x;

@@ -2,8 +2,8 @@ import { TICK_RATE, startLoop } from "./core/loop";
 import { Rng } from "./core/rng";
 import { loadAssets } from "./data/assets";
 import { Difficulty, forDifficulty } from "./data/config";
-import { WORLDS, worldImage } from "./data/images";
-import { LEVEL_COLS } from "./data/levels";
+import { WORLDS, type World, backgroundImage, worldImage } from "./data/images";
+import { LEVEL_COLS, WORLD_LEVELS } from "./data/levels";
 import { paletteColor } from "./data/palette";
 import { BallState } from "./game/ball";
 import { GRID_CELLS, cellSprite } from "./game/bricks";
@@ -14,8 +14,10 @@ import { KeyState, keyboardDx, keyboardSpeed } from "./input/keyboard";
 import { MouseAccumulator, bindPointerLock } from "./input/mouse";
 import { BALL_SPRITE, BRICK_H, BRICK_W, PADDLE_SPRITE, drawSprite, spriteAt } from "./render/atlas";
 import { BitmapFont } from "./render/font";
+import { applyFade } from "./render/fade";
 import { drawHud } from "./render/hud";
-import { SCREEN_HEIGHT, SCREEN_WIDTH, Screen } from "./render/screen";
+import { drawPlayfield } from "./render/playfield";
+import { Screen } from "./render/screen";
 
 const canvas = document.querySelector<HTMLCanvasElement>("#screen");
 if (!canvas) throw new Error("#screen canvas not found");
@@ -24,10 +26,12 @@ const { ctx } = screen;
 
 const assets = await loadAssets();
 
-// Until the menus exist (task 13): medium difficulty, lv0 levels, [W] switches the world palette.
+// Until the menus exist (task 13): medium difficulty, [W] starts a new game in the other world.
 const difficulty = Difficulty.Medium;
-let worldIndex = 0;
-const game = new Game(assets.config, assets.levels.lv0, difficulty, new Rng(Date.now()));
+let world: World = "space";
+const newGame = (w: World) =>
+  new Game(assets.config, assets.levels[WORLD_LEVELS[w]], difficulty, new Rng(Date.now()));
+let game = newGame(world);
 
 const mouse = new MouseAccumulator();
 bindPointerLock(canvas, mouse);
@@ -50,7 +54,10 @@ window.addEventListener("keydown", (e) => {
   if (e.repeat) return;
   if (e.code === "KeyF") void screen.toggleFullscreen();
   if (e.code === "KeyS") showStats = !showStats;
-  if (e.code === "KeyW") worldIndex = (worldIndex + 1) % WORLDS.length;
+  if (e.code === "KeyW") {
+    world = WORLDS[(WORLDS.indexOf(world) + 1) % WORLDS.length]!;
+    game = newGame(world);
+  }
   if (e.code === "Space") fire.press();
 });
 window.addEventListener("keyup", (e) => {
@@ -71,61 +78,11 @@ startLoop({
     stats.ticks++;
   },
   render(alpha) {
-    ctx.fillStyle = "#000";
-    ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-
-    const world = WORLDS[worldIndex]!;
     const sheet = assets.images.get(worldImage(world, "sprite_sheet"))!;
-    for (let i = 0; i < GRID_CELLS; i++) {
-      const address = cellSprite(game.grid, i);
-      if (address === null) continue;
-      const ref = spriteAt(address, BRICK_W, BRICK_H);
-      drawSprite(
-        ctx,
-        sheet,
-        ref,
-        112 + (i % LEVEL_COLS) * BRICK_W,
-        Math.floor(i / LEVEL_COLS) * BRICK_H,
-      );
-    }
-
-    const { paddle, paddleAnim } = game;
-    // Drawn with the mouse movement of the current tick already applied, to cut visible lag.
-    const ahead = paddleAnim ? 0 : clampPaddleX(paddle, paddle.x + mouse.peek()) - paddle.x;
-    if (paddleAnim) {
-      const { anim } = paddleAnim;
-      if (paddleAnim.visible) {
-        drawSprite(ctx, sheet, spriteAt(anim.frame, anim.w, anim.h), paddleAnim.x, paddleAnim.y);
-      }
-    } else {
-      drawSprite(ctx, sheet, PADDLE_SPRITE, paddle.x + ahead, paddle.y);
-    }
-
-    for (const b of game.balls) {
-      if (b.state === BallState.Dead) continue;
-      // A ball waiting on the paddle follows it; a moving one is interpolated.
-      if (b.stuckOffset !== null) {
-        drawSprite(ctx, sheet, BALL_SPRITE, b.x + ahead, b.y);
-        continue;
-      }
-      const p = prevBalls.get(b);
-      const near = p && Math.abs(b.x - p.x) <= MAX_LERP && Math.abs(b.y - p.y) <= MAX_LERP;
-      const x = near ? Math.round(p.x + (b.x - p.x) * alpha) : b.x;
-      const y = near ? Math.round(p.y + (b.y - p.y) * alpha) : b.y;
-      drawSprite(ctx, sheet, BALL_SPRITE, x, y);
-    }
-
-    const font = new BitmapFont(
-      assets.images.get(worldImage(world, "font"))!,
-      paletteColor(assets.palettes[world], 0),
-    );
-    drawHud(ctx, sheet, font, {
-      score: game.player.score,
-      level: game.level,
-      lives: game.livesShown,
-      message: game.message,
-    });
-    if (!locked()) font.draw(ctx, "clic", 290, 220, false);
+    drawPlayfield(ctx, assets.images.get(backgroundImage(world, game.level))!, sheet);
+    if (!game.bare) drawGame(alpha, sheet);
+    applyFade(ctx, game.fade);
+    if (!locked()) font().draw(ctx, "clic", 290, 220, false);
 
     stats.frames++;
     const now = performance.now();
@@ -146,3 +103,58 @@ startLoop({
     }
   },
 });
+
+function font(): BitmapFont {
+  return new BitmapFont(
+    assets.images.get(worldImage(world, "font"))!,
+    paletteColor(assets.palettes[world], 0),
+  );
+}
+
+function drawGame(alpha: number, sheet: CanvasImageSource): void {
+  for (let i = 0; i < GRID_CELLS; i++) {
+    const address = cellSprite(game.grid, i);
+    if (address === null) continue;
+    const ref = spriteAt(address, BRICK_W, BRICK_H);
+    drawSprite(
+      ctx,
+      sheet,
+      ref,
+      112 + (i % LEVEL_COLS) * BRICK_W,
+      Math.floor(i / LEVEL_COLS) * BRICK_H,
+    );
+  }
+
+  const { paddle, paddleAnim } = game;
+  // Drawn with the mouse movement of the current tick already applied, to cut visible lag.
+  const ahead = paddleAnim ? 0 : clampPaddleX(paddle, paddle.x + mouse.peek()) - paddle.x;
+  if (paddleAnim) {
+    const { anim } = paddleAnim;
+    if (paddleAnim.visible) {
+      drawSprite(ctx, sheet, spriteAt(anim.frame, anim.w, anim.h), paddleAnim.x, paddleAnim.y);
+    }
+  } else {
+    drawSprite(ctx, sheet, PADDLE_SPRITE, paddle.x + ahead, paddle.y);
+  }
+
+  for (const b of game.balls) {
+    if (b.state === BallState.Dead) continue;
+    // A ball waiting on the paddle follows it; a moving one is interpolated.
+    if (b.stuckOffset !== null) {
+      drawSprite(ctx, sheet, BALL_SPRITE, b.x + ahead, b.y);
+      continue;
+    }
+    const p = prevBalls.get(b);
+    const near = p && Math.abs(b.x - p.x) <= MAX_LERP && Math.abs(b.y - p.y) <= MAX_LERP;
+    const x = near ? Math.round(p.x + (b.x - p.x) * alpha) : b.x;
+    const y = near ? Math.round(p.y + (b.y - p.y) * alpha) : b.y;
+    drawSprite(ctx, sheet, BALL_SPRITE, x, y);
+  }
+
+  drawHud(ctx, sheet, font(), {
+    score: game.player.score,
+    level: game.level,
+    lives: game.livesShown,
+    message: game.message,
+  });
+}

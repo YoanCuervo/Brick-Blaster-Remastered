@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LEVEL_COLS, LEVEL_ROWS, parseLevels } from "./levels";
+import { LEVEL_COLS, LEVEL_ROWS, WORLD_LEVELS, parseLevels } from "./levels";
 
 const grid = (cell = 0) =>
   Array.from({ length: LEVEL_ROWS }, () => Array<number>(LEVEL_COLS).fill(cell));
@@ -32,5 +32,11 @@ describe("parseLevels", () => {
     const g = grid();
     g[0]![0] = 256;
     expect(() => parseLevels({ lv0: [g], lv1: [], lv2: [] })).toThrow("levels.lv0[0][0][0]");
+  });
+});
+
+describe("WORLD_LEVELS (0x407BEB)", () => {
+  it("loads lv0 for space and lv1 for arcade", () => {
+    expect(WORLD_LEVELS).toEqual({ space: "lv0", arcade: "lv1" });
   });
 });

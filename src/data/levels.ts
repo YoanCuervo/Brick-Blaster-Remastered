@@ -1,3 +1,4 @@
+import type { World } from "./images";
 import { int, list, record } from "./validate";
 
 // §4: 13 columns × 24 rows, one byte per cell, top row first.
@@ -10,6 +11,9 @@ export type Level = readonly (readonly number[])[];
 export const LEVEL_FILES = ["lv0", "lv1", "lv2"] as const;
 export type LevelFile = (typeof LEVEL_FILES)[number];
 export type LevelSet = Record<LevelFile, readonly Level[]>;
+
+/** The world digit picks the level resource (0x407BEB): lv2 is never loaded. */
+export const WORLD_LEVELS: Record<World, LevelFile> = { space: "lv0", arcade: "lv1" };
 
 function level(value: unknown, path: string): Level {
   return list(value, path, LEVEL_ROWS, (row, p) =>
