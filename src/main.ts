@@ -1,10 +1,13 @@
 import { TICK_RATE, startLoop } from "./core/loop";
-import { Rng } from "./core/rng";
 import { loadAssets } from "./data/assets";
+import { Difficulty, forDifficulty } from "./data/config";
 import { WORLDS, worldImage } from "./data/images";
 import { LEVEL_COLS, LEVEL_ROWS } from "./data/levels";
 import { paletteColor } from "./data/palette";
-import { BRICK_H, BRICK_W, brickSprite, drawSprite, spriteAt } from "./render/atlas";
+import { clampPaddleX, createPaddle, movePaddle } from "./game/paddle";
+import { KeyState, keyboardDx, keyboardSpeed } from "./input/keyboard";
+import { MouseAccumulator, bindPointerLock } from "./input/mouse";
+import { BRICK_H, BRICK_W, PADDLE_SPRITE, brickSprite, drawSprite, spriteAt } from "./render/atlas";
 import { BitmapFont } from "./render/font";
 import { SCREEN_HEIGHT, SCREEN_WIDTH, Screen } from "./render/screen";
 
@@ -15,14 +18,14 @@ const { ctx } = screen;
 
 const assets = await loadAssets();
 
-// Temporary atlas check (removed in task 5): level bricks and font per world, [W] switches.
+// Temporary scene until levels and the game state exist: bricks of one level and the paddle.
 let worldIndex = 0;
 const levelIndex = 1;
-
-// Temporary test scene (removed in task 5): a box bouncing at 2 px/tick to check the 50 Hz rate.
-const rng = new Rng(Date.now());
-const box = { x: rng.rand(SCREEN_WIDTH - 32), y: rng.rand(SCREEN_HEIGHT - 32), dx: 2, dy: 2 };
-let prev = { ...box };
+const paddle = createPaddle();
+const mouse = new MouseAccumulator();
+bindPointerLock(canvas, mouse);
+const keys = new KeyState();
+const keySpeed = keyboardSpeed(forDifficulty(assets.config.startSpeed, Difficulty.Medium));
 
 let showStats = true;
 const stats = { ticks: 0, frames: 0, tps: 0, fps: 0, since: performance.now() };
@@ -35,16 +38,15 @@ window.addEventListener("keydown", (e) => {
 
 startLoop({
   update() {
-    prev = { ...box };
-    box.x += box.dx;
-    box.y += box.dy;
-    if (box.x <= 0 || box.x >= SCREEN_WIDTH - 32) box.dx = -box.dx;
-    if (box.y <= 0 || box.y >= SCREEN_HEIGHT - 32) box.dy = -box.dy;
+    const dx =
+      mouse.take() + keyboardDx(keys.isDown("ArrowLeft"), keys.isDown("ArrowRight"), keySpeed);
+    movePaddle(paddle, dx);
     stats.ticks++;
   },
-  render(alpha) {
+  render() {
     ctx.fillStyle = "#000";
     ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
     const world = WORLDS[worldIndex]!;
     const sheet = assets.images.get(worldImage(world, "sprite_sheet"))!;
     const level = assets.levels.lv0[levelIndex]!;
@@ -57,16 +59,14 @@ startLoop({
         }
       }
     }
+    // Drawn with the mouse movement of the current tick already applied, to cut visible lag.
+    drawSprite(ctx, sheet, PADDLE_SPRITE, clampPaddleX(paddle, paddle.x + mouse.peek()), paddle.y);
+
     const font = new BitmapFont(
       assets.images.get(worldImage(world, "font"))!,
       paletteColor(assets.palettes[world], 0),
     );
-    font.draw(ctx, `${world}\n${assets.config.texts.status.ready}`, 112, 400);
-
-    const x = Math.round(prev.x + (box.x - prev.x) * alpha);
-    const y = Math.round(prev.y + (box.y - prev.y) * alpha);
-    ctx.fillStyle = "#f80";
-    ctx.fillRect(x, y, 32, 32);
+    if (document.pointerLockElement !== canvas) font.draw(ctx, "clic", 290, 450);
 
     stats.frames++;
     const now = performance.now();
@@ -80,7 +80,7 @@ startLoop({
       ctx.fillStyle = "#fff";
       ctx.font = "12px monospace";
       ctx.fillText(
-        `TPS ${stats.tps}/${TICK_RATE}  FPS ${stats.fps}  x${screen.currentScale}  [F] fullscreen  [S] stats`,
+        `TPS ${stats.tps}/${TICK_RATE}  FPS ${stats.fps}  x${screen.currentScale}  [F] fullscreen  [S] stats  [W] world`,
         8,
         16,
       );
