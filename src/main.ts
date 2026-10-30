@@ -1,5 +1,6 @@
 import { TICK_RATE, startLoop } from "./core/loop";
 import { Rng } from "./core/rng";
+import { loadAssets } from "./data/assets";
 import { SCREEN_HEIGHT, SCREEN_WIDTH, Screen } from "./render/screen";
 
 const canvas = document.querySelector<HTMLCanvasElement>("#screen");
@@ -7,8 +8,8 @@ if (!canvas) throw new Error("#screen canvas not found");
 const screen = new Screen(canvas);
 const { ctx } = screen;
 
-const title = new Image();
-title.src = "/backgrounds/title.png";
+const assets = await loadAssets();
+const title = assets.images.get("backgrounds/title")!;
 
 // Temporary test scene (removed in task 5): a box bouncing at 2 px/tick to check the 50 Hz rate.
 const rng = new Rng(Date.now());
@@ -35,7 +36,7 @@ startLoop({
   render(alpha) {
     ctx.fillStyle = "#000";
     ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-    if (title.complete && title.naturalWidth) ctx.drawImage(title, 0, 0);
+    ctx.drawImage(title, 0, 0);
 
     const x = Math.round(prev.x + (box.x - prev.x) * alpha);
     const y = Math.round(prev.y + (box.y - prev.y) * alpha);
