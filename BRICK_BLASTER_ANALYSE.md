@@ -221,9 +221,29 @@ Pour le remake : reproduire ce comportement tel quel. C'est simple et fidèle.
 
 **Cadence.** Timer `timeSetEvent(20 ms, périodique)` (appel en `0x409EC1`), soit **50 Hz**. Ce timer appelle un gestionnaire d'interruption DOS émulé. Que la logique avance d'un pas par tick est **probable** (la vitesse paraît correcte en jeu), mais pas prouvé.
 
-**Déplacement sans traverser les briques.** À chaque tick, le trajet est découpé en `n = min(max(|dx|, |dy|) + 1, 18)` sous-pas, en virgule fixe 16.16 (`0x404098`, `0x4040D0`). On teste les coins de la balle à chaque sous-pas. C'est l'équivalent du « sous-pas » recommandé au §7.
+**Création de la balle** (`0x40225E`). Taille 9 × 9, sprite `0x1680`. Bornes : x de 112 (`0x70`) à `0x210 − 9` = 519, et y de 0 à `0x1E0 − 9` = 471. `+0x59 = 1` : la balle rebondit sur les briques (le bonus `iron_ball` le met à 0). `+0x5D = Freq_Change_Speed`. Au service, elle est posée au centre de la raquette (`0x404FDC`) : `y = raquette.y − h`, `x = raquette.x + l/2 − w/2`.
 
-**Murs.** Si la prochaine position sort des bornes, `dx` ou `dy` change de signe. Exception : une balle de type 7 n'est pas renvoyée, elle disparaît en sortant. C'est sans doute un projectile, ce qui expliquerait aussi qu'elle ignore les téléporteurs.
+**Ordre d'un tick** (`0x403932`, pour chaque balle) :
+1. raquette J1 puis J2 (sautées si l'état vaut −3) ;
+2. murs ;
+3. briques ;
+4. monstres ;
+5. déplacement `x += dx`, `y += dy` (`0x403DEF`) ;
+6. test de balle perdue ;
+7. accélération.
+
+Tous les rebonds sont donc décidés **avant** le déplacement, sur la trajectoire à venir.
+
+**Déplacement sans traverser les briques** (`0x4042BC`). C'est l'équivalent du « sous-pas » recommandé au §7.
+- `n = min(max(|dx|, |dy|) + 1, 18)` (`0x404098`). Une balle immobile n'est pas testée.
+- Deux **coins** sont suivis (`0x4040D0`). Si `dx` et `dy` ont le même signe : A = (x+w, y) et B = (x, y+h). Sinon : A = (x, y) et B = (x+w, y+h). Les bornes utilisées sont x+w et y+h, pas x+w−1.
+- Chaque coin parcourt sa trajectoire en virgule fixe 16.16 : `pos += (fin − pos) / restants`, division tronquée, et le dernier point tombe exactement sur l'arrivée (`0x4041D2`). Le point 0 est stocké avec un `sar 1` au lieu de `sar 0x10`. Il tombe toujours hors de la grille, donc il ne touche jamais rien.
+- À chaque point, A puis B sont testés (`0x4043DD`). Le **premier** point qui touche donne le code `(signes << 2) | coins`, avec signes = (dx < 0 → 1) | (dy < 0 → 2) et coins = (A → 1) | (B → 2). Il n'est retenu que si `+0x59 ≠ 0`. Les points suivants sont quand même testés : ils peuvent abîmer d'autres briques. Une brique n'est touchée qu'une fois par balayage (marques en `0x411334`, effacées en fin de balayage).
+- Réponse (`0x40436A`) : codes 1, 5, 10, 14 → `dx = −dx` ; codes 2, 6, 9, 13 → `dy = −dy` ; les autres → les deux.
+
+**Murs** (`0x404022`). Si `x + dx ≥ xmax` ou `x + dx ≤ xmin` (comparaison non signée), `dx` change de signe. Même chose ensuite pour y. La balle **rebondit aussi en bas de l'écran**. Exception : une balle de type 7 (projectile) n'est pas renvoyée, elle disparaît en sortant, et elle ignore aussi les téléporteurs.
+
+**Balle perdue** (`0x4049B5`). Si `dy ≥ 0` et que le centre de la balle atteint `0x1A0 + hauteur_raquette/2` = 428, l'état passe à −3 : la balle ne voit plus la raquette. Au premier tick où `dy < 0` (en pratique après le rebond sur le bas) et `y + h ≤ 480`, une balle à −3 disparaît (état 0, son `pertebal`).
 
 **Rebond sur la raquette** (`0x404610`, J2 en `0x40476A`). Raquette : x `[0x413D1D]`, y `[0x413D21]`, largeur `[0x413CE1]` (74 px au départ).
 
@@ -241,6 +261,11 @@ sinon (centre) si mode == 1 :
         mode = 0 ; dx -= s ; dy -= 1            // retour à l'angle raide
 ```
 
+Précisions tirées du code :
+- Le test ne vérifie **que le haut** de la raquette : `y + h ≥ raquette.y`, `x + w ≥ raquette.x` et `x < raquette.x + largeur`. Une balle qui descend et se trouve déjà plus bas rebondit encore.
+- Les bords sont jugés sur le **bord droit** de la balle (x+w) quand elle va à droite, et sur son **bord gauche** (x) quand elle va à gauche.
+- « Rasant » fait littéralement `dy += 1` et « raide » `dy −= 1`. C'est le renvoi `dx = −dx` qui passe par l'anti-boucle, pas l'inversion de `dy`.
+
 L'angle n'est donc **pas continu** : il n'existe que **deux angles** par vitesse (raide ou rasant), plus le renvoi par le bord arrière. C'est la clé de la sensation d'origine. Un remake avec angle continu « selon le point d'impact » jouerait différemment.
 
 **Accélération progressive** (`0x403F50`). Le compteur `+0x5D` ne baisse que **quand la balle monte**. À 0, le jeu joue un son, recharge le compteur avec `[0x4111A9]`, puis fait `|dx| += 1` et `|dy| += 1`, dans la limite de `|dx| ≤ 14 + mode` et `|dy| ≤ 15 − mode`. On a `[0x4111A9] = [0x41BB70] − 17 × (niveau − 1)` (`0x404DB4`) : l'accélération vient plus vite à chaque niveau. `[0x41BB70]` est bien `Freq_Change_Speed`, 1500 par défaut (vérifié, §5.1).
@@ -252,7 +277,18 @@ L'angle n'est donc **pas continu** : il n'existe que **deux angles** par vitesse
 
 **Lancement aléatoire** (`0x4024C0`, contexte d'appel à préciser) : `dx = 2..4`, `dy = dx + 1`. Puis, une fois sur deux, `dx -= 1`. Une fois sur deux, on bascule en mode rasant (`dx += 1`, `dy -= 1`, `mode = 1`). Enfin, les signes de `dx` et `dy` sont tirés au hasard.
 
-**Anti-boucle infinie** (`0x4051E3`, appelé à chaque rebond sur un mur). Tous les 60 rebonds, le jeu mémorise la position de la balle. S'il la retrouve exactement au même endroit 3 fois, il force un changement de mode d'angle pour sortir du cycle.
+**Anti-boucle infinie** (`0x4051E3`). La routine est appelée à chaque inversion par `0x40407C` ou `0x40408A` : murs, briques, bord arrière de la raquette. Elle n'agit qu'en partie (`[0x411000] = 3`) et pas sur les monstres.
+
+```
+si compteur == 0 ou compteur == 60 :
+    compteur = 0 ; égalités = 0 ; mémoriser (x, y)
+compteur += 1
+si (x, y) == position mémorisée :
+    égalités += 1                       // l'appel qui mémorise compte déjà
+    si égalités == 3 :
+        égalités = 0
+        si mode == 0 : angle rasant (si |dx| < 14)   sinon : angle raide
+```
 
 **Objets mobiles.** Balles, capsules, monstres et projectiles partagent la même structure de 0xA1 octets. Les tableaux sont contigus en mémoire :
 

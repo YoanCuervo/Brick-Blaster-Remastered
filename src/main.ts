@@ -4,10 +4,19 @@ import { Difficulty, forDifficulty } from "./data/config";
 import { WORLDS, worldImage } from "./data/images";
 import { LEVEL_COLS, LEVEL_ROWS } from "./data/levels";
 import { paletteColor } from "./data/palette";
+import { BallState, type BrickProbe, createBall, placeOnPaddle, updateBall } from "./game/ball";
 import { clampPaddleX, createPaddle, movePaddle } from "./game/paddle";
 import { KeyState, keyboardDx, keyboardSpeed } from "./input/keyboard";
 import { MouseAccumulator, bindPointerLock } from "./input/mouse";
-import { BRICK_H, BRICK_W, PADDLE_SPRITE, brickSprite, drawSprite, spriteAt } from "./render/atlas";
+import {
+  BALL_SPRITE,
+  BRICK_H,
+  BRICK_W,
+  PADDLE_SPRITE,
+  brickSprite,
+  drawSprite,
+  spriteAt,
+} from "./render/atlas";
 import { BitmapFont } from "./render/font";
 import { SCREEN_HEIGHT, SCREEN_WIDTH, Screen } from "./render/screen";
 
@@ -18,14 +27,38 @@ const { ctx } = screen;
 
 const assets = await loadAssets();
 
-// Temporary scene until levels and the game state exist: bricks of one level and the paddle.
+// Temporary scene until the game state exists (task 7): bricks bounce the ball but do not break.
 let worldIndex = 0;
 const levelIndex = 1;
 const paddle = createPaddle();
 const mouse = new MouseAccumulator();
 bindPointerLock(canvas, mouse);
 const keys = new KeyState();
-const keySpeed = keyboardSpeed(forDifficulty(assets.config.startSpeed, Difficulty.Medium));
+const startSpeed = forDifficulty(assets.config.startSpeed, Difficulty.Medium);
+const keySpeed = keyboardSpeed(startSpeed);
+
+const ball = createBall(assets.config.freqChangeSpeed);
+let served = false;
+let prevBall = { x: 0, y: 0 };
+const level = () => assets.levels.lv0[levelIndex]!;
+const probe: BrickProbe = {
+  hit(x, y) {
+    if (x < 0 || y < 0 || x >= 0x210) return false;
+    const cell = level()[y >> 4]?.[Math.max(x - 0x70, 0) >> 5];
+    return cell !== undefined && cell !== 0;
+  },
+};
+function serve() {
+  if (served) return;
+  served = true;
+  ball.state = BallState.Active;
+  ball.dx = startSpeed;
+  ball.dy = -(startSpeed + 1);
+  ball.mode = 0;
+}
+canvas.addEventListener("click", () => {
+  if (document.pointerLockElement === canvas) serve();
+});
 
 let showStats = true;
 const stats = { ticks: 0, frames: 0, tps: 0, fps: 0, since: performance.now() };
@@ -34,6 +67,7 @@ window.addEventListener("keydown", (e) => {
   if (e.code === "KeyF") void screen.toggleFullscreen();
   if (e.code === "KeyS") showStats = !showStats;
   if (e.code === "KeyW") worldIndex = (worldIndex + 1) % WORLDS.length;
+  if (e.code === "Space") serve();
 });
 
 startLoop({
@@ -41,18 +75,27 @@ startLoop({
     const dx =
       mouse.take() + keyboardDx(keys.isDown("ArrowLeft"), keys.isDown("ArrowRight"), keySpeed);
     movePaddle(paddle, dx);
+    prevBall = { x: ball.x, y: ball.y };
+    if (served) {
+      updateBall(ball, paddle, probe, assets.config.freqChangeSpeed);
+      if (ball.state === BallState.Dead) served = false;
+    }
+    if (!served) {
+      placeOnPaddle(ball, paddle);
+      prevBall = { x: ball.x, y: ball.y };
+    }
     stats.ticks++;
   },
-  render() {
+  render(alpha) {
     ctx.fillStyle = "#000";
     ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
     const world = WORLDS[worldIndex]!;
     const sheet = assets.images.get(worldImage(world, "sprite_sheet"))!;
-    const level = assets.levels.lv0[levelIndex]!;
+    const grid = level();
     for (let row = 0; row < LEVEL_ROWS; row++) {
       for (let col = 0; col < LEVEL_COLS; col++) {
-        const brick = brickSprite(level[row]![col]!);
+        const brick = brickSprite(grid[row]![col]!);
         if (brick) {
           const ref = spriteAt(brick.address, BRICK_W, BRICK_H);
           drawSprite(ctx, sheet, ref, 112 + col * BRICK_W, row * BRICK_H);
@@ -60,7 +103,14 @@ startLoop({
       }
     }
     // Drawn with the mouse movement of the current tick already applied, to cut visible lag.
-    drawSprite(ctx, sheet, PADDLE_SPRITE, clampPaddleX(paddle, paddle.x + mouse.peek()), paddle.y);
+    const paddleX = clampPaddleX(paddle, paddle.x + mouse.peek());
+    drawSprite(ctx, sheet, PADDLE_SPRITE, paddleX, paddle.y);
+    // The ball is interpolated between ticks; a ball waiting on the paddle follows it.
+    const bx = served
+      ? Math.round(prevBall.x + (ball.x - prevBall.x) * alpha)
+      : ball.x + paddleX - paddle.x;
+    const by = served ? Math.round(prevBall.y + (ball.y - prevBall.y) * alpha) : ball.y;
+    drawSprite(ctx, sheet, BALL_SPRITE, bx, by);
 
     const font = new BitmapFont(
       assets.images.get(worldImage(world, "font"))!,
