@@ -92,3 +92,21 @@ export function drawSprite(
 ): void {
   ctx.drawImage(sheet, ref.x, ref.y, ref.w, ref.h, x, y, ref.w, ref.h);
 }
+
+/** Spare-life icons, 9 × 9 every 12 px, taken from the right of the sheet's top row (0x405BC1). */
+export const LIFE_ICONS = 0x277;
+export const LIFE_ICON_PITCH = 0xc;
+export const LIFE_ICON_SIZE = 9;
+
+/**
+ * Strip ending at the sheet's right edge, widened to the left by 12 px per spare
+ * life. Its last 9 px are blank, so it shows exactly `lives` icons.
+ */
+export function lifeIcons(lives: number): SpriteRef {
+  const n = Math.max(lives, 0);
+  return spriteAt(
+    LIFE_ICONS - LIFE_ICON_PITCH * n,
+    LIFE_ICON_SIZE + LIFE_ICON_PITCH * n,
+    LIFE_ICON_SIZE,
+  );
+}

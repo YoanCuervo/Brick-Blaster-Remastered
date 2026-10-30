@@ -38,14 +38,16 @@ export interface Ball {
   loopMatches: number;
   loopX: number;
   loopY: number;
+  /** Offset on the paddle while the ball is stuck to it [+0x95], null when free [+0x91]. */
+  stuckOffset: number | null;
 }
 
 export type BallEvent = "paddle" | "speedUp" | "lost";
 
-/** Bricks seen by the sweep; task 7 plugs the live grid in. */
+/** Bricks seen by the sweep. */
 export interface BrickProbe {
   /** Tests (and damages) the cell under a pixel; true when the ball must bounce. */
-  hit(x: number, y: number): boolean;
+  hit(x: number, y: number, ball: Ball): boolean;
   /** End of one ball's sweep: the original clears its once-per-sweep marks here (0x404359). */
   endSweep?(): void;
 }
@@ -71,6 +73,7 @@ export function createBall(freqChangeSpeed: number): Ball {
     loopMatches: 0,
     loopX: 0,
     loopY: 0,
+    stuckOffset: null,
   };
 }
 
@@ -78,6 +81,11 @@ export function createBall(freqChangeSpeed: number): Ball {
 export function placeOnPaddle(ball: Ball, paddle: Paddle): void {
   ball.y = paddle.y - ball.h;
   ball.x = paddle.x + (paddle.w >> 1) - (ball.w >> 1);
+}
+
+/** 0x4048F7: sticks the ball where it touches the paddle, kept within its width. */
+export function stickToPaddle(ball: Ball, paddle: Paddle): void {
+  ball.stuckOffset = Math.min(Math.abs(ball.x - paddle.x), paddle.w - ball.w);
 }
 
 /** 0x404963: +1 for dx ≥ 0, −1 otherwise. */
@@ -224,8 +232,8 @@ export function brickSweep(ball: Ball, probe: BrickProbe): number {
   let code = 0;
   for (let i = 1; i < n; i++) {
     let corners = 0;
-    if (probe.hit(tAx[i]!, tAy[i]!)) corners |= 1;
-    if (probe.hit(tBx[i]!, tBy[i]!)) corners |= 2;
+    if (probe.hit(tAx[i]!, tAy[i]!, ball)) corners |= 1;
+    if (probe.hit(tBx[i]!, tBy[i]!, ball)) corners |= 2;
     if (corners !== 0 && ball.bouncesOnBricks && code === 0) code = (signs << 2) | corners;
   }
   applyBounceCode(ball, code);
@@ -233,8 +241,17 @@ export function brickSweep(ball: Ball, probe: BrickProbe): number {
   return code;
 }
 
-/** 0x403DEF */
-export function moveBall(ball: Ball): void {
+/**
+ * 0x403D8E: a stuck ball follows the paddle until fire is held (0x403E02), then
+ * leaves on the same tick. 0x403DEF is the move itself.
+ */
+export function moveBall(ball: Ball, paddle?: Paddle, fire = false): void {
+  if (ball.stuckOffset !== null && paddle) {
+    ball.x = paddle.x + ball.stuckOffset;
+    ball.y = paddle.y - ball.h;
+    if (!fire) return;
+    ball.stuckOffset = null;
+  }
   ball.x += ball.dx;
   ball.y += ball.dy;
 }
@@ -279,13 +296,14 @@ export function updateBall(
   paddle: Paddle,
   probe: BrickProbe,
   speedInterval: number,
+  fire = false,
 ): BallEvent[] {
   const events: BallEvent[] = [];
   if (ball.state === BallState.Dead) return events;
   if (ball.state !== BallState.Lost && paddleBounce(ball, paddle)) events.push("paddle");
   wallBounce(ball);
   brickSweep(ball, probe);
-  moveBall(ball);
+  moveBall(ball, paddle, fire);
   if (lostCheck(ball)) events.push("lost");
   if (accelerate(ball, speedInterval)) events.push("speedUp");
   return events;

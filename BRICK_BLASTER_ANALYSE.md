@@ -195,8 +195,10 @@ repeat:
     ball.y = 100 + rand(0..216)         // 100..316, inclusif
 until aucun des 4 coins de la balle (x, y), (x+w, y), (x, y+h), (x+w, y+h)
       ne tombe sur une brique INDESTRUCTIBLE (famille 001) du niveau d'origine
-// vitesse et direction inchangées
+// vitesse inchangée
 ```
+
+**Correction (30/10/2026)** : la sonde des briques (`0x40452C`) renvoie ensuite « rebond » (`stc`). Le balayage applique donc son code de rebond à la balle téléportée, ce qui **inverse sa direction**. Les points restants du balayage sont testés sur l'ancienne trajectoire, et peuvent encore abîmer des briques. Les monstres (type 6) rebondissent sur un téléporteur sans être téléportés.
 
 - `rand(n)` (`0x404F42`) : entier uniforme dans `[0, n]` (masque à la puissance de 2 supérieure, puis tirage par rejet).
 - La zone d'arrivée est un carré de 216 × 216 px centré sur l'aire de jeu (centre ≈ 320, 208).
@@ -273,7 +275,7 @@ L'angle n'est donc **pas continu** : il n'existe que **deux angles** par vitesse
 - Bonus `fast_ball` (état `0x758D1`) : même accélération, sans attendre le compteur.
 - Bonus `slow_ball` (état `0x758B7`) : `|dx| -= 1` et `|dy| -= 1`, avec un plancher à `|dx| ≥ 1 + mode` et `|dy| ≥ 2 − mode`.
 
-**Score** (`0x40841D`). Chaque événement rapporte `u × 10` points, avec `u = base + bonus de difficulté` (+0 facile, +1 moyen, +2 difficile), doublé si le bonus `night` (« points ×2 ») est actif. Base : **1 par brique**, **3 par monstre**. Une brique vaut donc 10/20/30 points, un monstre 30/40/50. Le score plafonne à 999 990.
+**Score** (`0x40841D`). Chaque événement rapporte `u × 10` points, avec `u = base + bonus de difficulté` (+0 facile, +1 moyen, +2 difficile), doublé si le bonus `night` (« points ×2 ») est actif. Base : **1 par brique**, **3 par monstre**. Une brique vaut donc 10/20/30 points, un monstre 30/40/50. Le score plafonne à 999 990. Détail de `0x40841D` : le bonus de difficulté est ajouté avant le doublement, puis le jeu ajoute 10 points par unité tant que le score n'est pas pile à 999 990.
 
 **Lancement aléatoire** (`0x4024C0`, contexte d'appel à préciser) : `dx = 2..4`, `dy = dx + 1`. Puis, une fois sur deux, `dx -= 1`. Une fois sur deux, on bascule en mode rasant (`dx += 1`, `dy -= 1`, `mode = 1`). Enfin, les signes de `dx` et `dy` sont tirés au hasard.
 
@@ -371,6 +373,91 @@ En résumé, un monstre est un **obstacle mobile qui perturbe la trajectoire des
 - le reste fractionnaire est conservé d'un tick à l'autre ;
 - le rejeu d'un tick sans mouvement n'est pas reproduit (artefact d'époque) ;
 - le joueur 1 a aussi le clavier, selon la règle du J2.
+
+### 4.5 Déroulement d'une partie (vérifié dans le code, 30/10/2026)
+
+**Grille vivante** (`0x404D08`). Chaque octet du niveau passe par `0x404DD0`. La grille garde `octet & 0x1F` une fois le nombre de coups ramené à 4. Cela donne 1 à 4 pour les cassables, **`0x0C`** pour une indestructible et **`0x1C`** pour un téléporteur : la famille est conservée et les coups sont forcés à 4. L'adresse du sprite de chaque case va dans la table `0x411640`.
+
+**Collision avec une brique** (`0x4043DD`, en entier) :
+
+| Case | Effet | Rebond |
+|---|---|---|
+| cassable (1..7) déjà marquée dans ce balayage | rien | non |
+| cassable, objet de type 6 (monstre) | marquée, rien d'autre | oui |
+| cassable, reste > 0 après −1 | sprite +0x21, son `wall` | oui |
+| cassable, 0 après −1 | effacée, score 1 unité, tirage de bonus (`0x40531A`), son `bounce` | non si l'ancien sprite est un sprite fantôme, oui sinon |
+| indestructible (`0x08..0x17`) | son `wall`, clignotement : sprite +0x35200 s'il est < 0xF4C9. Jamais marquée | oui |
+| téléporteur (≥ `0x18`) | téléportation (§4.1), son `telepod` | oui |
+
+Un monstre rebondit sur les indestructibles et les téléporteurs sans aucun effet.
+
+**Animations de la grille**, à chaque tick, y compris pendant les attentes :
+- clignotement (`0x405D57`) : une indestructible dont le sprite est ≥ 0xF4C9 recule de 0xAA00. Il faut 5 ticks pour revenir au sprite normal. L'image +5 est remplacée dans le tick même de l'impact : on en voit 4, puis le sprite normal ;
+- téléporteurs (`0x405CB2`) : tous les 5 ticks, ils sont redessinés avec le décalage courant, puis ce décalage avance de 0x21 et revient à 0 à 0xC6, soit 6 images.
+
+**Nombre de niveaux** (`0x404E96`) : les emplacements qui précèdent le premier emplacement vide (`0xFF`), soit 50.
+
+**Manche** (`0x401DB5`). Le jeu crée une nouvelle balle (`0x40222D`) et remet la raquette à x 283 et à sa taille normale (`0x40256C`). Il recharge la grille, sauf après une vie perdue (mode 6, `0x404D0D`). Puis `0x404FBE` efface le bonus actif, pose la balle au milieu de la raquette et la **colle** : décalage = `min(|balle.x − raquette.x|, largeur − 9)` (`0x4048F7`).
+
+**Attente du service** (modes 2 et 6, `0x405093`). Les balles ne sont pas mises à jour (`0x403913`), et la balle est recentrée sur la raquette à chaque tick. Le tir (`0x406FE1` : joystick, Ctrl ou bouton de souris) passe en mode 3, efface le message et fixe la vitesse (`0x40513F`) :
+
+```
+q  = niveau / (nb_niveaux / Nbs_Change_Speed_Level[diff])     // divisions entières
+dx = Start_Speed[diff] + q
+dy = −(dx + 1)                                                // toujours vers la droite et vers le haut
+```
+
+Avec 50 niveaux en moyen (3, 3) : dx = 3 jusqu'au niveau 15, 4 à partir du 16, 5 à partir du 32, 6 à partir du 48.
+
+Une balle collée suit la raquette (`x = raquette.x + décalage`, `y = raquette.y − 9`). Elle part dès que le bouton de souris est tenu (`0x403E02`, `0x407065`). Comme `0x405093` passe avant `0x403913` dans la boucle, un clic sert la balle et elle part dans le même tick. Tant qu'elle est collée en « montant », son compteur d'accélération tourne déjà.
+
+**Ordre de la boucle principale** (`0x401DFB`), pour la partie décodée : vie supplémentaire (`0x40600B`), raquette, attente du service (`0x405093`), balles (`0x403913`), animations des objets (`0x4066BA`), vie perdue (`0x404A38`), fin de niveau (`0x4045B2`), animations de la grille.
+
+**Vie supplémentaire** (`0x40600B`, en mode 3 seulement, une fois par tick). Si `score ≥ seuil`, le seuil augmente de `Extra_Life` et le joueur gagne **8 unités** de points (80/90/100). Le message « vie en plus » s'affiche. Puis `0x405FB1` joue `newlife`, ajoute une vie (plafond : 19 en réserve) et **efface le bonus actif**.
+
+**Vie perdue** (`0x404A38`, en mode 3). Le jeu compte les balles du joueur à l'état 1 ou −3. S'il n'en reste aucune (ou une seule en coop), `0x404AED` efface le bonus actif et son compteur, puis retire une vie. La réserve vaut `Nbs_Life − 1` au départ.
+- S'il reste une vie (réserve ≥ 0) : mode 6, message « joue encore », `0x404C66`, message « pret ? », son `restart`, vies redessinées (`0x405BC1`), puis nouvelle manche sur la **même grille**.
+- À −1 : mode 5, message « game over », `0x404C66`, `0x408AD9` (non décodé, sans doute les meilleurs scores), puis mode 7. En mode 7, la boucle attend le tir puis **relance une partie** (`0x401FB4`) : niveau `Start_Level`, vies et score remis à zéro, son `restart`. Ce point est probable, tant que `0x408AD9` n'est pas lu.
+
+`0x404C66` joue `boom` et `death`, puis fait exploser la raquette (`0x40303F`). La raquette devient un objet animé de 118 × 70, placé à x − 21 et y 392 (sprite `0x1C701`, 8 images espacées de 0xB180, une étape tous les 5 ticks). Le jeu attend que `+0x65` vaille 2 (35 ticks, image 6), cache la raquette et attend encore 75 ticks.
+
+La vie perdue est testée **avant** la fin de niveau : si la dernière balle et la dernière brique disparaissent dans le même tick, c'est la perte de vie qui l'emporte.
+
+**Fin de niveau** (`0x4045B2`, dans tous les modes sauf 4). Le niveau est fini quand aucune case de la grille ne vaut 1 à 7 : un niveau vide est donc fini aussitôt. Le bonus `next_level` (`0x75987`) force aussi la fin et il est alors effacé. Le jeu joue `next`, puis passe au niveau suivant (`0x401C54`) :
+- après le dernier niveau : écran de félicitations (`0x408710`, texte `final_text`), attente du tir, puis `0x408BB9`, sans animation de raquette ;
+- sinon, `0x404C00` : les balles disparaissent et la raquette « décolle » (`0x4031D1`, 92 × 43, à x − 9 et y 407, sprite `0x891E5`, 10 images espacées de 0x6E00, une étape tous les 2 ticks). Le jeu attend `+0x65 = 2` (18 ticks, image 8), cache la raquette, attend 4 ticks, fait un fondu (`0x4065EF`), charge le niveau, fait un fondu d'entrée, affiche « pret ? » (mode 2) et lance la manche. Le numéro de niveau affiché change avec la nouvelle grille (`0x404D46`).
+
+**Moteur d'animation des objets** (`0x4066BA`). Le compte à rebours `+0x6D` baisse à chaque tick. Sous 0, il est rechargé avec `+0x69` : une étape a donc lieu tous les `+0x69 + 1` ticks. À chaque étape, si `+0x65 > 1`, l'objet passe à l'image suivante (adresse + largeur + `+0x71`) et `+0x65` baisse de 1. Sinon, il revient à la première image et `+0x65 = +0x61`. Un objet démarre avec `+0x65 = 1` : sa première étape le ramène donc à l'image 0.
+
+**Affichage pendant la partie.** Les textes sont écrits dans une zone libre de la planche de sprites, puis affichés comme des sprites (index 0 transparent) :
+
+| Objet | Position | Contenu |
+|---|---|---|
+| niveau (`0x40595E`) | (123, 9), 30 × 22 | 2 chiffres |
+| score (`0x405842`) | (426, 9), 90 × 22 | 6 chiffres |
+| message (`0x4057B4`) | (195, 446), 270 × 22 | 18 caractères (`option_text_*` du cfg) |
+| bonus actif (`0x4058D0`) | (122, 446), 26 × 24 | capsule |
+| vies (`0x4059EC`, `0x405BC1`) | x = 518 − 12n, y 458 | bande de la planche en (631 − 12n, 0), de (9 + 12n) × 9 px |
+
+La bande des vies finit au bord droit de la planche, dont les 9 derniers pixels sont vides. On voit donc exactement **n icônes**, n étant le nombre de vies en réserve. Elle n'est redessinée que par `0x405BC1`, après une vie perdue ou gagnée : pendant l'explosion, l'ancien nombre reste affiché.
+
+**Sons** (table `0x41B9BB`, fichiers `resource\*.iff`) :
+
+| Emplacement | Son | Emplacement | Son |
+|---|---|---|---|
+| `0x41B9BB` | optionon | `0x41B9DF` | night |
+| `0x41B9BF` | telepod | `0x41B9E3` | restart |
+| `0x41B9C3` | newlife | `0x41B9E7` | speedup |
+| `0x41B9C7` | small | `0x41B9EB` | monstoff |
+| `0x41B9CB` | large | `0x41B9EF` | wall |
+| `0x41B9CF` | next | `0x41B9F3` | bounce |
+| `0x41B9D3` | death | `0x41B9F7` | pertebal |
+| `0x41B9D7` | shoot | `0x41B9FB` | boom |
+| `0x41B9DB` | endopt | | |
+
+Le rebond sur la raquette joue `wall` (`0x4046E0`), l'accélération `speedup` (`0x403F7F`) et la balle perdue `pertebal`. Les rebonds sur les murs sont muets.
+
+**Remake** : pas encore de fondu ni d'écran de félicitations (tâches 8 et 14). La raquette reste figée pendant les animations, puisque l'original la remplace par l'objet animé (probable). Le tir est le bouton de souris ou Espace. Un clic plus court qu'un tick est mémorisé jusqu'au tick suivant.
 
 ## 5. Configuration du gameplay (`blaster.cfg` décompressé) — vérifié
 
@@ -608,6 +695,7 @@ Graphismes, sons, musiques et niveaux appartiennent à Eclipse / leurs auteurs (
 - La démo plante si le set de niveaux contient des emplacements vides (`0xFF`) parmi ceux qu'elle tire au sort : un set de test doit remplir 50 emplacements.
 - Correspondance exacte entre noms de fichiers `.mod` et titres de modules (seuls `thelast` et `rain` sont évidents).
 - Quel set de niveaux correspond à quel monde (lv0 / lv1).
+- Rôle exact de `0x408AD9` après un game over (meilleurs scores ?) et du retour au menu (§4.5).
 - Contenu de `blaster.scr` une fois déchiffré, et des `.usr` : sans importance pour le remake.
 - Routines d'effet de chaque bonus pris un par un (adresses dans la table §5.2), en particulier `ghost`, `collision`, `reverse` et `telepod`.
 - Rôle de l'octet patché à l'offset 28850.
