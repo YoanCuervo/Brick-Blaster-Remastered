@@ -68,6 +68,9 @@ export function brickSprite(byte: number, gameMode = 0): BrickSprite | null {
   return { address, cell: b & 0x1f };
 }
 
+/** Player 1 paddle, 74 × 25 (0x4025E1). */
+export const PADDLE_SPRITE = spriteAt(0x6900, 0x4a, 0x19);
+
 export const CAPSULE_W = 0x1a;
 export const CAPSULE_H = 0x18;
 const CAPSULE_FIRST = 0x75801;

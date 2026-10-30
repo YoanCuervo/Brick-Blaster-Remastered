@@ -311,6 +311,31 @@ Le bonus `add_monster` (« invocation monstre ») appelle directement la même r
 
 En résumé, un monstre est un **obstacle mobile qui perturbe la trajectoire des balles** et rapporte des points. Il n'est jamais une menace directe.
 
+### 4.4 Raquette et entrées (vérifié dans le code, 30/10/2026)
+
+**Objet raquette** (`0x4025B0`, structure de 0xA1 octets en `0x413CDC`) :
+- largeur `0x4A` = 74, hauteur `0x19` = 25, sprite `0x6900`, soit (0, 42) dans la planche (§3.5) ;
+- y fixe : 416 (`0x1A0`), avec bornes y min = max ;
+- x borné entre 112 (`0x70`) et `0x210 − largeur` (528 − 74 = 454) ;
+- départ centré en x = `0x140 − 0x25` = 283. En 2 joueurs (`0x40256C`), J1 part à +80 px et J2 à −80 px du centre.
+
+**Souris** (`0x406DFF`, appelé à chaque tick) :
+1. `int 33h` fonction `0Bh` (DOS émulé) : déplacement relatif depuis la lecture précédente, en mickeys.
+2. Décalage par `Mouse_Speed` (`0x406F3C`) : `d << n` si positif, `d >> |n|` si négatif. D'où le réglage limité aux entiers.
+3. Bonus `reverse` (`0x7596D`) actif : `d = −d`.
+4. `0x406E79` : si `d = 0` alors que le tick précédent bougeait, le déplacement précédent est **rejoué une fois**. Puis `x += ⌈d/2⌉` (`sar` + `adc`) et blocage aux bornes. La verticale suit le même chemin, mais elle est bloquée par les bornes y.
+
+**Clavier** : il ne sert **qu'au joueur 2** (`0x406BB1`, contrôle J2 = clavier).
+- Flèches gauche (scancode `0x4B`) et droite (`0x4D`). La gauche est testée d'abord, elle l'emporte si les deux sont appuyées. `reverse` échange les flèches.
+- Vitesse en `[0x41B7D6]` = **2 × la vitesse de départ** de la balle (`0x4051DC`).
+- Le joueur 1 n'a que la souris. En démo, la raquette suit la balle (`0x404F64`).
+
+**Remake** :
+- la souris passe par Pointer Lock (`unadjustedMovement`), avec `x += movementX × 0,5 × sensibilité` et une sensibilité continue (1,0 = `Mouse_Speed 0`, 0,5 par défaut = `−1`) ;
+- le reste fractionnaire est conservé d'un tick à l'autre ;
+- le rejeu d'un tick sans mouvement n'est pas reproduit (artefact d'époque) ;
+- le joueur 1 a aussi le clavier, selon la règle du J2.
+
 ## 5. Configuration du gameplay (`blaster.cfg` décompressé) — vérifié
 
 Texte brut, format `Clé : (valeur) ; commentaire`. Les triplets correspondent à **(facile, moyen, difficile)**.
