@@ -42,6 +42,19 @@ SOUND_FIRST_BLOCK = 8
 
 LEVEL_COLS, LEVEL_ROWS, LEVEL_SLOTS = 13, 24, 100
 
+# blaster.cfg is read positionally (§5.1, 0x4079EE): key names are ignored, only the
+# order of the "(...)" groups matters. Triplets are (easy, medium, hard).
+BONUS_KEYS = [
+    "3_ball", "6_ball", "9_ball", "20_ball", "death", "new_life", "shoot", "slow_ball",
+    "fast_ball", "iron_ball", "telepod", "night", "small_ship", "large_ship", "reverse",
+    "next_level", "del_monster", "magnetic", "add_monster", "ghost", "bonus", "malus",
+    "mini_shoot", "collision",
+]
+CFG_SINGLES = ["editorFlag", "extraLife", "mouseSpeed", "nbsLife", "startLevel", "freqChangeSpeed"]
+CFG_TRIPLETS = ["timeBetweenOption", "freqCreateMonster", "startSpeed", "nbsChangeSpeedLevel"]
+STATUS_KEYS = ["off", "ready", "over", "again", "editor", "paused", "demo", "test"]
+MENU_COUNT, MENU_ITEMS, FINAL_LINES = 7, 4, 13
+
 
 def write(path: Path, data: bytes):
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -102,6 +115,45 @@ def parse_levels(raw: bytes) -> list:
     return levels
 
 
+def parse_cfg(text: str) -> dict:
+    groups = re.findall(r"\(([^)]*)\)", text)
+    pos = 0
+
+    def numbers(count: int) -> list:
+        nonlocal pos
+        values = [int(v) for v in groups[pos].split(",")]
+        if len(values) != count:
+            raise ValueError(f"cfg group {pos}: expected {count} numbers, got {groups[pos]!r}")
+        pos += 1
+        return values
+
+    def strings(count: int) -> list:
+        nonlocal pos
+        values = re.findall(r'"([^"]*)"', groups[pos])
+        if len(values) != count:
+            raise ValueError(f"cfg group {pos}: expected {count} strings, got {groups[pos]!r}")
+        pos += 1
+        return values
+
+    cfg = {key: numbers(1)[0] for key in CFG_SINGLES}
+    cfg["bonusFreq"] = {key: numbers(3) for key in BONUS_KEYS}
+    cfg.update({key: numbers(3) for key in CFG_TRIPLETS})
+    status = {key: strings(1)[0] for key in STATUS_KEYS}
+    bonus = {key: strings(1)[0] for key in BONUS_KEYS}
+    menu_begin = strings(2)
+    menus = [[strings(2) for _ in range(MENU_ITEMS)] for _ in range(MENU_COUNT)]
+    menu_last = strings(2)
+    final = [strings(1)[0] for _ in range(FINAL_LINES)]
+    final_dual = [strings(1)[0] for _ in range(FINAL_LINES)]
+    if pos != len(groups):
+        raise ValueError(f"cfg has {len(groups) - pos} unexpected trailing groups")
+    cfg["texts"] = {
+        "status": status, "bonus": bonus, "menuBegin": menu_begin, "menus": menus,
+        "menuLast": menu_last, "final": final, "finalDual": final_dual,
+    }
+    return cfg
+
+
 def main():
     original = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_ORIGINAL
     out = Path(sys.argv[2]) if len(sys.argv) > 2 else ROOT / "assets"
@@ -136,6 +188,11 @@ def main():
         levels[f.split(".")[1]] = parse_levels(decompress(raw) if is_diet(raw) else raw)
     (out / "levels.json").write_text(json.dumps(levels, separators=(",", ":")))
     report.append("levels.json  " + ", ".join(f"{k}: {len(v)} levels" for k, v in levels.items()))
+
+    raw = (original / "blaster.cfg").read_bytes()
+    cfg = parse_cfg((decompress(raw) if is_diet(raw) else raw).decode("ascii"))
+    (out / "config.json").write_text(json.dumps(cfg, separators=(",", ":")))
+    report.append(f"config.json  {len(cfg['bonusFreq'])} bonuses, {len(cfg['texts']['menus'])} menus")
 
     for f, dest in (("sprite0.pal", "palettes/sprite0.pal"), ("sprite1.pal", "palettes/sprite1.pal"),
                     ("blaster.flc", "video/blaster.flc"), ("blaster.ico", "icon/blaster.ico")):
