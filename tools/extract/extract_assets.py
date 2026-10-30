@@ -61,6 +61,21 @@ def write(path: Path, data: bytes):
     path.write_bytes(data)
 
 
+# In-game sprites are shown with the world palette, not the GIF's own: the world menu
+# patches the digit of "sprite0.pal" (0x40172A: space -> 0, arcade -> 1).
+WORLD_PALETTES = {"space": "sprite0.pal", "arcade": "sprite1.pal"}
+WORLD_SPRITES = ["sprite_sheet", "font", "monsters"]
+
+
+def save_world_png(src: Path, vga_palette: bytes, path: Path):
+    im = Image.open(src)
+    # 6-bit VGA DAC values, scaled like the GIF palettes (63 -> 252).
+    im.putpalette(bytes(v << 2 for v in vga_palette))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    # The blitter skips index 0 (0x406A16).
+    im.save(path, transparency=0)
+
+
 def save_png(raw: bytes, path: Path) -> tuple:
     im = Image.open(io.BytesIO(raw))
     im.load()
@@ -168,6 +183,11 @@ def main():
     for name, a, b in zip(GIF_NAMES, gifs, gifs[1:] + [eos[0]]):
         w, h = save_png(ov[a:b], out / f"{name}.png")
         report.append(f"{name}.png  {w}x{h}")
+    for world, pal in WORLD_PALETTES.items():
+        vga = (original / pal).read_bytes()
+        for name in WORLD_SPRITES:
+            save_world_png(out / f"sprites/{name}.png", vga, out / f"sprites/{world}/{name}.png")
+            report.append(f"sprites/{world}/{name}.png  ({pal}, index 0 transparent)")
 
     blocks = [decompress(ov[a:b]) for a, b in zip(eos, eos[1:] + [len(ov)])]
     if blocks[3] != blocks[0] or blocks[5] != blocks[1]:
