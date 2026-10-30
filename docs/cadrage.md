@@ -1,4 +1,4 @@
-# Cadrage — Brick Blaster 2k26
+# Cadrage — Brick Blaster Remastered
 
 > Validé le 30/10/2026. Référence technique du jeu d'origine : [`BRICK_BLASTER_ANALYSE.md`](../BRICK_BLASTER_ANALYSE.md).
 

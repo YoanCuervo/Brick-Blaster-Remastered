@@ -1,4 +1,4 @@
-# Brick Blaster 2k26
+# Brick Blaster Remastered
 
 Faithful web + Windows remake of Brick Blaster (Eclipse, 1999): original rules and assets, modern comfort.
 Scope, choices and legal: [`docs/cadrage.md`](docs/cadrage.md). Reverse-engineered rules of the original (source of truth for gameplay): [`BRICK_BLASTER_ANALYSE.md`](BRICK_BLASTER_ANALYSE.md).
