@@ -82,13 +82,22 @@ BACKGROUND_COLORS = 16
 WORLD_BACKGROUNDS = 8
 
 
-def repalette_background(path: Path, vga_palette: bytes):
+def repalette_background(path: Path, vga_palette: bytes) -> list:
     im = Image.open(path)
     pal = list(v << 2 for v in vga_palette)
     pal[: BACKGROUND_COLORS * 3] = im.getpalette()[: BACKGROUND_COLORS * 3]
     pal[0:3] = pal[45:48] = [0, 0, 0]
     im.putpalette(pal)
     im.save(path)
+    return [pal[i * 3:i * 3 + 3] for i in range(BACKGROUND_COLORS)]
+
+
+# Sprite pixels of index 1..15 therefore show the current background's colours. Only the
+# sprite sheet has such pixels where it is drawn (walls, some paddles): in font.gif and
+# monster.gif they sit on the frame markers only. The mask keeps the index, 0 elsewhere.
+def save_low_mask(src: Path, path: Path):
+    im = Image.open(src)
+    im.point(lambda v: v if v < BACKGROUND_COLORS else 0, "L").save(path)
 
 
 def save_png(raw: bytes, path: Path) -> tuple:
@@ -198,14 +207,20 @@ def main():
     for name, a, b in zip(GIF_NAMES, gifs, gifs[1:] + [eos[0]]):
         w, h = save_png(ov[a:b], out / f"{name}.png")
         report.append(f"{name}.png  {w}x{h}")
+    save_low_mask(out / "sprites/sprite_sheet.png", out / "sprites/sprite_sheet_low.png")
+    report.append("sprites/sprite_sheet_low.png  (index 1..15 mask)")
+    bg_palettes = {}
     for world, pal in WORLD_PALETTES.items():
         vga = (original / pal).read_bytes()
         for name in WORLD_SPRITES:
             save_world_png(out / f"sprites/{name}.png", vga, out / f"sprites/{world}/{name}.png")
             report.append(f"sprites/{world}/{name}.png  ({pal}, index 0 transparent)")
         for n in range(1, WORLD_BACKGROUNDS + 1):
-            repalette_background(out / f"backgrounds/{world}_{n}.png", vga)
+            name = f"{world}_{n}"
+            bg_palettes[name] = repalette_background(out / f"backgrounds/{name}.png", vga)
         report.append(f"backgrounds/{world}_1..{WORLD_BACKGROUNDS}.png  in-game palette ({pal})")
+    (out / "backgrounds/palettes.json").write_text(json.dumps(bg_palettes, separators=(",", ":")))
+    report.append(f"backgrounds/palettes.json  colours 0..{BACKGROUND_COLORS - 1} of {len(bg_palettes)} backgrounds")
 
     blocks = [decompress(ov[a:b]) for a, b in zip(eos, eos[1:] + [len(ov)])]
     if blocks[3] != blocks[0] or blocks[5] != blocks[1]:

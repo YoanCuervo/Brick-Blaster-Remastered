@@ -18,12 +18,16 @@ export const WORLD_BACKGROUNDS = 8;
 export const backgroundImage = (world: World, level: number) =>
   `backgrounds/${world}_${((level - 1) & (WORLD_BACKGROUNDS - 1)) + 1}`;
 
+/** Indices 1..15 of the sprite sheet, recoloured per background (�3.5, render/recolor.ts). */
+export const SHEET_LOW_MASK = "sprites/sprite_sheet_low";
+
 /** Every PNG written by tools/extract/extract_assets.py, without extension. */
 export const IMAGE_NAMES = [
   "backgrounds/title",
   "backgrounds/media",
   ...WORLDS.flatMap((world) => range(`backgrounds/${world}`, WORLD_BACKGROUNDS)),
   "sprites/sprite_sheet",
+  SHEET_LOW_MASK,
   "sprites/font",
   "sprites/menu",
   "sprites/monsters",
