@@ -110,3 +110,10 @@ export function lifeIcons(lives: number): SpriteRef {
     LIFE_ICON_SIZE,
   );
 }
+
+/** Side walls laid on the background in 0x40575F: 42 × 96 tiles, 5 high. */
+export const WALL_W = 0x2a;
+export const WALL_H = 0x60;
+export const WALL_TILES = 5;
+export const WALL_LEFT = spriteAt(0x5f743, WALL_W, WALL_H);
+export const WALL_RIGHT = spriteAt(0x50743, WALL_W, WALL_H);

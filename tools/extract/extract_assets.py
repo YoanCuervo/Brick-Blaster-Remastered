@@ -76,6 +76,21 @@ def save_world_png(src: Path, vga_palette: bytes, path: Path):
     im.save(path, transparency=0)
 
 
+# In game a background only brings palette entries 0..15, with 0 and 15 forced to black
+# (0x407430); entries 16..255, used by the side decor, stay those of the world palette.
+BACKGROUND_COLORS = 16
+WORLD_BACKGROUNDS = 8
+
+
+def repalette_background(path: Path, vga_palette: bytes):
+    im = Image.open(path)
+    pal = list(v << 2 for v in vga_palette)
+    pal[: BACKGROUND_COLORS * 3] = im.getpalette()[: BACKGROUND_COLORS * 3]
+    pal[0:3] = pal[45:48] = [0, 0, 0]
+    im.putpalette(pal)
+    im.save(path)
+
+
 def save_png(raw: bytes, path: Path) -> tuple:
     im = Image.open(io.BytesIO(raw))
     im.load()
@@ -188,6 +203,9 @@ def main():
         for name in WORLD_SPRITES:
             save_world_png(out / f"sprites/{name}.png", vga, out / f"sprites/{world}/{name}.png")
             report.append(f"sprites/{world}/{name}.png  ({pal}, index 0 transparent)")
+        for n in range(1, WORLD_BACKGROUNDS + 1):
+            repalette_background(out / f"backgrounds/{world}_{n}.png", vga)
+        report.append(f"backgrounds/{world}_1..{WORLD_BACKGROUNDS}.png  in-game palette ({pal})")
 
     blocks = [decompress(ov[a:b]) for a, b in zip(eos, eos[1:] + [len(ov)])]
     if blocks[3] != blocks[0] or blocks[5] != blocks[1]:

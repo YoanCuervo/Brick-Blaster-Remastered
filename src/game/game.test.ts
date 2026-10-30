@@ -9,6 +9,7 @@ import {
 } from "../data/config";
 import { LEVEL_COLS, LEVEL_ROWS, type Level } from "../data/levels";
 import { BallState } from "./ball";
+import { FADE_STEPS } from "../render/fade";
 import { Game, GameMode, serveSpeed, speedInterval } from "./game";
 
 const t = (v: number): Triplet => [v, v, v];
@@ -46,11 +47,21 @@ function level(bytes: number[] = [0x21]): Level {
   );
 }
 
+/** Load tick (0x407336) then one tick per fade step (0x406681). */
+const FADE_IN_TICKS = 1 + FADE_STEPS;
+
 /** Pads the set to 50 levels: the serve speed divides by levelCount / 3. */
-function game(levels: Level[] = [level()], over: Partial<GameConfig> = {}, count = 50) {
+function newGame(levels: Level[] = [level()], over: Partial<GameConfig> = {}, count = 50) {
   const set = [...levels];
   while (set.length < count) set.push(level());
   return new Game(config(over), set, Difficulty.Medium, new Rng(1));
+}
+
+/** A new game past its fade in, waiting for the serve. */
+function game(levels?: Level[], over?: Partial<GameConfig>, count?: number) {
+  const g = newGame(levels, over, count);
+  for (let i = 0; i < FADE_IN_TICKS; i++) g.tick({ paddleDx: 0, fire: false });
+  return g;
 }
 
 const idle = { paddleDx: 0, fire: false };
@@ -167,8 +178,35 @@ describe("level end (0x4045B2, 0x401C54)", () => {
     ticks(g, 3);
     expect(g.paddleAnim?.visible).toBe(false);
     g.tick(idle);
+    expect(g.mode).toBe(GameMode.FadeOut);
+  });
+
+  it("fades out, loads the background, fades in, then starts the round", () => {
+    const g = game([level([]), level([0x21, 0x24])]);
+    until(g, GameMode.FadeOut);
+    const seen: number[] = [];
+    for (let i = 0; i < FADE_STEPS; i++) {
+      g.tick(idle);
+      seen.push(g.fade);
+    }
+    expect(seen).toEqual(Array.from({ length: FADE_STEPS }, (_, k) => k));
+    expect(g.bare).toBe(false);
+    expect(g.paddleAnim?.visible).toBe(false);
+    expect(g.level).toBe(1);
+    expect(g.mode).toBe(GameMode.FadeIn);
+    // Load tick, still dark, background only.
+    g.tick(idle);
+    expect([g.bare, g.fade, g.level]).toEqual([true, FADE_STEPS - 1, 2]);
+    const back: number[] = [];
+    for (let i = 0; i < FADE_STEPS; i++) {
+      expect(g.mode).toBe(GameMode.FadeIn);
+      g.tick(idle);
+      back.push(g.fade);
+    }
+    expect(back).toEqual(Array.from({ length: FADE_STEPS }, (_, k) => FADE_STEPS - 1 - k));
     expect(g.mode).toBe(GameMode.Ready);
-    expect(g.level).toBe(2);
+    expect(g.bare).toBe(false);
+    expect(g.paddleAnim).toBeNull();
     expect(g.grid.cells[130]).toBe(1);
     expect(g.paddle.x).toBe(283);
   });
@@ -217,8 +255,12 @@ describe("lost life (0x404A38, 0x404AED)", () => {
     g.tick(idle);
     expect(g.mode).toBe(GameMode.GameOverWait);
     g.tick(fire);
-    expect(g.mode).toBe(GameMode.Ready);
+    // 0x401FB4 goes back to 0x401D4C: no fade out, background load and fade in.
+    expect(g.mode).toBe(GameMode.FadeIn);
+    expect(g.bare).toBe(true);
     expect(g.player).toEqual({ score: 0, lives: 0, nextLife: 10000 });
+    ticks(g, FADE_IN_TICKS);
+    expect(g.mode).toBe(GameMode.Ready);
   });
 });
 
@@ -236,5 +278,18 @@ describe("extra life (0x40600B)", () => {
     expect(g.player.score).toBe(10090);
     expect(g.message).toBe("new_life");
     expect(g.sounds).toContain("newlife");
+  });
+});
+
+describe("new game (0x401D4C)", () => {
+  it("starts on the bare background, dark, and fades in", () => {
+    const g = newGame();
+    expect([g.mode, g.bare, g.fade]).toEqual([GameMode.FadeIn, true, FADE_STEPS - 1]);
+    ticks(g, FADE_IN_TICKS - 1);
+    expect(g.mode).toBe(GameMode.FadeIn);
+    g.tick(fire);
+    // Fire during the fade does not serve.
+    expect(g.mode).toBe(GameMode.Ready);
+    expect(g.message).toBe("ready");
   });
 });

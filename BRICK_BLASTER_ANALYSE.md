@@ -103,7 +103,7 @@ resource\boom.iff
 |---|---|---|---|
 | 0 | `0x000000` | 640×480 | Écran titre (logo rond 4 couleurs) |
 | 1–8 | `0x017948` → `0x07EFC4` | 640×480 | **Monde « espace »** : 8 fonds (Saturne, galaxie, Jupiter, Terre, Pléiades, nébuleuses…) |
-| 9–16 | `0x08AB93` → `0x119D92` | 640×480 | **Monde « arcade »** : 8 fonds texturés avec bordures rouges/jaunes |
+| 9–16 | `0x08AB93` → `0x119D92` | 640×480 | **Monde « arcade »** : 8 fonds texturés. Les bordures rouges du GIF ne sont qu'un remplissage de palette : en jeu, les côtés prennent les couleurs du monde (§3.5) |
 | 17 | `0x132DDE` | 640×1900 | **Planche de sprites** (`sprite.gif`) : raquettes J1 (bleue) et J2 (violette) en 3 tailles + animations de destruction et de téléportation, briques, 24 bonus × 3 images, missiles, balles, palette d'éditeur F1–F12, murs latéraux |
 | 18 | `0x15958D` | 800×24 | **Police** (`fonte.gif`) : `ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-#!?:.&` (glyphes de 16 px) |
 | 19 | `0x15A694` | 640×1220 | **Menus** (`menu.gif`) : boutons ronds à 4 quadrants (1 par sous-menu), logo « Brick BLASTER », curseur |
@@ -139,7 +139,13 @@ Durées des sons (s) : 0.48, 0.89, 2.57, 0.81, 1.02, 2.66, 2.94, 1.07, 0.88, 0.8
 
 **Transparence.** Le blitter (`0x406A0A`) ne copie pas les pixels d'**index 0**. C'est la seule couleur transparente.
 
-**Palette par monde.** Pendant la partie, tous les sprites sont affichés avec la palette du monde, pas celle du GIF. Le menu « monde » réécrit le chiffre de `sprite0.pal` (`0x40172A` : espace → `0`, arcade → `1`), puis le fichier est chargé en `0x407945`. Les valeurs sont celles du DAC VGA, sur 6 bits. La palette du GIF `sprite.gif` est exactement `sprite1.pal` (arcade) ; en espace, les index 32 à 143 changent. Le même sélecteur choisit le fond (`00_01.gif`, `0x41B7E8`) et la musique (`0x411008`). La façon dont les fonds, qui ont leur propre palette, se combinent avec celle du monde **reste à établir** (tâche fonds).
+**Palette par monde.** Pendant la partie, tous les sprites sont affichés avec la palette du monde, pas celle du GIF. Le menu « monde » réécrit le chiffre de `sprite0.pal` (`0x40172A` : espace → `0`, arcade → `1`), puis le fichier est chargé en `0x407945`. Les valeurs sont celles du DAC VGA, sur 6 bits. La palette du GIF `sprite.gif` est exactement `sprite1.pal` (arcade) ; en espace, les index 32 à 143 changent. Le même sélecteur choisit le fond (`00_01.gif`, `0x41B7E8`) et la musique (`0x411008`). Le même chiffre choisit aussi le fichier de niveaux (§4).
+
+**Fonds et palette** (vérifié dans le code, 31/10/2026). L'écran n'a qu'une palette de 256 couleurs. Au chargement d'un fond (`0x407430`), le jeu ne copie que les **16 premières couleurs** de la palette du GIF (0x30 octets), après avoir forcé les couleurs 0 et 15 à noir. Les couleurs 16 à 255 restent celles de la palette du monde.
+- Les fonds dessinent leur image centrale avec les index 0 à 15, et les décors latéraux avec 216..223 (espace) ou 229..243 (arcade). Ces décors prennent donc les couleurs du monde. Dans les GIF arcade, ces index ne contiennent que du rouge de remplissage, jamais affiché.
+- Le fond est `resource W_0N.gif`, avec W le chiffre du monde et N = 1 + ((niveau − 1) & 7) : les 8 fonds tournent tous les 8 niveaux.
+- Les murs sont collés sur le fond au chargement (`0x40575F`) : sprite `0x5F743` (42 × 96) 5 fois en x 70, sprite `0x50743` 5 fois en x 528, avec la transparence.
+- Conséquence : les pixels de sprites d'index 1 à 15 prennent les couleurs du **fond courant**. Dans la planche, cela concerne les index 1 et 11 (cadres de repérage, jamais affichés), 15 (35 pixels par mur, donc noirs en jeu) et 3 (219 pixels dans quelques sprites). Le remake ne le reproduit pas encore : la recoloration des sprites selon le fond fait l'objet d'une tâche à part.
 
 **Briques** (`0x404DD0`). Sprite de base selon la famille : cassable `0xEDC2`, indestructible `0x4AC9`, téléporteur `0xEE67`, fantôme `0xEE46`. On ajoute `couleur × 0x2A80` (17 lignes par teinte), et chaque impact avance de `0x21` (33 px). Taille 32 × 16. Si `[0x411000] = 4` (mode de jeu au rôle **non identifié**), une brique à plusieurs coups part de `0xEDA1` au lieu de `0xEDC2`.
 
@@ -315,9 +321,9 @@ Niveau 1                       Niveau 2 (bas)
 
 ### Les trois fichiers
 
-- `lv0` : 50 emplacements, dont le **niveau 45 entièrement vide**. Aucun niveau en commun avec lv1/lv2. **Monde 1** probable. Un niveau sans brique cassable est probablement validé aussitôt (le test de fin de niveau `0x4045B2` ne cherche que les briques cassables).
-- `lv1` : 50 niveaux. **Monde 2** probable. Le menu propose 2 mondes, « espace » et « arcade », plus un 3ᵉ emplacement vide.
-- `lv2` : 50 niveaux, version **antérieure** de lv1 (12 niveaux diffèrent : 0-4, 7-10, 19, 22, 23 ; daté du 26/04/1999 contre 10/05/1999 pour lv1). Sert probablement de fichier de l'éditeur.
+- `lv0` : 50 emplacements, dont le **niveau 45 entièrement vide**. Aucun niveau en commun avec lv1/lv2. **Monde « espace »** (vérifié : le chiffre du monde forme la ressource `lv0`/`lv1`, `0x407BEB`, avec un contrôle de taille 0x79E0). Un niveau sans brique cassable est probablement validé aussitôt (le test de fin de niveau `0x4045B2` ne cherche que les briques cassables).
+- `lv1` : 50 niveaux. **Monde « arcade »** (vérifié). Le menu propose 2 mondes, « espace » et « arcade », plus un 3ᵉ emplacement vide.
+- `lv2` : 50 niveaux, version **antérieure** de lv1 (12 niveaux diffèrent : 0-4, 7-10, 19, 22, 23 ; daté du 26/04/1999 contre 10/05/1999 pour lv1). Le jeu ne le charge jamais.
 - La config limite `Start_Level` à 1–40.
 
 ---
@@ -425,7 +431,9 @@ La vie perdue est testée **avant** la fin de niveau : si la dernière balle et 
 
 **Fin de niveau** (`0x4045B2`, dans tous les modes sauf 4). Le niveau est fini quand aucune case de la grille ne vaut 1 à 7 : un niveau vide est donc fini aussitôt. Le bonus `next_level` (`0x75987`) force aussi la fin et il est alors effacé. Le jeu joue `next`, puis passe au niveau suivant (`0x401C54`) :
 - après le dernier niveau : écran de félicitations (`0x408710`, texte `final_text`), attente du tir, puis `0x408BB9`, sans animation de raquette ;
-- sinon, `0x404C00` : les balles disparaissent et la raquette « décolle » (`0x4031D1`, 92 × 43, à x − 9 et y 407, sprite `0x891E5`, 10 images espacées de 0x6E00, une étape tous les 2 ticks). Le jeu attend `+0x65 = 2` (18 ticks, image 8), cache la raquette, attend 4 ticks, fait un fondu (`0x4065EF`), charge le niveau, fait un fondu d'entrée, affiche « pret ? » (mode 2) et lance la manche. Le numéro de niveau affiché change avec la nouvelle grille (`0x404D46`).
+- sinon, `0x404C00` : les balles disparaissent et la raquette « décolle » (`0x4031D1`, 92 × 43, à x − 9 et y 407, sprite `0x891E5`, 10 images espacées de 0x6E00, une étape tous les 2 ticks). Le jeu attend `+0x65 = 2` (18 ticks, image 8), cache la raquette et attend 4 ticks. Suivent un fondu de sortie (`0x4065EF`, 32 ticks), le chargement du fond (`0x407336`, 1 tick) puis le fondu d'entrée (`0x406681`, 32 ticks). Le jeu affiche ensuite « pret ? » (mode 2) et lance la manche. Le numéro de niveau affiché change avec la nouvelle grille (`0x404D46`).
+
+**Fondus** (`0x406583`). Le jeu calcule 32 palettes à partir de la palette courante (table de 0x6000 octets, `[0x41B7A6]`). Chaque composante (6 bits) y perd 2 de plus que dans la précédente, sans descendre sous 0. Le fondu de sortie affiche les palettes 0 à 31, une par tick (`0x40653C` attend un tick du timer). Le fondu d'entrée affiche les palettes 31 à 0. Pendant les fondus, rien d'autre n'avance. Le chargement du fond recopie le fond nu sur tout l'écran : le fondu d'entrée montre donc le fond seul, sans briques ni textes, et la grille n'apparaît qu'avec la manche (`0x401DB5`). Une nouvelle partie (`0x401D4C`, y compris après un game over) charge le fond et fait le fondu d'entrée, sans fondu de sortie. Le bonus « points ×2 » fait démarrer le fondu de sortie à la palette 16 (`0x4065F9`).
 
 **Moteur d'animation des objets** (`0x4066BA`). Le compte à rebours `+0x6D` baisse à chaque tick. Sous 0, il est rechargé avec `+0x69` : une étape a donc lieu tous les `+0x69 + 1` ticks. À chaque étape, si `+0x65 > 1`, l'objet passe à l'image suivante (adresse + largeur + `+0x71`) et `+0x65` baisse de 1. Sinon, il revient à la première image et `+0x65 = +0x61`. Un objet démarre avec `+0x65 = 1` : sa première étape le ramène donc à l'image 0.
 
@@ -457,7 +465,7 @@ La bande des vies finit au bord droit de la planche, dont les 9 derniers pixels 
 
 Le rebond sur la raquette joue `wall` (`0x4046E0`), l'accélération `speedup` (`0x403F7F`) et la balle perdue `pertebal`. Les rebonds sur les murs sont muets.
 
-**Remake** : pas encore de fondu ni d'écran de félicitations (tâches 8 et 14). La raquette reste figée pendant les animations, puisque l'original la remplace par l'objet animé (probable). Le tir est le bouton de souris ou Espace. Un clic plus court qu'un tick est mémorisé jusqu'au tick suivant.
+**Remake** : pas encore d'écran de félicitations (tâche 14). Le tick de chargement du fond est affiché comme le fond nu à la palette 31, ce qui revient au noir. La raquette reste figée pendant les animations, puisque l'original la remplace par l'objet animé (probable). Le tir est le bouton de souris ou Espace. Un clic plus court qu'un tick est mémorisé jusqu'au tick suivant.
 
 ## 5. Configuration du gameplay (`blaster.cfg` décompressé) — vérifié
 
@@ -614,7 +622,7 @@ Résultat dans `assets/` (56 fichiers) :
 
 | Dossier | Contenu |
 |---|---|
-| `backgrounds/` | `title`, `space_1..8`, `arcade_1..8`, `media` (PNG indexés, palette d'origine) |
+| `backgrounds/` | `title`, `media` (PNG indexés, palette d'origine) ; `space_1..8`, `arcade_1..8` avec leur palette de jeu (couleurs 0..15 du GIF, 0 et 15 en noir, le reste depuis la palette du monde, §3.5) |
 | `sprites/` | `sprite_sheet` 640×1900, `font` 800×24, `menu` 640×1220, `monsters` 930×220 |
 | `credits/` | `credit_1..6` |
 | `sounds/` | 17 WAV 8 bits mono à 8 363 Hz (8SVX signé converti en non signé) |
@@ -694,7 +702,7 @@ Graphismes, sons, musiques et niveaux appartiennent à Eclipse / leurs auteurs (
 - Le jeu plante dès qu'il perd le plein écran (Alt+Tab, Impr. écran) : comparer le remake à l'original demandera un outil de fenêtrage (DxWnd).
 - La démo plante si le set de niveaux contient des emplacements vides (`0xFF`) parmi ceux qu'elle tire au sort : un set de test doit remplir 50 emplacements.
 - Correspondance exacte entre noms de fichiers `.mod` et titres de modules (seuls `thelast` et `rain` sont évidents).
-- Quel set de niveaux correspond à quel monde (lv0 / lv1).
+- ~~Quel set de niveaux correspond à quel monde~~ : résolu, espace = lv0, arcade = lv1 (§4).
 - Rôle exact de `0x408AD9` après un game over (meilleurs scores ?) et du retour au menu (§4.5).
 - Contenu de `blaster.scr` une fois déchiffré, et des `.usr` : sans importance pour le remake.
 - Routines d'effet de chaque bonus pris un par un (adresses dans la table §5.2), en particulier `ghost`, `collision`, `reverse` et `telepod`.

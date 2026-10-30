@@ -11,12 +11,18 @@ export type WorldSprite = (typeof WORLD_SPRITES)[number];
 
 export const worldImage = (world: World, sprite: WorldSprite) => `sprites/${world}/${sprite}`;
 
+/** Backgrounds per world: resource/0W_0N.gif (W = world digit). */
+export const WORLD_BACKGROUNDS = 8;
+
+/** 0x407430: background N = 1 + ((level − 1) & 7), so they cycle every 8 levels. */
+export const backgroundImage = (world: World, level: number) =>
+  `backgrounds/${world}_${((level - 1) & (WORLD_BACKGROUNDS - 1)) + 1}`;
+
 /** Every PNG written by tools/extract/extract_assets.py, without extension. */
 export const IMAGE_NAMES = [
   "backgrounds/title",
   "backgrounds/media",
-  ...range("backgrounds/space", 8),
-  ...range("backgrounds/arcade", 8),
+  ...WORLDS.flatMap((world) => range(`backgrounds/${world}`, WORLD_BACKGROUNDS)),
   "sprites/sprite_sheet",
   "sprites/font",
   "sprites/menu",
