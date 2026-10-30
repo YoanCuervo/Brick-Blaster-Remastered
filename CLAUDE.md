@@ -48,7 +48,8 @@ Python tooling runs in `tools/.venv` (capstone, Pillow), never in the system Pyt
 - Answer the user in French. Code, identifiers, file names, comments and commits in English.
 - Comments only to explain a non-obvious choice. When a rule comes from the original, cite the analysis section or address (e.g. `// §4.2, 0x404610`).
 - Conventional Commits: `type(scope): message`. One branch per task. Never push to `main` or `develop`.
-- GitHub: no Claude attribution anywhere (no `Co-Authored-By` trailer, no "Generated with Claude Code" line). Claude may commit, push branches and open PRs; only the user merges PRs. `main` changes only through merged PRs.
+- Branch flow: task branches start from `develop` and their PRs target `develop`. `main` only receives `develop` through PRs.
+- GitHub: no Claude attribution anywhere (no `Co-Authored-By` trailer, no "Generated with Claude Code" line). Claude may commit, push branches and open PRs; only the user merges PRs.
 - Before coding: announce the files created or modified and the approach, then wait for approval.
 - No new dependency (npm or pip) without explicit approval.
 
