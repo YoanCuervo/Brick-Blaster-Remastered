@@ -9,9 +9,11 @@ import {
   createBall,
   flipX,
   lostCheck,
+  moveBall,
   paddleBounce,
   placeOnPaddle,
   sampleCount,
+  stickToPaddle,
   sweepTrack,
   updateBall,
   wallBounce,
@@ -309,5 +311,28 @@ describe("updateBall order (0x403932)", () => {
     const b = ball({ x: 300, y: 300, dx: 4, dy: 5, state: BallState.Dead });
     updateBall(b, createPaddle(), noBricks, 1500);
     expect([b.x, b.y]).toEqual([300, 300]);
+  });
+});
+
+describe("ball stuck to the paddle (0x4048F7, 0x403D8E)", () => {
+  it("keeps the offset within the paddle", () => {
+    const p = createPaddle();
+    const b = ball({ x: p.x + 33 });
+    stickToPaddle(b, p);
+    expect(b.stuckOffset).toBe(33);
+    const far = ball({ x: p.x + 200 });
+    stickToPaddle(far, p);
+    expect(far.stuckOffset).toBe(p.w - 9);
+  });
+
+  it("follows the paddle until fire, then moves on the same tick", () => {
+    const p = createPaddle();
+    const b = ball({ dx: 3, dy: -4, stuckOffset: 33 });
+    p.x = 200;
+    moveBall(b, p, false);
+    expect([b.x, b.y]).toEqual([233, 0x1a0 - 9]);
+    moveBall(b, p, true);
+    expect(b.stuckOffset).toBeNull();
+    expect([b.x, b.y]).toEqual([236, 0x1a0 - 13]);
   });
 });

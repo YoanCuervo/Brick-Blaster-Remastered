@@ -1,23 +1,20 @@
 import { TICK_RATE, startLoop } from "./core/loop";
+import { Rng } from "./core/rng";
 import { loadAssets } from "./data/assets";
 import { Difficulty, forDifficulty } from "./data/config";
 import { WORLDS, worldImage } from "./data/images";
-import { LEVEL_COLS, LEVEL_ROWS } from "./data/levels";
+import { LEVEL_COLS } from "./data/levels";
 import { paletteColor } from "./data/palette";
-import { BallState, type BrickProbe, createBall, placeOnPaddle, updateBall } from "./game/ball";
-import { clampPaddleX, createPaddle, movePaddle } from "./game/paddle";
+import { BallState } from "./game/ball";
+import { GRID_CELLS, cellSprite } from "./game/bricks";
+import { Game } from "./game/game";
+import { clampPaddleX } from "./game/paddle";
+import { FireLatch } from "./input/fire";
 import { KeyState, keyboardDx, keyboardSpeed } from "./input/keyboard";
 import { MouseAccumulator, bindPointerLock } from "./input/mouse";
-import {
-  BALL_SPRITE,
-  BRICK_H,
-  BRICK_W,
-  PADDLE_SPRITE,
-  brickSprite,
-  drawSprite,
-  spriteAt,
-} from "./render/atlas";
+import { BALL_SPRITE, BRICK_H, BRICK_W, PADDLE_SPRITE, drawSprite, spriteAt } from "./render/atlas";
 import { BitmapFont } from "./render/font";
+import { drawHud } from "./render/hud";
 import { SCREEN_HEIGHT, SCREEN_WIDTH, Screen } from "./render/screen";
 
 const canvas = document.querySelector<HTMLCanvasElement>("#screen");
@@ -27,63 +24,50 @@ const { ctx } = screen;
 
 const assets = await loadAssets();
 
-// Temporary scene until the game state exists (task 7): bricks bounce the ball but do not break.
+// Until the menus exist (task 13): medium difficulty, lv0 levels, [W] switches the world palette.
+const difficulty = Difficulty.Medium;
 let worldIndex = 0;
-const levelIndex = 1;
-const paddle = createPaddle();
+const game = new Game(assets.config, assets.levels.lv0, difficulty, new Rng(Date.now()));
+
 const mouse = new MouseAccumulator();
 bindPointerLock(canvas, mouse);
 const keys = new KeyState();
-const startSpeed = forDifficulty(assets.config.startSpeed, Difficulty.Medium);
-const keySpeed = keyboardSpeed(startSpeed);
-
-const ball = createBall(assets.config.freqChangeSpeed);
-let served = false;
-let prevBall = { x: 0, y: 0 };
-const level = () => assets.levels.lv0[levelIndex]!;
-const probe: BrickProbe = {
-  hit(x, y) {
-    if (x < 0 || y < 0 || x >= 0x210) return false;
-    const cell = level()[y >> 4]?.[Math.max(x - 0x70, 0) >> 5];
-    return cell !== undefined && cell !== 0;
-  },
-};
-function serve() {
-  if (served) return;
-  served = true;
-  ball.state = BallState.Active;
-  ball.dx = startSpeed;
-  ball.dy = -(startSpeed + 1);
-  ball.mode = 0;
-}
-canvas.addEventListener("click", () => {
-  if (document.pointerLockElement === canvas) serve();
+const keySpeed = keyboardSpeed(forDifficulty(assets.config.startSpeed, difficulty));
+const fire = new FireLatch();
+const locked = () => document.pointerLockElement === canvas;
+canvas.addEventListener("mousedown", () => {
+  if (locked()) fire.press();
+});
+window.addEventListener("mouseup", () => fire.release());
+document.addEventListener("pointerlockchange", () => {
+  if (!locked()) fire.clear();
 });
 
 let showStats = true;
 const stats = { ticks: 0, frames: 0, tps: 0, fps: 0, since: performance.now() };
 
 window.addEventListener("keydown", (e) => {
+  if (e.repeat) return;
   if (e.code === "KeyF") void screen.toggleFullscreen();
   if (e.code === "KeyS") showStats = !showStats;
   if (e.code === "KeyW") worldIndex = (worldIndex + 1) % WORLDS.length;
-  if (e.code === "Space") serve();
+  if (e.code === "Space") fire.press();
 });
+window.addEventListener("keyup", (e) => {
+  if (e.code === "Space") fire.release();
+});
+
+// Ball positions before the last tick, for drawing between ticks.
+let prevBalls = new Map<object, { x: number; y: number }>();
+/** Farther than this in one tick is a teleport: no interpolation. */
+const MAX_LERP = 32;
 
 startLoop({
   update() {
-    const dx =
+    prevBalls = new Map(game.balls.map((b) => [b, { x: b.x, y: b.y }]));
+    const paddleDx =
       mouse.take() + keyboardDx(keys.isDown("ArrowLeft"), keys.isDown("ArrowRight"), keySpeed);
-    movePaddle(paddle, dx);
-    prevBall = { x: ball.x, y: ball.y };
-    if (served) {
-      updateBall(ball, paddle, probe, assets.config.freqChangeSpeed);
-      if (ball.state === BallState.Dead) served = false;
-    }
-    if (!served) {
-      placeOnPaddle(ball, paddle);
-      prevBall = { x: ball.x, y: ball.y };
-    }
+    game.tick({ paddleDx, fire: fire.take() });
     stats.ticks++;
   },
   render(alpha) {
@@ -92,31 +76,56 @@ startLoop({
 
     const world = WORLDS[worldIndex]!;
     const sheet = assets.images.get(worldImage(world, "sprite_sheet"))!;
-    const grid = level();
-    for (let row = 0; row < LEVEL_ROWS; row++) {
-      for (let col = 0; col < LEVEL_COLS; col++) {
-        const brick = brickSprite(grid[row]![col]!);
-        if (brick) {
-          const ref = spriteAt(brick.address, BRICK_W, BRICK_H);
-          drawSprite(ctx, sheet, ref, 112 + col * BRICK_W, row * BRICK_H);
-        }
-      }
+    for (let i = 0; i < GRID_CELLS; i++) {
+      const address = cellSprite(game.grid, i);
+      if (address === null) continue;
+      const ref = spriteAt(address, BRICK_W, BRICK_H);
+      drawSprite(
+        ctx,
+        sheet,
+        ref,
+        112 + (i % LEVEL_COLS) * BRICK_W,
+        Math.floor(i / LEVEL_COLS) * BRICK_H,
+      );
     }
+
+    const { paddle, paddleAnim } = game;
     // Drawn with the mouse movement of the current tick already applied, to cut visible lag.
-    const paddleX = clampPaddleX(paddle, paddle.x + mouse.peek());
-    drawSprite(ctx, sheet, PADDLE_SPRITE, paddleX, paddle.y);
-    // The ball is interpolated between ticks; a ball waiting on the paddle follows it.
-    const bx = served
-      ? Math.round(prevBall.x + (ball.x - prevBall.x) * alpha)
-      : ball.x + paddleX - paddle.x;
-    const by = served ? Math.round(prevBall.y + (ball.y - prevBall.y) * alpha) : ball.y;
-    drawSprite(ctx, sheet, BALL_SPRITE, bx, by);
+    const ahead = paddleAnim ? 0 : clampPaddleX(paddle, paddle.x + mouse.peek()) - paddle.x;
+    if (paddleAnim) {
+      const { anim } = paddleAnim;
+      if (paddleAnim.visible) {
+        drawSprite(ctx, sheet, spriteAt(anim.frame, anim.w, anim.h), paddleAnim.x, paddleAnim.y);
+      }
+    } else {
+      drawSprite(ctx, sheet, PADDLE_SPRITE, paddle.x + ahead, paddle.y);
+    }
+
+    for (const b of game.balls) {
+      if (b.state === BallState.Dead) continue;
+      // A ball waiting on the paddle follows it; a moving one is interpolated.
+      if (b.stuckOffset !== null) {
+        drawSprite(ctx, sheet, BALL_SPRITE, b.x + ahead, b.y);
+        continue;
+      }
+      const p = prevBalls.get(b);
+      const near = p && Math.abs(b.x - p.x) <= MAX_LERP && Math.abs(b.y - p.y) <= MAX_LERP;
+      const x = near ? Math.round(p.x + (b.x - p.x) * alpha) : b.x;
+      const y = near ? Math.round(p.y + (b.y - p.y) * alpha) : b.y;
+      drawSprite(ctx, sheet, BALL_SPRITE, x, y);
+    }
 
     const font = new BitmapFont(
       assets.images.get(worldImage(world, "font"))!,
       paletteColor(assets.palettes[world], 0),
     );
-    if (document.pointerLockElement !== canvas) font.draw(ctx, "clic", 290, 450);
+    drawHud(ctx, sheet, font, {
+      score: game.player.score,
+      level: game.level,
+      lives: game.livesShown,
+      message: game.message,
+    });
+    if (!locked()) font.draw(ctx, "clic", 290, 220, false);
 
     stats.frames++;
     const now = performance.now();
@@ -132,7 +141,7 @@ startLoop({
       ctx.fillText(
         `TPS ${stats.tps}/${TICK_RATE}  FPS ${stats.fps}  x${screen.currentScale}  [F] fullscreen  [S] stats  [W] world`,
         8,
-        16,
+        476,
       );
     }
   },
