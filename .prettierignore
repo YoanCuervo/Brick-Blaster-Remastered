@@ -1,0 +1,8 @@
+assets/
+original/
+game/
+tools/
+dist/
+release/
+# Hand-written docs: keep their layout
+*.md

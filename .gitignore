@@ -1,0 +1,30 @@
+# Eclipse assets and original game: never versioned (see docs/cadrage.md)
+/assets/
+/original/
+/game/
+
+# Original game data (regenerate: python tools/extract/diet.py original/blaster.cfg <out>)
+/tools/blaster_cfg_original.txt
+
+# Python tooling
+/tools/.venv/
+/tools/deark/
+/tools/re/out/
+__pycache__/
+
+# Node / build
+node_modules/
+dist/
+release/
+*.tsbuildinfo
+
+# Environment
+.env*
+!.env.example
+
+# Editors / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+Thumbs.db
+.DS_Store
