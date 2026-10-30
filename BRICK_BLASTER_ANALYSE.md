@@ -133,6 +133,24 @@ Durées des sons (s) : 0.48, 0.89, 2.57, 0.81, 1.02, 2.66, 2.94, 1.07, 0.88, 0.8
 - Routine de décompression dans l'exe : `0x40A638` ; chargeur de fichiers : `0x40A3D7` (essaie le tag, sinon lit le fichier brut).
 - **Outil pour décompresser : [deark](https://github.com/jsummers/deark)** (`deark -m diet fichier`). Pour les blocs `EOS`, remplacer les octets 6–8 par `dlz` avant de passer à deark.
 
+### 3.5 Rendu des sprites et de la police (vérifié dans le code, 30/10/2026)
+
+**Adressage.** Le code désigne un sprite par son **décalage dans la planche** : `adresse = y × 640 + x` (640 = largeur de `sprite.gif`). Exemples vérifiés sur l'image : `0xEDC2` → (66, 95) brique cassable, `0xEE46` → (198, 95) brique fantôme, `0x75801` → (1, 752) première capsule. Le blitter `0x4069E1` reçoit l'adresse dans `esi`, la hauteur dans `ecx` et la largeur dans `edx`.
+
+**Transparence.** Le blitter (`0x406A0A`) ne copie pas les pixels d'**index 0**. C'est la seule couleur transparente.
+
+**Palette par monde.** Pendant la partie, tous les sprites sont affichés avec la palette du monde, pas celle du GIF. Le menu « monde » réécrit le chiffre de `sprite0.pal` (`0x40172A` : espace → `0`, arcade → `1`), puis le fichier est chargé en `0x407945`. Les valeurs sont celles du DAC VGA, sur 6 bits. La palette du GIF `sprite.gif` est exactement `sprite1.pal` (arcade) ; en espace, les index 32 à 143 changent. Le même sélecteur choisit le fond (`00_01.gif`, `0x41B7E8`) et la musique (`0x411008`). La façon dont les fonds, qui ont leur propre palette, se combinent avec celle du monde **reste à établir** (tâche fonds).
+
+**Briques** (`0x404DD0`). Sprite de base selon la famille : cassable `0xEDC2`, indestructible `0x4AC9`, téléporteur `0xEE67`, fantôme `0xEE46`. On ajoute `couleur × 0x2A80` (17 lignes par teinte), et chaque impact avance de `0x21` (33 px). Taille 32 × 16. Si `[0x411000] = 4` (mode de jeu au rôle **non identifié**), une brique à plusieurs coups part de `0xEDA1` au lieu de `0xEDC2`.
+
+**Capsules.** `0x75801 + 0x1A × n`, taille 26 × 24 (`0x40527C`). Les 3 rangées de capsules (y = 752, 776, 800) ne sont **pas encore expliquées** : animation ou couleur du joueur en coop.
+
+**Police** (`0x408654`, `fonte.gif` 800 × 24).
+- Table des caractères en `0x41C360` : `abcdefghijklmnopqrstuvwxyz0123456789+-#!?:.&` puis espace. **Minuscules uniquement.**
+- Glyphe `i` en (1 + 16 i, 1), copié en **15 × 22** ; on avance de 15 px par caractère. Un retour chariot descend de `0x4B00` octets, soit 30 lignes.
+- Deux modes : copie opaque, l'index 0 compris (par défaut), ou transparente si `[0x41C35C] = 1`.
+- Un caractère absent de la table donne l'index 45, dont le décalage vaut 0 : le jeu copie alors le coin de l'image. Le remake dessine un blanc à la place.
+
 ---
 
 ## 4. Format des niveaux (`.lv0` / `.lv1` / `.lv2`) — vérifié
