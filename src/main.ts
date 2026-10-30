@@ -2,7 +2,7 @@ import { TICK_RATE, startLoop } from "./core/loop";
 import { Rng } from "./core/rng";
 import { loadAssets } from "./data/assets";
 import { Difficulty, forDifficulty } from "./data/config";
-import { WORLDS, type World, backgroundImage, worldImage } from "./data/images";
+import { SHEET_LOW_MASK, WORLDS, type World, backgroundImage, worldImage } from "./data/images";
 import { LEVEL_COLS, WORLD_LEVELS } from "./data/levels";
 import { paletteColor } from "./data/palette";
 import { BallState } from "./game/ball";
@@ -17,6 +17,7 @@ import { BitmapFont } from "./render/font";
 import { applyFade } from "./render/fade";
 import { drawHud } from "./render/hud";
 import { drawPlayfield } from "./render/playfield";
+import { SheetRecolorer } from "./render/recolor";
 import { Screen } from "./render/screen";
 
 const canvas = document.querySelector<HTMLCanvasElement>("#screen");
@@ -25,6 +26,7 @@ const screen = new Screen(canvas);
 const { ctx } = screen;
 
 const assets = await loadAssets();
+const recolorer = new SheetRecolorer(assets.images.get(SHEET_LOW_MASK)!);
 
 // Until the menus exist (task 13): medium difficulty, [W] starts a new game in the other world.
 const difficulty = Difficulty.Medium;
@@ -78,8 +80,13 @@ startLoop({
     stats.ticks++;
   },
   render(alpha) {
-    const sheet = assets.images.get(worldImage(world, "sprite_sheet"))!;
-    drawPlayfield(ctx, assets.images.get(backgroundImage(world, game.level))!, sheet);
+    const background = backgroundImage(world, game.level);
+    const sheet = recolorer.get(
+      assets.images.get(worldImage(world, "sprite_sheet"))!,
+      background,
+      assets.backgroundColors[background]!,
+    );
+    drawPlayfield(ctx, assets.images.get(background)!, sheet);
     if (!game.bare) drawGame(alpha, sheet);
     applyFade(ctx, game.fade);
     if (!locked()) font().draw(ctx, "clic", 290, 220, false);

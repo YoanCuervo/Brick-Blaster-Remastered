@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { paletteColor, parsePalette } from "./palette";
+import { paletteColor, parseBackgroundPalettes, parsePalette } from "./palette";
 
 describe("parsePalette", () => {
   it("accepts 256 triplets of 6-bit values", () => {
@@ -19,5 +19,20 @@ describe("paletteColor", () => {
     pal.set([63, 31, 0], 3);
     expect(paletteColor(pal, 0)).toBe("rgb(40, 0, 40)");
     expect(paletteColor(pal, 1)).toBe("rgb(252, 124, 0)");
+  });
+});
+
+describe("parseBackgroundPalettes", () => {
+  const colors = Array.from({ length: 16 }, () => [0, 128, 255]);
+
+  it("reads 16 RGB colours per background", () => {
+    expect(parseBackgroundPalettes({ space_1: colors }).space_1).toHaveLength(16);
+  });
+
+  it("rejects a wrong count or out-of-range values", () => {
+    expect(() => parseBackgroundPalettes({ space_1: colors.slice(1) })).toThrow("space_1");
+    expect(() => parseBackgroundPalettes({ space_1: [...colors.slice(1), [0, 0, 256]] })).toThrow(
+      "space_1[15][2]",
+    );
   });
 });
