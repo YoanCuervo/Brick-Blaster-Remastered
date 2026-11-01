@@ -11,7 +11,7 @@ export const SETTINGS_KEY = "brick-blaster.settings";
 export const MIN_SENSITIVITY = 0.1;
 export const MAX_SENSITIVITY = 3;
 
-type Store = Pick<Storage, "getItem" | "setItem">;
+export type Store = Pick<Storage, "getItem" | "setItem">;
 
 const inRange = (v: unknown, min: number, max: number, fallback: number): number =>
   typeof v === "number" && v >= min && v <= max ? v : fallback;

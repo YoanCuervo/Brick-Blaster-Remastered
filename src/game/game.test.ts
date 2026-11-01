@@ -224,13 +224,12 @@ describe("level end (0x4045B2, 0x401C54)", () => {
     expect(g.paddleAnim).toBeNull();
   });
 
-  it("goes back to the menu on fire, not to a new game (0x401C87)", () => {
+  it("signals the end screens and does nothing more (0x401C82)", () => {
     const g = game([level([])], {}, 1);
-    g.tick(idle);
-    g.tick(idle);
     expect(g.finished).toBe(false);
-    g.tick(fire);
+    g.tick(idle);
     expect(g.finished).toBe(true);
+    g.tick(fire);
     expect(g.mode).toBe(GameMode.Finished);
     expect(g.sounds).toEqual([]);
   });
@@ -252,7 +251,7 @@ describe("pause (0x4020A8)", () => {
     expect(g.canLeave).toBe(false);
     g.mode = GameMode.GameOverWait;
     expect(g.canPause).toBe(false);
-    expect(g.canLeave).toBe(true);
+    expect(g.canLeave).toBe(false);
   });
 
   it("moves the objects once, then stands still", () => {
@@ -322,9 +321,12 @@ describe("lost life (0x404A38, 0x404AED)", () => {
     expect(g.player.lives).toBe(-1);
     ticks(g, 110);
     expect(g.mode).toBe(GameMode.GameOverWait);
-    g.tick(idle);
-    expect(g.mode).toBe(GameMode.GameOverWait);
+    expect(g.scoresDue).toBe(true);
+    expect(g.screenFade).toBe(FADE_STEPS - 1);
     g.tick(fire);
+    expect(g.mode).toBe(GameMode.GameOverWait);
+    g.tick(idle);
+    expect(g.sounds).toContain("restart");
     // 0x401FB4 goes back to 0x401D4C: no fade out, background load and fade in.
     expect(g.mode).toBe(GameMode.FadeIn);
     expect(g.bare).toBe(true);
@@ -1386,13 +1388,13 @@ describe("monsters (§4.3)", () => {
     expect(g.monsterSystem.timer).toBe(0);
   });
 
-  it("freeze once the game waits for fire after a game over (0x401FB4)", () => {
+  it("freeze while fire holds the new game back after a game over (0x401FB4)", () => {
     const g = playing(undefined, { nbsLife: 1 });
     loseBall(g);
     for (let i = 0; i < 300 && g.mode !== GameMode.GameOverWait; i++) g.tick(idle);
     expect(g.mode).toBe(GameMode.GameOverWait);
     const m = monsterAt(g, 200, 100);
-    ticks(g, 5);
+    for (let i = 0; i < 5; i++) g.tick(fire);
     expect(m.y).toBe(100);
   });
 

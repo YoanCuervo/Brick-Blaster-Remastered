@@ -353,7 +353,7 @@ Le bonus `add_monster` (« invocation monstre ») appelle directement la même r
 - En mode 3 seulement, il rebondit sur toutes les briques **sans les abîmer ni faire de son** (`0x40446A`, `0x4044FC`), téléporteurs compris. Hors mode 3 (raquette qui explose, modes 5 et 6), il **traverse les briques**. Le mode reste 3 pendant le décollage de fin de niveau (`0x401C54` ne l'écrit pas) : il y voit donc encore les briques, comme les tirs.
 - L'anti-boucle ne s'applique pas à lui (`0x4051EC`).
 - `0x404610` et `0x40476A` sont bien appelées, mais `0x4046D0` ressort pour le type 6 : il traverse la raquette sans effet, **un monstre ne fait pas perdre de vie**.
-- `0x401FB4` (mode 7) n'exécute que l'attente du tir : tout est figé après un game over. Les fondus figent aussi tout. Sur l'écran de félicitations (`0x408710`, non lu), le gel est probable.
+- `0x401FB4` (mode 7) n'exécute que l'attente du tir : tout est figé après un game over. Les fondus figent aussi tout. L'écran de félicitations (`0x408710`) ne fait tourner aucun objet : tout est figé.
 
 **Recadrage** (`0x406874`, appelé par `0x40675F` pour chaque objet dessiné, tous types). Avant le dessin, x et y sont ramenés entre leurs bornes (comparaison signée) : la position réelle change, pas seulement l'image. Un mur puis une brique peuvent faire sortir un objet d'un tick, jamais plus.
 
@@ -521,7 +521,7 @@ Le rebond sur la raquette joue `wall` (`0x4046E0`), l'accélération `speedup` (
 
 **Remake (audio)** : libopenmpt via les fichiers worklet de chiptune3, avec le filtre 1 (sans interpolation), une séparation de 200 (mesurée : voies 100 % à gauche ou à droite, comme l'original) et l'émulation Amiga du worklet coupée. Mesuré sur un module de test à pleine échelle, une voie libopenmpt culmine à 2 / voies : le gain de sortie (`musicGain`) la ramène au niveau de l'original. Les sons sont rééchantillonnés sans interpolation. Le navigateur bloque l'audio avant le premier geste : les sons d'avant sont perdus, la musique attend. L'audio est suspendu quand l'onglet est masqué. Le rendu d'effets MOD par libopenmpt peut différer du « Diamond Player » : non comparé.
 
-**Remake** : pas encore d'écran des scores ni de félicitations (tâche 14) : le tir en tient lieu, et il relance la partie en mode 7 ou revient au menu après le dernier niveau. Le tick de chargement du fond est affiché comme le fond nu à la palette 31, ce qui revient au noir. La raquette reste figée pendant les animations, puisque l'original la remplace par l'objet animé (probable). Le tir est le bouton de souris, Espace, Entrée ou Ctrl : Espace ne relance donc pas la partie, contrairement à l'original. Un clic plus court qu'un tick est mémorisé jusqu'au tick suivant.
+**Remake** : le tick de chargement du fond est affiché comme le fond nu à la palette 31, ce qui revient au noir. La raquette reste figée pendant les animations, puisque l'original la remplace par l'objet animé (probable). Le tir est le bouton de souris, Espace, Entrée ou Ctrl : Espace ne relance donc pas la partie, contrairement à l'original. Un clic plus court qu'un tick est mémorisé jusqu'au tick suivant.
 
 ## 5. Configuration du gameplay (`blaster.cfg` décompressé) — vérifié
 
@@ -760,15 +760,47 @@ tant qu'un des 4 coins touche une indestructible (0x40252D, même test qu'au §4
 - Démarrage (`0x401058`) : `media.gif` (`0x401B98`, 200 ticks ou une touche), puis `credit_b.gif` (`0x401BD5`, 150 ticks), puis le menu. Aucun FLC : `intro.flc` joue dans les crédits (`0x407078`), `Blaster.flc` sur l'écran de fin (`0x407143`).
 
 **Remake.**
-- Démo, coop, duel, scores coop : le quadrant joue le son et ne fait rien, comme le quadrant vide. Scores et crédits aussi, jusqu'à la tâche 14. Les menus 3 et 7 sont inaccessibles en solo, donc non portés. Pas de veille.
+- Démo, coop, duel, scores coop : le quadrant joue le son et ne fait rien, comme le quadrant vide. Les menus 3 et 7 sont inaccessibles en solo, donc non portés. Pas de veille.
 - Le curseur suit la position réelle de la souris, sans Pointer Lock. Le verrouillage est demandé au lancement de la partie et libéré au retour.
 - Les flèches déplacent le curseur entre les quadrants et les barres, et une barre se règle avec gauche et droite. Seuls Entrée, Espace et Ctrl valident, sinon les flèches valideraient aussi.
 - Ajout : une barre de sensibilité de la souris (0,1 à 3), en miroir en x 134, avec le cadre 72 × 19 (`0x17F2`) que `menu.gif` contient sans s'en servir. Elle affiche « souris » à la place du titre au survol.
 - `window.close()` termine la sortie. Un navigateur le refuse souvent : le menu revient alors, au volume réglé.
 - Échap en partie, souris verrouillée : le navigateur s'en sert d'abord pour libérer la souris, un second appui revient au menu.
-- En mode 7, Échap fonctionne, puisque le tir y remplace l'écran des scores (tâche 14).
 - La pulsation ne touche que le bouton et le logo : 20 pixels de `title.gif` de ces couleurs, hors du bouton, ne pulsent pas. La phase repart de 0 à chaque visite, elle n'est pas partagée avec l'icône de bonus. Le tick perdu par `0x408602` à chaque changement de texte n'est pas reproduit.
 - Musique et sensibilité sont gardées dans `localStorage` (`brick-blaster.settings`).
+
+### Écrans et meilleurs scores (vérifié dans le code, 01/11/2026)
+
+**Fichier `.scr`** (`0x408DDD`, `0x408E26`, `0x408E99`). 2 tables de 15 entrées de 32 octets : solo en `0x41C462`, coop en `0x41C642` (`[0x411015]` = 2). Aucune table par monde ni par difficulté. Une entrée : valeur de classement (+0), score en 6 chiffres (+4), 2 espaces, niveau en 2 chiffres (+0xC), 2 espaces, nom sur 15 caractères (+0x10), puis `\r`. Le fichier est relu à chaque visite. S'il manque, le jeu garde la table de l'exe et crée le fichier : valeurs 1 à 15, texte `000000  00  ???????????????`.
+
+**Insertion** (`0x408C24`). La première entrée telle que `score ≥ valeur` cède sa place (`jae`, donc une égalité passe devant) et la dernière sort. Sur la table de l'exe, tout score positif arrive 1er. Un score de 0 n'entre pas, et le menu met le score à 0 avant l'écran (`0x408AA1`).
+
+**Saisie** (`0x408CD2`). Clavier seul : le tampon n'est ouvert que pour elle (`0x408CE5`, service 4). Le nom est rempli d'espaces, puis :
+- caractères `0x20..0x7F`, avec `or al, 0x20`, 15 au maximum (`0x408D46` bute sur le `\r`) ;
+- retour arrière, sauf au début (`0x408D53`) ;
+- Entrée **ou Échap** valide, même un nom vide (`0x408D2E`), et c'est seulement là que le fichier est écrit (`0x408D71`) ;
+- curseur 15 × 22 en (300 + 15n, 22 + 30 × rang), sprite `0x3166` ou `0x3175`, changé tous les 10 ticks (`0x408D82`). Une touche réaffiche le champ de 240 × 22 (`0x408571`) : le curseur disparaît jusqu'à son prochain changement.
+
+**Écran** (`0x408BB9`). Musique `rain`, lignes en (120, 22) tous les 30 pixels, en transparence, sur le fond nu avec ses murs (`[0x41B96F]`), fondu d'entrée. Sans saisie, attente sans limite d'un tir ou d'une touche (`0x408D77`). Une touche pressée pendant le fondu compte aussitôt, puisque `[ebp]` la garde. Avec saisie, l'écran se termine à la validation. Puis attente du relâchement du tir et retour de la musique précédente.
+
+**Fond.** Après une partie, celui du niveau en cours. Depuis le menu (`0x4074C5`), un des 4 premiers fonds du dernier monde choisi, espace par défaut (`0x404F42` avec 3, `0x407430`).
+
+**Enchaînements.**
+- Game over (`0x408AD9`) : fondu de sortie, scores, fondu de sortie, mode 7, qui attend le relâchement du tir puis relance (§4.5).
+- Dernier niveau (`0x408710`) : `0x407143` (musique `rain`, fondu de sortie, noir, relâchement du tir, `Blaster.flc`), fondu de sortie, palette rétablie d'un coup (`0x406392`), `final_text` en (120, 22) sur le noir, relâchement du tir, attente d'un tir ou d'une touche, puis les scores. Elles restaurent `rain`, qui joue déjà, puis `0x401C87` rend la main : musique `love`, menu.
+- FLC : une image tous les 5 ticks, quelle que soit la durée du fichier. `Blaster.flc` s'arrête à 384 images sur 417 (`0x4071FD`). `intro.flc` joue jusqu'à sa fin (`[0x41C87D]`, `0x40957D`). Aucun test d'entrée dans ces boucles : ils ne s'interrompent pas (probable, `0x40959F` n'est pas lu en entier).
+
+**Crédits** (`0x4011FF`). Musique `starr`, puis en boucle `intro.flc` et les images m, g, c, w, e. Le répertoire du pack (`0x40A17A`, lu à la fin de l'exe, chiffré) donne l'ordre des fichiers : c, g, m, b, w, e sont `credit_1..6`. L'image b n'apparaît qu'au démarrage. Un tir ou une touche sur une image ramène au menu avec `love`. Le service `0x3E` renvoie la position du module dans `ah` (`[0x423E70]`, `0x40B73E`) : à `0x23`, dernier des 36 ordres de `credit.mod`, les crédits s'arrêtent seuls. Ce test a lieu après le FLC et après chaque image, pas pendant.
+
+**Une image** (`0x401BD5`, `0x40768E`). Fondu de sortie de l'écran précédent, puis fondu d'entrée des couleurs `0xE0..0xFF` (32 ticks), 5 ticks, fondu d'entrée de `0..0xDF` (32 ticks), puis 150 ticks ou un tir ou une touche. `media.gif` (`0x401B98`) a un seul fondu, sur toute la palette, et dure 200 ticks. Au démarrage, une touche ne termine que l'image en cours. Le service `0x34` lance le module chargé (`0x407790`) : la musique `love` chargée en `0x401058` part à la fin du premier fondu.
+
+**Remake.**
+- `intro.flc` et `Blaster.flc` viennent avec la tâche 15. D'ici là, la boucle des crédits est plus courte et l'arrêt sur la position du module arrive après plus de tours.
+- Le nom accepte la répétition des touches, puisque l'original lit le tampon clavier (probable). Entrée ou Échap répétés ne valident pas, pour qu'un doigt resté sur Entrée en partie ne valide pas un nom. Les raccourcis F et S sont coupés pendant la saisie.
+- Sous Pointer Lock, le navigateur prend le premier Échap pour libérer la souris. Entrée n'a pas ce problème.
+- Chaque image attend le relâchement du tir. L'original ne le fait que pour les touches, mais Espace et Entrée comptent ici comme tir.
+- À la fin du jeu, l'original affiche les scores en pleine palette juste avant leur fondu d'entrée. Le remake commence au noir.
+- La table est gardée dans `localStorage` (`brick-blaster.scores`), et part de celle de l'exe : `blaster.scr` contient les pseudos d'autres joueurs.
 
 Textes en jeu : « pret ? », « game over », « joue encore », « éditeur de niveaux », « pause », « demo », « test ». Écran final solo : « félicitations ! vous êtes vraiment un as !! ». Écran final duel : « vainqueur joueur ??? ».
 
@@ -792,7 +824,7 @@ Résultat dans `assets/` (69 fichiers) :
 | `backgrounds/` | `title`, `media` (PNG indexés, palette d'origine) ; `space_1..8`, `arcade_1..8` avec leur palette de jeu (couleurs 0..15 du GIF, 0 et 15 en noir, le reste depuis la palette du monde, §3.5) |
 | `backgrounds/palettes.json` | `{"space_1": [[r, g, b] × 16], …}` : couleurs 0..15 de chaque fond en jeu (0 et 15 en noir), pour recolorer les sprites (§3.5) |
 | `sprites/` | `sprite_sheet` 640×1900, `font` 800×24, `menu` 640×1220, `monsters` 930×220 ; `space/`, `arcade/` : `sprite_sheet`, `font`, `monsters` avec la palette du monde, index 0 transparent ; `sprite_sheet_low` : masque en niveaux de gris (valeur = index 1..15 de la planche, 0 ailleurs) ; `sprite_sheet_flash` : masque des index 112..127 (cadres des icônes de bonus) ; `menu` a son index 0 transparent ; `menu_index` : masque des index de `menu` (pulsation du survol) ; `menu_font` : police sous la palette du menu |
-| `credits/` | `credit_1..6` |
+| `credits/` | `credit_1..6`, et `credit_N_text` (couleurs `0xE0..0xFF`) |
 | `sounds/` | 17 WAV 8 bits mono, en-tête 8 363 Hz repris du 8SVX mais joués à 13 208 Hz (§4.5). 8SVX signé converti en non signé. Le volume VHDR n'y est pas : il est dans `src/audio/rules.ts` |
 | `music/` | `love`, `starr`, `the_last`, `hunting_in_lacanau`, `rain_in_the_brain` (`.mod`, au format tracker d'origine, sans les 2 doublons) |
 | `video/` | `intro.flc` (décompressé), `blaster.flc` |
@@ -873,7 +905,7 @@ Graphismes, sons, musiques et niveaux appartiennent à Eclipse / leurs auteurs (
 - Sortie de l'original en stéréo ou non : lue au lancement (§4.5), probable.
 - ~~Quel set de niveaux correspond à quel monde~~ : résolu, espace = lv0, arcade = lv1 (§4).
 - ~~Rôle de `0x408AD9` et retour au menu~~ : résolu (§4.5, Menus).
-- Contenu de `blaster.scr` une fois déchiffré, et des `.usr` : sans importance pour le remake.
+- ~~Contenu de `blaster.scr` une fois déchiffré~~ : résolu (Écrans et meilleurs scores). Les `.usr` restent sans importance pour le remake.
 - Routine d'effet restante : `collision`, qui ne concerne que le duel.
 - Capsules pendant le décollage de fin de niveau : `0x4054D2` les attrape en mode 3, et ce mode dure pendant le décollage. Le remake ne les attrape pas (écart connu, à corriger).
 - Rôle de l'octet patché à l'offset 28850.

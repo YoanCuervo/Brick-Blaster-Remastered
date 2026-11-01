@@ -25,6 +25,8 @@ export class Music {
   private ticket = 0;
   private volume = DEFAULT_MUSIC_VOLUME;
   private channels = 0;
+  private playing: MusicName | null = null;
+  private position: number | null = null;
 
   constructor(
     private readonly ctx: AudioContext,
@@ -34,6 +36,16 @@ export class Music {
     this.gain = ctx.createGain();
     this.gain.connect(ctx.destination);
     this.node = this.createNode();
+  }
+
+  /** The module asked for last: the one playing, or the one about to. */
+  get current(): MusicName | null {
+    return this.wanted;
+  }
+
+  /** Song position of the module asked for, null until it starts ([0x423E70], service 0x3E). */
+  get order(): number | null {
+    return this.playing === this.wanted ? this.position : null;
   }
 
   /** Asking for the current module changes nothing: it goes on playing (0x4077AF). */
@@ -60,6 +72,10 @@ export class Music {
       numberOfOutputs: 1,
       outputChannelCount: [2],
     });
+    node.port.addEventListener("message", (e: MessageEvent<{ cmd: string; order: number }>) => {
+      if (e.data.cmd === "pos") this.position = e.data.order;
+    });
+    node.port.start();
     node.port.postMessage({ cmd: "config", val: WORKLET_CONFIG });
     node.connect(this.gain);
     return node;
@@ -87,6 +103,8 @@ export class Music {
     if (ticket === this.ticket) {
       this.started = true;
       this.channels = channels;
+      this.playing = name;
+      this.position = null;
       this.onStart(channels);
     }
   }

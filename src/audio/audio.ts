@@ -6,12 +6,12 @@ import { Sfx } from "./sfx";
 /** Sound and music of the game, silent until the first user gesture allows the audio context. */
 export class GameAudio {
   private readonly sfx: Sfx;
-  private readonly music: Music;
+  private readonly music_: Music;
 
   constructor(sounds: Record<SoundName, Uint8Array>, base = import.meta.env.BASE_URL) {
     const ctx = new AudioContext();
     this.sfx = new Sfx(ctx, sounds);
-    this.music = new Music(ctx, base, (channels) => this.sfx.setModuleChannels(channels));
+    this.music_ = new Music(ctx, base, (channels) => this.sfx.setModuleChannels(channels));
 
     let unlocked = false;
     const unlock = () => {
@@ -28,11 +28,19 @@ export class GameAudio {
   }
 
   playMusic(name: MusicName): void {
-    this.music.play(name);
+    this.music_.play(name);
+  }
+
+  get music(): MusicName | null {
+    return this.music_.current;
+  }
+
+  get musicOrder(): number | null {
+    return this.music_.order;
   }
 
   setMusicVolume(volume: number): void {
-    this.music.setVolume(volume);
+    this.music_.setVolume(volume);
   }
 
   /** To call after each tick, with the sounds that tick started. */
