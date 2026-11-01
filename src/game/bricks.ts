@@ -1,11 +1,11 @@
 // Live brick grid and brick collisions (§4, §4.1).
-import { LEVEL_COLS, type Level } from "../data/levels";
+import { LEVEL_COLS, LEVEL_ROWS, type Level } from "../data/levels";
 import type { Rng } from "../core/rng";
 import { BRICK_COLOR_STRIDE, BRICK_FRAME_STRIDE, BRICK_GHOST, brickSprite } from "../render/atlas";
 import { PADDLE_X_MIN, PLAY_RIGHT } from "./paddle";
 
-/** The live grid at 0x4111AD holds 30 rows of 13 (0x186 bytes); levels only fill 24. */
-export const GRID_ROWS = 30;
+/** The live grid at 0x4111AD is a copy of the level (0x404D5F). */
+export const GRID_ROWS = LEVEL_ROWS;
 export const GRID_CELLS = LEVEL_COLS * GRID_ROWS;
 /** Probe bounds of 0x4043DD (unsigned compares). */
 export const GRID_RIGHT = PLAY_RIGHT;

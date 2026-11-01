@@ -10,10 +10,10 @@ Writes blaster.lv0 and blaster.lv1, since which world reads which file is unknow
 import sys
 from pathlib import Path
 
-COLS, ROWS, SLOTS = 13, 24, 100
-# The original sets fill 49-50 slots. The attract-mode demo seems to pick levels
+COLS, ROWS, SLOTS = 13, 30, 80
+# The original sets fill 40 slots. The attract-mode demo seems to pick levels
 # beyond our 7 and crashes on 0xFF-filled slots, so the test levels are repeated.
-FILLED_SLOTS = 50
+FILLED_SLOTS = 40
 LEVEL_SIZE = COLS * ROWS
 KINDS = [0x21, 0x24, 0x27, 0x11, 0x08, 0x18]
 

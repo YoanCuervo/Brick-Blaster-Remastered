@@ -40,7 +40,8 @@ SOUND_NAMES = [
 ]
 SOUND_FIRST_BLOCK = 8
 
-LEVEL_COLS, LEVEL_ROWS, LEVEL_SLOTS = 13, 24, 100
+# 0x404D51: one level is 0x186 bytes. 0x407C34: the file is 0x79E0 bytes, i.e. 80 slots.
+LEVEL_COLS, LEVEL_ROWS, LEVEL_SLOTS = 13, 30, 80
 
 # blaster.cfg is read positionally (§5.1, 0x4079EE): key names are ignored, only the
 # order of the "(...)" groups matters. Triplets are (easy, medium, hard).
@@ -158,7 +159,7 @@ def parse_levels(raw: bytes) -> list:
     levels = []
     for n in range(LEVEL_SLOTS):
         chunk = raw[n * size:(n + 1) * size]
-        if all(b == 0xFF for b in chunk):
+        if chunk[0] == 0xFF:  # 0x404E96 only checks the first byte
             break
         levels.append([list(chunk[r * LEVEL_COLS:(r + 1) * LEVEL_COLS]) for r in range(LEVEL_ROWS)])
     return levels
