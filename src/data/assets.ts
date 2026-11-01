@@ -1,3 +1,5 @@
+import { SOUND_NAMES } from "../audio/rules";
+import type { SoundName } from "../game/game";
 import { type GameConfig, parseConfig } from "./config";
 import { IMAGE_NAMES, type Images, WORLDS, type World, loadImages } from "./images";
 import { type LevelSet, parseLevels } from "./levels";
@@ -7,6 +9,7 @@ import {
   parseBackgroundPalettes,
   parsePalette,
 } from "./palette";
+import { parseWav } from "./wav";
 
 export interface Assets {
   config: GameConfig;
@@ -15,6 +18,7 @@ export interface Assets {
   palettes: Record<World, VgaPalette>;
   /** Keyed by background image name, as given by backgroundImage(). */
   backgroundColors: Record<string, BackgroundColors>;
+  sounds: Record<SoundName, Uint8Array>;
 }
 
 async function fetchOk(url: string): Promise<Response> {
@@ -35,9 +39,19 @@ async function loadPalettes(base: string): Promise<Record<World, VgaPalette>> {
   return Object.fromEntries(WORLDS.map((w, i) => [w, pals[i]!])) as Record<World, VgaPalette>;
 }
 
+async function loadSounds(base: string): Promise<Record<SoundName, Uint8Array>> {
+  const sounds = await Promise.all(
+    SOUND_NAMES.map(async (name) => {
+      const url = `${base}sounds/${name}.wav`;
+      return [name, parseWav(await (await fetchOk(url)).arrayBuffer(), url)] as const;
+    }),
+  );
+  return Object.fromEntries(sounds) as Record<SoundName, Uint8Array>;
+}
+
 // BASE_URL keeps paths relative, so the same build also works from file:// in Electron.
 export async function loadAssets(base = import.meta.env.BASE_URL): Promise<Assets> {
-  const [config, levels, images, palettes, backgroundColors] = await Promise.all([
+  const [config, levels, images, palettes, backgroundColors, sounds] = await Promise.all([
     fetchJson(`${base}config.json`).then(parseConfig),
     fetchJson(`${base}levels.json`).then(parseLevels),
     loadImages(base, IMAGE_NAMES),
@@ -50,6 +64,7 @@ export async function loadAssets(base = import.meta.env.BASE_URL): Promise<Asset
         ]),
       ),
     ),
+    loadSounds(base),
   ]);
-  return { config, levels, images, palettes, backgroundColors };
+  return { config, levels, images, palettes, backgroundColors, sounds };
 }

@@ -79,7 +79,7 @@ DirectInput fournit des **déplacements relatifs bruts** (« mickeys »). Le jeu
 
 Tout ce qui est référencé comme `resource\xxx` n'existe pas sur le disque : c'est **collé à la fin de `blaster.exe`**, à partir de l'offset fichier **`0x2A400`** (fin de la section `.rsrc`). Taille de cet overlay : 2 728 008 octets.
 
-Structure : une suite de fichiers concaténés, sans table d'index (le moteur stocke les offsets dans le code).
+Structure : une suite de fichiers concaténés, suivie d'un répertoire. Les 4 derniers octets de l'exe donnent l'offset du répertoire (`0x2C4020`) : en-tête de 0x14 octets (`EOS`, nombre d'entrées, 52), puis des entrées de 0x14 octets (nom sur 12, taille décompressée, offset fichier), chiffrées par un XOR à clé roulante (`0x40A196` : `al = 0xFF`, puis pour chaque octet `xor`, `rol al, 3`, `xor al, 0x12`, `add al, 0x45`). La recherche se fait sur le nom seul, en majuscules (`0x40A1B3`) : la première entrée gagne, les doublons ne servent donc jamais.
 1. **27 GIF** bruts (non compressés en plus, le GIF l'étant déjà).
 2. **25 blocs compressés DIET**, avec en-tête `B4 4C CD 21 9D 89 'EOS'` (variante maison du tag `dlz`).
 
@@ -114,17 +114,17 @@ resource\boom.iff
 
 | # | Offset | Contenu décompressé |
 |---|---|---|
-| 0 | `0x1A13CC` | Module XM/MOD 6 voies « l@ve v2.06 » |
-| 1 | `0x1A3F21` | MOD 4 voies « Starr » |
-| 2 | `0x1D5071` | MOD 4 voies « the last » (= `thelast.mod`) |
+| 0 | `0x1A13CC` | `blaster.mod`, MOD 6 voies « l@ve v2.06 » |
+| 1 | `0x1A3F21` | `credit.mod`, MOD 4 voies « Starr » |
+| 2 | `0x1D5071` | `thelast.mod`, MOD 4 voies « the last » |
 | 3 | `0x1EB857` | doublon exact du #0 |
-| 4 | `0x1EE3AC` | MOD 6 voies « Hunting in Lacanau » |
+| 4 | `0x1EE3AC` | `lode.mod`, MOD 6 voies « Hunting in Lacanau » |
 | 5 | `0x2064CA` | doublon exact du #1 |
-| 6 | `0x23761A` | MOD 8 voies « rain in the brain » (= `rain.mod`) |
+| 6 | `0x23761A` | `rain.mod`, MOD 8 voies « rain in the brain » |
 | 7 | `0x26D79C` | FLC 400×79, 35 images, 50 ms (= `intro.flc`) |
-| 8–24 | `0x2747AF` → `0x2930C1` | 17 sons IFF 8SVX, 8 bits, 8363 Hz, dans l'ordre de la liste : `optionon, telepod, newlife, small, large, next, death, shoot, endopt, night, restart, speedup, monstoff, wall, bounce, pertebal, boom` (ordre déduit : 17 sons pour 17 noms) |
+| 8–24 | `0x2747AF` → `0x2930C1` | 17 sons IFF 8SVX, 8 bits, 8363 Hz, dans l'ordre de la liste : `optionon, telepod, newlife, small, large, next, death, shoot, endopt, night, restart, speedup, monstoff, wall, bounce, pertebal, boom` (vérifié dans le répertoire) |
 
-Durées des sons (s) : 0.48, 0.89, 2.57, 0.81, 1.02, 2.66, 2.94, 1.07, 0.88, 0.85, 1.29, 1.34, 1.64, 0.12, 0.12, 0.24, 4.60.
+Durées réelles en jeu (s), à 13 208 Hz (§4.5) : 0.30, 0.56, 1.63, 0.51, 0.64, 1.68, 1.86, 0.68, 0.56, 0.54, 0.82, 0.85, 1.04, 0.08, 0.08, 0.15, 2.92. Le 8 363 Hz de leurs en-têtes n'est jamais lu. Leur champ de volume VHDR, lui, compte : 0x8000 (moitié) pour `monstoff`, `wall`, `pertebal` et `boom`, 0x10000 pour les autres.
 
 ### 3.4 Compression DIET (vérifié)
 
@@ -491,6 +491,32 @@ La bande des vies finit au bord droit de la planche, dont les 9 derniers pixels 
 
 Le rebond sur la raquette joue `wall` (`0x4046E0`), l'accélération `speedup` (`0x403F7F`) et la balle perdue `pertebal`. Les rebonds sur les murs sont muets.
 
+**Lecture des sons** (`0x405746`, service `0x3B`, `0x40CF23`) :
+- **Fréquence** : la période `0x10F` est passée en dur, et le mixeur en tire le pas : horloge `0x369DE4` / période (`0x40C8BF`, `0x40C8D3`). Soit **13 208 Hz**, 1,58 fois le 8 363 Hz annoncé par les fichiers. Pas d'interpolation (`0x40CA50`), pas de boucle (`0x40C9BC`).
+- **Une seule voix** : 2 voix sont réservées après celles du module (`0x4077D9`), mais `0x405746` ne prend la seconde que pour un numéro de son < `0x19`, et le chargeur n'en donne que ≥ `0x81` (`0x40D011`, `0x40D07B`). Un nouveau son coupe donc le précédent et repart du début. Dans un même tick, seul le dernier s'entend : `monstoff` × n une seule fois, `boom` puis `death` (`0x404C66`) donne `death`. Le mixage tournant à part, un fragment du premier pourrait passer (improbable).
+- **Numéro 0** : rien n'est joué (`0x40CF41`). C'est le cas de la capsule perdue (§5.2).
+- **Niveau** : indice = volume du son × volume général × 4, octet haut, plafonné à 63 (`0x40C9E2`). La table `0x40C86E` donne à une voix le niveau indice / 64 / ⌈voix / 2⌉, les 2 voix de sons comptant dans le total.
+- **Panoramique** : la voix `i` est tout à droite si `i & 3` vaut 1 ou 2, sinon tout à gauche (`0x40B693`, `0x40C999`). La voix des sons porte le numéro du nombre de voies du module : gauche sous 4 et 8 voies, droite sous 6. L'original lit le format de sortie au lancement (`0x40E3A9`) : la stéréo est donc probable, pas certaine.
+
+**Volumes.** Musique en `0x423E57`, sons en `0x423E58` (échange en `0x40CF86`), de 0 à 64. Valeurs par défaut 32 et 64 (`0x41BB56`), remplacées par les 2 octets du `.usr`. Le curseur du menu (`0x401903`) ne règle que la musique. Les routines `0x406F88` et `0x406FA4` ne sont appelées par personne.
+
+**Musique** (`0x407790` charge et démarre, `0x40778A` charge seulement) :
+
+| Moment | Fichier | Module | Adresse |
+|---|---|---|---|
+| Démarrage, menus, démo | `blaster.mod` | `love` | `0x401058`, `0x4011B4`, `0x4012A0` |
+| Partie, espace | `thelast.mod` | `the_last` | `0x401712`, `0x4011A4` |
+| Partie, arcade | `lode.mod` | `hunting_in_lacanau` | `0x40173B`, `0x4011A4` |
+| Crédits | `credit.mod` | `starr` | `0x4011FF` |
+| Meilleurs scores, écran de fin | `rain.mod` | `rain_in_the_brain` | `0x408BB9`, `0x408B1A`, `0x407143` |
+
+- La musique de partie ne change ni avec le niveau, ni au game over, ni en pause : aucun appel au service `0x35` n'y figure. Seul l'écran des scores la remplace, puis la restaure (pile, `0x408BB9`). La démo ne change rien (`0x401142`).
+- `[0x411008]` vaut `blaster.mod` tant que le menu des mondes n'a pas été vu : à revoir à la tâche des menus.
+- Changement de module : fondu de la seule musique, un pas par tick jusqu'à −1, soit `volume + 1` ticks (`0x40666A`), bloquant. Demander le module en cours ne fait rien : il continue (`0x4077AF`, le service `0x32` refuse).
+- En fin de morceau, retour à la position lue à l'octet 948 du module (`0x40B50C`, `0x40B760`) : 0 pour les 5 modules.
+
+**Remake (audio)** : libopenmpt via les fichiers worklet de chiptune3, avec le filtre 1 (sans interpolation), une séparation de 200 (mesurée : voies 100 % à gauche ou à droite, comme l'original) et l'émulation Amiga du worklet coupée. Mesuré sur un module de test à pleine échelle, une voie libopenmpt culmine à 2 / voies : le gain de sortie (`musicGain`) la ramène au niveau de l'original. Les sons sont rééchantillonnés sans interpolation. Le navigateur bloque l'audio avant le premier geste : les sons d'avant sont perdus, la musique attend. L'audio est suspendu quand l'onglet est masqué. Le rendu d'effets MOD par libopenmpt peut différer du « Diamond Player » : non comparé.
+
 **Remake** : pas encore d'écran de félicitations (tâche 14). Le tick de chargement du fond est affiché comme le fond nu à la palette 31, ce qui revient au noir. La raquette reste figée pendant les animations, puisque l'original la remplace par l'objet animé (probable). Le tir est le bouton de souris ou Espace. Un clic plus court qu'un tick est mémorisé jusqu'au tick suivant.
 
 ## 5. Configuration du gameplay (`blaster.cfg` décompressé) — vérifié
@@ -586,7 +612,7 @@ lâcher une capsule au coin haut-gauche de la brique, chute 2 px/tick
 - Une capsule prend le premier emplacement qui n'est pas en chute. Si les 8 tombent, elle est perdue. Le compteur et le dernier bonus ont déjà été mis à jour.
 - Elle apparaît en x = 112 + col × 32, y = ligne × 16 (`0x40448E`). Elle tombe de 2 px dès le tick de sa création, car `0x405452` passe après les balles.
 - **Ramassage** (`0x4054D2`, mode 3 seulement) : y entre 416 et 440, et capsule **entièrement** dans la largeur de la raquette (`x ≥ raquette.x` et `x + 26 ≤ raquette.x + largeur`).
-- **Perdue** si `y + 24 + 2 ≥ 480`. Le son vient de l'emplacement `0x41B9FF`, juste après la table, que rien n'écrit : la capsule tombe donc sans bruit (probable).
+- **Perdue** si `y + 24 + 2 ≥ 480`. Le son vient de l'emplacement `0x41B9FF`, juste après la table, que rien n'écrit : la capsule tombe donc sans bruit (`0x40CF41` ne joue rien pour le numéro 0).
 - Les capsules continuent de tomber pendant les attentes (`0x402058` : explosion, décollage de la raquette), sans pouvoir être ramassées. Toute nouvelle manche les efface (`0x405264`).
 
 **Bonus actif** (`0x4055AE`, à la récupération de la capsule). Le ramassage joue `optionon`, donne **2 unités** de score (20/30/40 points), affiche l'icône et lance le clignotement. Le libellé n'apparaît qu'au tick suivant, avec `0x405DD2`.
@@ -729,14 +755,14 @@ Résultat dans `assets/` (66 fichiers) :
 | `backgrounds/palettes.json` | `{"space_1": [[r, g, b] × 16], …}` : couleurs 0..15 de chaque fond en jeu (0 et 15 en noir), pour recolorer les sprites (§3.5) |
 | `sprites/` | `sprite_sheet` 640×1900, `font` 800×24, `menu` 640×1220, `monsters` 930×220 ; `space/`, `arcade/` : `sprite_sheet`, `font`, `monsters` avec la palette du monde, index 0 transparent ; `sprite_sheet_low` : masque en niveaux de gris (valeur = index 1..15 de la planche, 0 ailleurs) ; `sprite_sheet_flash` : masque des index 112..127 (cadres des icônes de bonus) |
 | `credits/` | `credit_1..6` |
-| `sounds/` | 17 WAV 8 bits mono à 8 363 Hz (8SVX signé converti en non signé) |
+| `sounds/` | 17 WAV 8 bits mono, en-tête 8 363 Hz repris du 8SVX mais joués à 13 208 Hz (§4.5). 8SVX signé converti en non signé. Le volume VHDR n'y est pas : il est dans `src/audio/rules.ts` |
 | `music/` | `love`, `starr`, `the_last`, `hunting_in_lacanau`, `rain_in_the_brain` (`.mod`, au format tracker d'origine, sans les 2 doublons) |
 | `video/` | `intro.flc` (décompressé), `blaster.flc` |
 | `levels.json` | `{"lv0": [...], "lv1": [...], "lv2": [...]}` : chaque niveau est une grille 24 × 13 d'octets bruts (0 = vide, encodage §4) |
 | `palettes/`, `icon/` | copies |
 
 Restant à faire pour le web :
-- **Musiques MOD** : les lire telles quelles avec une bibliothèque tracker (libopenmpt en WASM, par exemple) ou les convertir en OGG. À décider à l'étape audio.
+- **Musiques MOD** : lues telles quelles avec libopenmpt en WASM (§4.5).
 - **Sprites** : découper `sprite_sheet.png` en atlas. Les cadres orange servent de repères, et le fond violet foncé sert de couleur de transparence (index de palette à identifier).
 - **FLC** : convertir en WebM, ou décoder directement (le format est simple), si l'intro est reprise.
 
@@ -805,7 +831,8 @@ Graphismes, sons, musiques et niveaux appartiennent à Eclipse / leurs auteurs (
 - Logique cadencée exactement à 50 Hz ? (§4.2)
 - Le jeu plante dès qu'il perd le plein écran (Alt+Tab, Impr. écran) : comparer le remake à l'original demandera un outil de fenêtrage (DxWnd).
 - La démo plante si le set de niveaux contient des emplacements vides (`0xFF`) parmi ceux qu'elle tire au sort : un set de test doit remplir 50 emplacements.
-- Correspondance exacte entre noms de fichiers `.mod` et titres de modules (seuls `thelast` et `rain` sont évidents).
+- ~~Correspondance entre noms de fichiers `.mod` et titres de modules~~ : résolu, par le répertoire de l'exe (§3.3).
+- Sortie de l'original en stéréo ou non : lue au lancement (§4.5), probable.
 - ~~Quel set de niveaux correspond à quel monde~~ : résolu, espace = lv0, arcade = lv1 (§4).
 - Rôle exact de `0x408AD9` après un game over (meilleurs scores ?) et du retour au menu (§4.5).
 - Contenu de `blaster.scr` une fois déchiffré, et des `.usr` : sans importance pour le remake.
