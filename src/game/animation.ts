@@ -74,5 +74,8 @@ export const WARP: AnimSpec = {
 export const WARP_DX = -9;
 export const WARP_Y = 0x197;
 
+/** Paddle arriving at the start of a round (0x404B88): flag [0x404BFC] selects this strip. */
+export const ARRIVAL: AnimSpec = { ...WARP, first: 0x89242 };
+
 /** The game waits until [+0x65] = 2, then hides the paddle (0x404C38, 0x404CAC). */
 export const ANIM_END_LEFT = 2;

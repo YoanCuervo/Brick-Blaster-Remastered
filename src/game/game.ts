@@ -4,6 +4,7 @@ import { type Difficulty, type GameConfig, forDifficulty } from "../data/config"
 import { LEVEL_COLS, type Level } from "../data/levels";
 import {
   ANIM_END_LEFT,
+  ARRIVAL,
   EXPLOSION,
   EXPLOSION_DX,
   EXPLOSION_Y,
@@ -86,6 +87,8 @@ export const GameMode = {
   FadeOut: 10,
   /** Background load (0x407336) then fade in on the bare background (0x406681). */
   FadeIn: 11,
+  /** Paddle arriving before the serve (0x404B88), a wait loop in the original. */
+  Arrival: 12,
 } as const;
 export type GameMode = (typeof GameMode)[keyof typeof GameMode];
 
@@ -205,6 +208,7 @@ export class Game {
       case GameMode.LifeLost:
       case GameMode.GameOver:
       case GameMode.LevelEnd:
+      case GameMode.Arrival:
         this.waitAnim();
         break;
       case GameMode.FadeOut:
@@ -439,6 +443,10 @@ export class Game {
     }
     this.animateGrid();
     stepIconFlash(this.flash);
+    if (this.mode === GameMode.Arrival) {
+      if (pa.done) this.endArrival();
+      return;
+    }
     if (pa.visible || --this.pause !== 0) return;
     this.afterAnim();
   }
@@ -506,15 +514,13 @@ export class Game {
 
   /** 0x401DB5: new ball and paddle, ball stuck in the paddle's middle (0x404FBE). */
   private startRound(): void {
-    // The paddle stays hidden from its animation until here (0x40256C).
-    this.paddleAnim = null;
     this.capsules = createCapsules();
     // 0x404FBE, 0x405264, 0x4057B4 (icon blank) and 0x406392 (full palette).
     this.bonus.active = null;
     this.bonus.timer = 0;
     this.bonus.icon = null;
     this.flash.shown = 0;
-    this.mode = GameMode.Ready;
+    this.mode = GameMode.Arrival;
     this.message = this.config.texts.status.ready;
     this.paddle.x = createPaddle().x;
     this.paddle.w = createPaddle().w;
@@ -522,5 +528,15 @@ export class Game {
     placeOnPaddle(ball, this.paddle);
     stickToPaddle(ball, this.paddle);
     this.balls = [ball];
+    // 0x404B88: the ball is hidden while the paddle arrives.
+    ball.state = BallState.Dead;
+    this.startPaddleAnim(ARRIVAL, WARP_DX, WARP_Y, 0);
+  }
+
+  /** End of 0x404B88: ball back in play, paddle back from its animation (0x40256C). */
+  private endArrival(): void {
+    this.paddleAnim = null;
+    this.balls[0]!.state = BallState.Active;
+    this.mode = GameMode.Ready;
   }
 }

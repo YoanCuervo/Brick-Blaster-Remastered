@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ANIM_END_LEFT, EXPLOSION, WARP, createAnim, stepAnim } from "./animation";
+import { ANIM_END_LEFT, ARRIVAL, EXPLOSION, WARP, createAnim, stepAnim } from "./animation";
 
 /** Frame index shown after each tick, until [+0x65] reaches 2. */
 function run(spec: typeof EXPLOSION): number[] {
@@ -26,6 +26,11 @@ describe("stepAnim (0x4066BA)", () => {
     expect(frames.length).toBe(18);
     expect(frames.slice(0, 4)).toEqual([0, 0, 0, 1]);
     expect(frames.at(-1)).toBe(8);
+  });
+
+  it("plays the paddle arrival like the warp, from its own strip (0x404B88)", () => {
+    expect(ARRIVAL).toEqual({ ...WARP, first: 0x89242 });
+    expect(run(ARRIVAL).length).toBe(18);
   });
 
   it("wraps to the first frame after the last", () => {

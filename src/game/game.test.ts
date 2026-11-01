@@ -50,6 +50,9 @@ function level(bytes: number[] = [0x21]): Level {
 
 /** Load tick (0x407336) then one tick per fade step (0x406681). */
 const FADE_IN_TICKS = 1 + FADE_STEPS;
+/** Paddle arrival before the serve (0x404B88), as long as the warp. */
+const ARRIVAL_TICKS = 18;
+const READY_TICKS = FADE_IN_TICKS + ARRIVAL_TICKS;
 
 /** Pads the set to 50 levels: the serve speed divides by levelCount / 3. */
 function newGame(levels: Level[] = [level()], over: Partial<GameConfig> = {}, count = 50) {
@@ -58,10 +61,10 @@ function newGame(levels: Level[] = [level()], over: Partial<GameConfig> = {}, co
   return new Game(config(over), set, Difficulty.Medium, new Rng(1));
 }
 
-/** A new game past its fade in, waiting for the serve. */
+/** A new game past its fade in and paddle arrival, waiting for the serve. */
 function game(levels?: Level[], over?: Partial<GameConfig>, count?: number) {
   const g = newGame(levels, over, count);
-  for (let i = 0; i < FADE_IN_TICKS; i++) g.tick({ paddleDx: 0, fire: false });
+  for (let i = 0; i < READY_TICKS; i++) g.tick({ paddleDx: 0, fire: false });
   return g;
 }
 
@@ -205,9 +208,8 @@ describe("level end (0x4045B2, 0x401C54)", () => {
       back.push(g.fade);
     }
     expect(back).toEqual(Array.from({ length: FADE_STEPS }, (_, k) => FADE_STEPS - 1 - k));
-    expect(g.mode).toBe(GameMode.Ready);
+    expect(g.mode).toBe(GameMode.Arrival);
     expect(g.bare).toBe(false);
-    expect(g.paddleAnim).toBeNull();
     expect(g.grid.cells[130]).toBe(1);
     expect(g.paddle.x).toBe(283);
   });
@@ -236,7 +238,7 @@ describe("lost life (0x404A38, 0x404AED)", () => {
     ticks(g, 109);
     expect(g.mode).toBe(GameMode.LifeLost);
     g.tick(idle);
-    expect(g.mode).toBe(GameMode.Ready);
+    expect(g.mode).toBe(GameMode.Arrival);
     expect(g.message).toBe("ready");
     expect(g.sounds).toEqual(["restart"]);
     expect(g.livesShown).toBe(1);
@@ -260,8 +262,43 @@ describe("lost life (0x404A38, 0x404AED)", () => {
     expect(g.mode).toBe(GameMode.FadeIn);
     expect(g.bare).toBe(true);
     expect(g.player).toEqual({ score: 0, lives: 0, nextLife: 10000 });
-    ticks(g, FADE_IN_TICKS);
+    ticks(g, READY_TICKS);
     expect(g.mode).toBe(GameMode.Ready);
+  });
+});
+
+describe("paddle arrival (0x404B88)", () => {
+  it("runs at every round, ball hidden, then the ball waits on the paddle", () => {
+    const g = newGame();
+    ticks(g, FADE_IN_TICKS);
+    expect(g.mode).toBe(GameMode.Arrival);
+    expect(g.balls[0]!.state).toBe(BallState.Dead);
+    expect(g.paddleAnim).toMatchObject({ x: 283 - 9, y: 0x197, visible: true });
+    expect(g.paddleAnim!.anim.first).toBe(0x89242);
+    ticks(g, ARRIVAL_TICKS - 1);
+    expect(g.mode).toBe(GameMode.Arrival);
+    expect(g.paddleAnim?.visible).toBe(true);
+    g.tick(idle);
+    expect(g.mode).toBe(GameMode.Ready);
+    expect(g.paddleAnim).toBeNull();
+    expect(g.balls[0]!.state).toBe(BallState.Active);
+  });
+
+  it("ignores the fire button and the paddle input", () => {
+    const g = newGame();
+    ticks(g, FADE_IN_TICKS);
+    ticks(g, ARRIVAL_TICKS, { paddleDx: 10, fire: true });
+    expect(g.mode).toBe(GameMode.Ready);
+    expect(g.paddle.x).toBe(283);
+  });
+
+  it("also runs after a lost life", () => {
+    const g = game([level([0x24, 0x21]), level()]);
+    g.tick(fire);
+    dropBall(g);
+    until(g, GameMode.LifeLost);
+    expect(until(g, GameMode.Arrival)).toBe(110);
+    expect(until(g, GameMode.Ready)).toBe(ARRIVAL_TICKS);
   });
 });
 
@@ -290,7 +327,7 @@ describe("new game (0x401D4C)", () => {
     expect(g.mode).toBe(GameMode.FadeIn);
     g.tick(fire);
     // Fire during the fade does not serve.
-    expect(g.mode).toBe(GameMode.Ready);
+    expect(g.mode).toBe(GameMode.Arrival);
     expect(g.message).toBe("ready");
   });
 });
@@ -332,9 +369,9 @@ describe("bonus drop (0x40531A)", () => {
   it("counts Time_Between_Option in ticks, across all modes", () => {
     const g = newGame([level([0x21, 0x21]), level()], {
       bonusFreq: all(1),
-      timeBetweenOption: t(FADE_IN_TICKS + 3),
+      timeBetweenOption: t(READY_TICKS + 3),
     });
-    ticks(g, FADE_IN_TICKS);
+    ticks(g, READY_TICKS);
     g.tick(fire);
     hitFirstBrick(g);
     expect(g.capsules[0]!.state).toBe(CapsuleState.Free);
@@ -537,7 +574,7 @@ describe("bonus cleared", () => {
     spawnCapsule(g.capsules, bonusByKey("bonus"), 112, 0);
     dropBall(g);
     until(g, GameMode.LifeLost);
-    until(g, GameMode.Ready);
+    until(g, GameMode.Arrival);
     expect(g.capsules.every((c) => c.state === CapsuleState.Free)).toBe(true);
     expect(g.bonus.icon).toBeNull();
     expect(g.flash.shown).toBe(0);
