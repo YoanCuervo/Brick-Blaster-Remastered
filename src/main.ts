@@ -16,6 +16,7 @@ import { type Ball, BallState } from "./game/ball";
 import { CAPSULE_DY, CapsuleState } from "./game/bonus";
 import { GRID_CELLS, cellSprite } from "./game/bricks";
 import { Game } from "./game/game";
+import { MONSTER_PITCH } from "./game/monsters";
 import { PADDLE_H, clampPaddleX } from "./game/paddle";
 import { FireLatch } from "./input/fire";
 import { KeyState, keyboardDx, keyboardSpeed } from "./input/keyboard";
@@ -83,7 +84,7 @@ const MAX_LERP = 32;
 
 startLoop({
   update() {
-    const moving = [...game.balls, ...game.shotSystem.shots];
+    const moving = [...game.balls, ...game.monsterSystem.monsters, ...game.shotSystem.shots];
     prevBalls = new Map(moving.map((b) => [b, { x: b.x, y: b.y }]));
     const paddleDx =
       mouse.take() + keyboardDx(keys.isDown("ArrowLeft"), keys.isDown("ArrowRight"), keySpeed);
@@ -129,13 +130,13 @@ function font(): BitmapFont {
   );
 }
 
-/** A moving ball or shot, interpolated between ticks. */
-function drawMoving(b: Ball, alpha: number, sheet: HTMLCanvasElement): void {
+/** A moving ball, shot or monster, interpolated between ticks. */
+function drawMoving(b: Ball, alpha: number, sheet: CanvasImageSource, pitch?: number): void {
   const p = prevBalls.get(b);
   const near = p && Math.abs(b.x - p.x) <= MAX_LERP && Math.abs(b.y - p.y) <= MAX_LERP;
   const x = near ? Math.round(p.x + (b.x - p.x) * alpha) : b.x;
   const y = near ? Math.round(p.y + (b.y - p.y) * alpha) : b.y;
-  drawSprite(ctx, sheet, spriteAt(b.anim.frame, b.w, b.h), x, y);
+  drawSprite(ctx, sheet, spriteAt(b.anim.frame, b.w, b.h, pitch), x, y);
 }
 
 function drawGame(alpha: number, sheet: HTMLCanvasElement, background: string): void {
@@ -188,10 +189,20 @@ function drawGame(alpha: number, sheet: HTMLCanvasElement, background: string): 
     );
   }
 
-  // Next in slot order: the cannons, then the shots.
+  // Next in slot order: the cannons, the monsters, then the shots.
   const { miniLeft, miniRight, big, shots } = game.shotSystem;
   for (const c of [miniLeft, miniRight, big]) {
     if (c.on) drawSprite(ctx, sheet, spriteAt(c.anim.frame, c.anim.w, c.anim.h), c.x + ahead, c.y);
+  }
+  const monsterSheet = assets.images.get(worldImage(world, "monsters"))!;
+  for (const m of game.monsterSystem.monsters) {
+    if (m.state === BallState.Dead) continue;
+    // An explosion stands still: nothing to interpolate from the monster's last place.
+    if (m.state === BallState.Lost) {
+      drawSprite(ctx, monsterSheet, spriteAt(m.anim.frame, m.w, m.h, MONSTER_PITCH), m.x, m.y);
+    } else {
+      drawMoving(m, alpha, monsterSheet, MONSTER_PITCH);
+    }
   }
   for (const s of shots) {
     if (s.state !== BallState.Dead) drawMoving(s, alpha, sheet);

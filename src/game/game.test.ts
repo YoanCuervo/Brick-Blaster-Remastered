@@ -12,6 +12,8 @@ import { BALL_SPRITE, BallState } from "./ball";
 import { BONUS_TICKS, CapsuleState, bonusByKey, spawnCapsule } from "./bonus";
 import { FADE_STEPS } from "../render/fade";
 import { Game, GameMode, NIGHT_FADE, serveSpeed, speedInterval } from "./game";
+import { spawnMonster, monsterSprite } from "./monsters";
+import { updateCannons } from "./shots";
 
 const t = (v: number): Triplet => [v, v, v];
 
@@ -479,12 +481,28 @@ describe("instant bonuses (0x405DD2)", () => {
     expect(g.bonus.active).toBeNull();
   });
 
-  it("clears the slot for the routines ported later", () => {
-    for (const key of ["del_monster", "add_monster"] as const) {
-      const g = catching(key);
-      ticks(g, 2);
-      expect(g.bonus.active).toBeNull();
-    }
+  it("add_monster spawns a monster, restarts the timer and clears the slot (0x40643B)", () => {
+    const g = catching("add_monster");
+    g.tick(idle);
+    g.monsterSystem.timer = 100;
+    g.tick(idle);
+    expect(g.bonus.active).toBeNull();
+    expect(g.monsterSystem.monsters).toHaveLength(1);
+    // The timer tick runs after the bonus routine (0x405DD2, then 0x403A93).
+    expect(g.monsterSystem.timer).toBe(1);
+  });
+
+  it("del_monster blows up all monsters without score, one sound each (0x4063C2)", () => {
+    const g = catching("del_monster");
+    spawnMonster(g.monsterSystem, 1, new Rng(1));
+    spawnMonster(g.monsterSystem, 1, new Rng(2));
+    g.tick(idle);
+    const score = g.player.score;
+    g.tick(idle);
+    expect(g.bonus.active).toBeNull();
+    expect(g.monsterSystem.monsters.map((m) => m.state)).toEqual([BallState.Lost, BallState.Lost]);
+    expect(g.sounds.filter((s) => s === "monstoff")).toHaveLength(2);
+    expect(g.player.score).toBe(score);
   });
 });
 
@@ -1117,5 +1135,242 @@ describe("shots in the game (0x402828)", () => {
     until(g, GameMode.LifeLost);
     until(g, GameMode.Arrival);
     expect(g.shotSystem.shots).toEqual([]);
+  });
+});
+
+describe("monsters (§4.3)", () => {
+  /** Serving game, ball stuck to the paddle. */
+  function playing(levels?: Level[], over?: Partial<GameConfig>): Game {
+    const g = game(levels ?? [level([0x24, 0x24]), level()], over);
+    g.tick(fire);
+    park(g);
+    return g;
+  }
+
+  function monsterAt(g: Game, x: number, y: number) {
+    spawnMonster(g.monsterSystem, g.level, new Rng(1));
+    const m = g.monsterSystem.monsters.at(-1)!;
+    m.x = x;
+    m.y = y;
+    return m;
+  }
+
+  function loseBall(g: Game): void {
+    g.balls[0]!.stuckOffset = null;
+    g.magnet.on = false;
+    dropBall(g);
+    for (let i = 0; i < 200 && g.mode === GameMode.Playing; i++) g.tick(idle);
+  }
+
+  it("spawn on the difficulty's timer, in mode 3 only (0x403A93)", () => {
+    const g = game(undefined, { freqCreateMonster: [600, 3, 400] });
+    ticks(g, 10);
+    expect(g.mode).toBe(GameMode.Ready);
+    expect(g.monsterSystem.timer).toBe(0);
+    g.tick(fire);
+    park(g);
+    expect(g.monsterSystem.timer).toBe(0);
+    ticks(g, 2);
+    expect(g.monsterSystem.monsters).toHaveLength(0);
+    g.tick(idle);
+    expect(g.monsterSystem.monsters).toHaveLength(1);
+    // Spawned before 0x403C69 runs: already one step down.
+    expect(g.monsterSystem.monsters[0]!.y).toBe(1);
+    expect(g.monsterSystem.timer).toBe(0);
+  });
+
+  it("take the sprite of the level", () => {
+    const g = playing();
+    g.level = 6;
+    expect(monsterAt(g, 200, 100).anim.first).toBe(monsterSprite(2));
+  });
+
+  it("hit by a ball: sound, 3 units of score and explosion (0x403D19)", () => {
+    const g = playing();
+    const b = g.balls[0]!;
+    const m = monsterAt(g, b.x - 10, b.y - 10);
+    const score = g.player.score;
+    g.tick(idle);
+    expect(m.state).toBe(BallState.Lost);
+    expect(g.sounds).toContain("monstoff");
+    expect(g.player.score).toBe(score + 40);
+  });
+
+  it("score double under points x2 (0x40841D)", () => {
+    const g = playing();
+    g.doubled = true;
+    const b = g.balls[0]!;
+    monsterAt(g, b.x - 10, b.y - 10);
+    const score = g.player.score;
+    g.tick(idle);
+    expect(g.player.score).toBe(score + 80);
+  });
+
+  it("are tested at their place before they move: balls run first (0x401E4B, 0x401E55)", () => {
+    const g = playing();
+    // The stuck ball settles on its offset.
+    g.tick(idle);
+    const b = g.balls[0]!;
+    const cx = b.x + 4;
+    const m = monsterAt(g, cx + 1, b.y - 10);
+    m.dx = -1;
+    g.tick(idle);
+    expect(m.state).toBe(BallState.Active);
+    expect(m.x).toBe(cx);
+    g.tick(idle);
+    expect(m.state).toBe(BallState.Lost);
+  });
+
+  it("hit by a shot in mode 3: same score", () => {
+    const g = playing();
+    updateCannons(g.shotSystem, "mini_shoot", true, g.paddle);
+    const shot = g.shotSystem.shots[0]!;
+    shot.x = 300;
+    shot.y = 300;
+    const m = monsterAt(g, 290, 290);
+    const score = g.player.score;
+    g.tick(idle);
+    expect(m.state).toBe(BallState.Lost);
+    expect(g.player.score).toBe(score + 40);
+  });
+
+  it("bounce off every kind of brick without touching it or making a sound (0x40446A)", () => {
+    for (const byte of [0x24, 0x09, 0x19]) {
+      const g = playing([level([byte, 0, 0, 0, 0x24]), level()]);
+      const m = monsterAt(g, 113, 127);
+      const cells = g.grid.cells.slice();
+      const frames = g.grid.frames.slice();
+      const score = g.player.score;
+      g.tick(idle);
+      expect(m.dy).toBe(-1);
+      expect(m.x).toBe(114);
+      expect(g.grid.cells).toEqual(cells);
+      expect(g.grid.frames).toEqual(frames);
+      expect(g.player.score).toBe(score);
+      expect(g.sounds).toEqual([]);
+    }
+  });
+
+  it("go through the paddle without effect (0x4046D0)", () => {
+    const g = playing();
+    g.tick(idle);
+    const m = monsterAt(g, g.paddle.x + 40, g.paddle.y - 30);
+    const lives = g.player.lives;
+    g.tick(idle);
+    expect(m.dy).toBe(1);
+    expect(m.stuckOffset).toBeNull();
+    expect(g.player.lives).toBe(lives);
+    expect(g.mode).toBe(GameMode.Playing);
+  });
+
+  it("go through bricks while the paddle explodes, hits are off (mode 5 or 6)", () => {
+    const g = playing([level([0x24, 0, 0, 0, 0x24]), level()]);
+    loseBall(g);
+    expect(g.mode).toBe(GameMode.LifeLost);
+    const m = monsterAt(g, 113, 127);
+    g.tick(idle);
+    expect(m.dy).toBe(1);
+    expect(m.y).toBe(128);
+
+    updateCannons(g.shotSystem, "mini_shoot", true, g.paddle);
+    const shot = g.shotSystem.shots[0]!;
+    shot.x = m.x + 10;
+    shot.y = m.y + 10;
+    const score = g.player.score;
+    g.tick(idle);
+    expect(m.state).toBe(BallState.Active);
+    expect(g.player.score).toBe(score);
+  });
+
+  it("still see bricks and shots while the paddle leaves: mode stays 3 (0x401C54)", () => {
+    const g = game([level([]), level([0x24])]);
+    g.tick(idle);
+    expect(g.mode).toBe(GameMode.LevelEnd);
+    g.grid.cells[130] = 0x0c;
+    const m = monsterAt(g, 113, 127);
+    g.tick(idle);
+    expect(m.dy).toBe(-1);
+
+    updateCannons(g.shotSystem, "mini_shoot", true, g.paddle);
+    const shot = g.shotSystem.shots[0]!;
+    shot.x = m.x + 10;
+    shot.y = m.y + 10;
+    const score = g.player.score;
+    g.tick(idle);
+    expect(m.state).toBe(BallState.Lost);
+    expect(g.player.score).toBe(score + 40);
+  });
+
+  it("animate and keep moving in the wait loops (0x402058)", () => {
+    const g = playing();
+    loseBall(g);
+    const m = monsterAt(g, 200, 100);
+    ticks(g, 6);
+    expect(m.y).toBe(106);
+    expect(m.anim.frame).toBe(m.anim.first + 33);
+  });
+
+  it("are all gone at the next round, timer cleared (0x40222D, 0x403A6F)", () => {
+    const g = playing();
+    monsterAt(g, 200, 100);
+    g.monsterSystem.timer = 50;
+    loseBall(g);
+    for (let i = 0; i < 300 && g.mode !== GameMode.Ready; i++) g.tick(idle);
+    expect(g.mode).toBe(GameMode.Ready);
+    expect(g.monsterSystem.monsters).toHaveLength(0);
+    expect(g.monsterSystem.timer).toBe(0);
+  });
+
+  it("freeze once the game waits for fire after a game over (0x401FB4)", () => {
+    const g = playing(undefined, { nbsLife: 1 });
+    loseBall(g);
+    for (let i = 0; i < 300 && g.mode !== GameMode.GameOverWait; i++) g.tick(idle);
+    expect(g.mode).toBe(GameMode.GameOverWait);
+    const m = monsterAt(g, 200, 100);
+    ticks(g, 5);
+    expect(m.y).toBe(100);
+  });
+
+  it("frees its slot for a new monster once the explosion is over", () => {
+    const g = playing();
+    const b = g.balls[0]!;
+    const m = monsterAt(g, b.x - 10, b.y - 10);
+    g.tick(idle);
+    expect(m.state).toBe(BallState.Lost);
+    ticks(g, 26);
+    expect(m.state).toBe(BallState.Lost);
+    g.tick(idle);
+    expect(m.state).toBe(BallState.Dead);
+  });
+});
+
+describe("clamp before drawing (0x406874)", () => {
+  it("puts a ball out of bounds back in, in mode 3", () => {
+    const g = game();
+    g.tick(fire);
+    const b = g.balls[0]!;
+    b.stuckOffset = null;
+    g.magnet.on = false;
+    b.x = 100;
+    b.y = 300;
+    g.tick(idle);
+    expect(b.x).toBe(112);
+  });
+
+  it("keeps an explosion inside the play area", () => {
+    const g = game();
+    g.tick(fire);
+    park(g);
+    spawnMonster(g.monsterSystem, 1, new Rng(1));
+    const m = g.monsterSystem.monsters[0]!;
+    const b = g.balls[0]!;
+    m.x = 112;
+    m.y = b.y - 10;
+    b.stuckOffset = null;
+    g.magnet.on = false;
+    b.x = 120;
+    g.tick(idle);
+    expect(m.state).toBe(BallState.Lost);
+    expect(m.x).toBe(112);
   });
 });

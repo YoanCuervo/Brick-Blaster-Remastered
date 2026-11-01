@@ -143,7 +143,7 @@ Durées des sons (s) : 0.48, 0.89, 2.57, 0.81, 1.02, 2.66, 2.94, 1.07, 0.88, 0.8
 
 **Fonds et palette** (vérifié dans le code, 31/10/2026). L'écran n'a qu'une palette de 256 couleurs. Au chargement d'un fond (`0x407430`), le jeu ne copie que les **16 premières couleurs** de la palette du GIF (0x30 octets), après avoir forcé les couleurs 0 et 15 à noir. Les couleurs 16 à 255 restent celles de la palette du monde.
 - Les fonds dessinent leur image centrale avec les index 0 à 15, et les décors latéraux avec 216..223 (espace) ou 229..243 (arcade). Ces décors prennent donc les couleurs du monde. Dans les GIF arcade, ces index ne contiennent que du rouge de remplissage, jamais affiché.
-- Le fond est `resource W_0N.gif`, avec W le chiffre du monde et N = 1 + ((niveau − 1) & 7) : les 8 fonds tournent tous les 8 niveaux.
+- Le fond est `resource\0W_0N.gif`, avec W le chiffre du monde et N = 1 + ((niveau − 1) & 7) : les 8 fonds tournent tous les 8 niveaux.
 - Les murs sont collés sur le fond au chargement (`0x40575F`) : sprite `0x5F743` (42 × 96) 5 fois en x 70, sprite `0x50743` 5 fois en x 528, avec la transparence.
 - Conséquence : les pixels de sprites d'index 1 à 15 prennent les couleurs du **fond courant**. Dans la planche, cela concerne les index 1 et 11 (cadres de repérage, jamais affichés), 15 (35 pixels par mur, donc noirs en jeu) et 3 (219 pixels, sur les lignes y = 92 et y = 1478 : motif tramé de variantes de raquette, pas la raquette de base `0x6900`). Dans `fonte.gif`, l'index 11 est hors des rectangles de glyphe 15 × 22 : jamais affiché. Dans `monster.gif`, l'index 1 n'occupe que les lignes de la grille des cadres : jamais affiché si les cadres sont lus dans les cases (probable, adresses des cadres de monstres pas encore décodées). Le remake recolore donc la seule planche de sprites, une copie par fond (`src/render/recolor.ts`), à partir d'un masque des index 1..15 et des 16 couleurs de chaque fond.
 
@@ -346,16 +346,35 @@ sprite     = type (niveau − 1) mod 4     // les 4 monstres de monster.gif alte
 
 Le bonus `add_monster` (« invocation monstre ») appelle directement la même routine, et `del_monster` (« apocalypse ») fait exploser tous les monstres présents (`0x403CEE`).
 
-**Déplacement** (`0x403C69`, à chaque tick) :
-- Il rebondit sur les 4 bords de l'aire de jeu, **y compris le bas** : un monstre ne quitte jamais l'écran tout seul.
-- Il rebondit sur toutes les briques **sans les abîmer**, et ignore les téléporteurs.
-- Il traverse la raquette sans effet : **un monstre ne fait pas perdre de vie**.
-- S'il reste collé en haut (`y ≤ 0`) pendant 32 ticks, son `dy` est forcé à −1. C'est un garde-fou de déblocage, dont l'effet exact reste à observer.
+**Image** (`0x403A6F`, à chaque manche). Première image `0x3A3 + ((niveau − 1) & 3) × 0x7F26`, dans `monster.gif`, dont la largeur (930 px) sert de pas de ligne (`+0x39 = 0x3A2`) : (1, 1), (1, 36), (1, 71), (1, 106). 16 images, pas de 33 px, une étape tous les 6 ticks, `+0x65 = 16` au départ : la première étape passe déjà à l'image 1. Aucun pixel d'index 1 à 15 dans ces cases : pas de recoloration (§3.5).
 
-**Collision avec une balle ou un projectile** (`0x403D19`). Le test est simple : le centre de la balle tombe-t-il dans le rectangle du monstre ?
-1. Une balle (qui rebondit sur les briques) est **déviée dans une direction aléatoire** : un des 16 codes de rebond tiré par `rand(0..15)` est passé à la routine de rebond.
-2. Le joueur propriétaire de la balle gagne `3 + difficulté` unités de score (§4.2).
-3. Le monstre **explose** : sprite de 70 × 70 px, 13 images, puis l'emplacement se libère (`0x403BBF`).
+**Déplacement** (`0x403C69`, à chaque tick, attentes `0x402058` comprises, après les tirs et avant les capsules) :
+- Il rebondit sur les 4 bords de l'aire de jeu, **y compris le bas** : un monstre ne quitte jamais l'écran tout seul. Bornes : x de 112 à 496, y de 0 à 448.
+- En mode 3 seulement, il rebondit sur toutes les briques **sans les abîmer ni faire de son** (`0x40446A`, `0x4044FC`), téléporteurs compris. Hors mode 3 (raquette qui explose, modes 5 et 6), il **traverse les briques**. Le mode reste 3 pendant le décollage de fin de niveau (`0x401C54` ne l'écrit pas) : il y voit donc encore les briques, comme les tirs.
+- L'anti-boucle ne s'applique pas à lui (`0x4051EC`).
+- `0x404610` et `0x40476A` sont bien appelées, mais `0x4046D0` ressort pour le type 6 : il traverse la raquette sans effet, **un monstre ne fait pas perdre de vie**.
+- `0x401FB4` (mode 7) n'exécute que l'attente du tir : tout est figé après un game over. Les fondus figent aussi tout. Sur l'écran de félicitations (`0x408710`, non lu), le gel est probable.
+
+**Recadrage** (`0x406874`, appelé par `0x40675F` pour chaque objet dessiné, tous types). Avant le dessin, x et y sont ramenés entre leurs bornes (comparaison signée) : la position réelle change, pas seulement l'image. Un mur puis une brique peuvent faire sortir un objet d'un tick, jamais plus.
+
+**« Monstre bloqué en haut »** (`0x403CA1`). Si `y ≤ 0` après le déplacement, un compteur `+0x7D` avance ; à 32, il revient à 0 et `dy` est forcé à −1. **Ce code n'a aucun effet** : `dy` vaut toujours ±1 et le recadrage garantit `y ≥ 0` au début du tick, donc `y ≤ 0` après déplacement implique déjà `dy = −1`. Le remake ne le porte pas.
+
+Le vrai blocage vient de la séquence suivante, qui sort naturellement du portage. À `y = 0` avec `dy = −1`, le mur remet `dy = +1`, le coin arrière bas (`y + 33`) voit une brique et remet `dy = −1`, le déplacement donne −1 et le recadrage rend 0. Le monstre glisse donc à `y = 0` tant que son coin arrière bas voit une brique sur la ligne 2, puis repart. Sur `lv0` comme sur `lv1`, 24 niveaux ont leur première brique sur les lignes 0 à 2 : le cas arrive en jeu.
+
+**Collision avec une balle ou un projectile** (`0x403CC7`, `0x403D19`, entre le balayage des briques et le déplacement de l'objet). Test sur chaque monstre à l'état 1 : le centre de l'objet (`x + w/2`, `y + h/2`, division tronquée) est-il dans le rectangle du monstre, bornes **incluses** (`x .. x + 32`) ? Les balles passent donc avant le déplacement des monstres du même tick.
+1. Si l'objet a `+0x59 ≠ 0`, un code `rand(0..15)` passe dans `0x40436A` : 0 = rien, 1, 5, 10, 14 = `dx` inversé, 2, 6, 9, 13 = `dy` inversé, les autres = les deux. L'anti-boucle de la balle s'applique. Un **mini tir** disparaît sauf au code 0 (`0x4043CB`). Un **gros tir** et une **balle de fer** (`+0x59 = 0`) traversent sans tirage.
+2. Son `monstoff`, puis `3 + difficulté` unités de score pour le propriétaire de la balle (§4.2), doublées sous « points ×2 ».
+3. Le monstre explose (`0x403BBF`).
+
+La boucle ne s'arrête pas après un impact : un objet peut toucher plusieurs monstres qui se chevauchent, et il est dévié chaque fois. Aucun test d'état de l'objet non plus : une balle à −3, une balle collée (vitesse nulle, donc sans effet de la déviation) et un tir qui vient de sortir au même tick comptent. Pour les tirs, ce test n'a lieu qu'en mode 3 (`0x403A4E`).
+
+**Explosion** (`0x403BBF`). État −3, vitesse nulle, `x − 16`, `y − 16`, 70 × 70, sprite `0x2003B` = (1, 141), 13 images, pas de 71 px, une étape tous les 2 ticks, nouvelles bornes x 112..458 et y 0..410 (le recadrage la garde donc dans l'aire de jeu). `+0x8D = 15` : à la 14ᵉ étape (`0x406708`), l'état passe à 0 et l'emplacement est libre. Elle reste **27 ticks** à l'écran : image 0 pendant 3 ticks, images 1 à 12 pendant 2 ticks chacune. Le reste `+0x89` n'a pas d'effet sur un monstre créé juste après : `0x4068D5` l'a déjà baissé à 1 et `0x4066E7` le ramène à 0 sans toucher à l'état.
+
+**Bonus.** `del_monster` (`0x4063C2`, `0x403CEE`) : explosion et son `monstoff` pour chaque monstre à l'état 1, **sans score**. `add_monster` (`0x40643B`) appelle `0x403ADA`, ce qui remet aussi le compteur d'apparition à 0.
+
+**Manche.** `0x40222D` vide tous les emplacements et `0x403A6F` remet le compteur à 0 à chaque manche, vie perdue comprise (`0x401DB5`).
+
+**Ordre.** Apparition après les canons (`0x401E32`), déplacement après les tirs (`0x401E55`). Dessin dans l'ordre des emplacements : canons, monstres, tirs (`0x40675F`).
 
 En résumé, un monstre est un **obstacle mobile qui perturbe la trajectoire des balles** et rapporte des points. Il n'est jamais une menace directe.
 
@@ -629,7 +648,7 @@ tant qu'un des 4 coins touche une indestructible (0x40252D, même test qu'au §4
 - Gros : 8 × 42, sprite `0x3513C`, `+0x59 = 0` (traverse les briques), centré sur la raquette, 11 images, délai 5, pas 11. **Un seul tir** : l'emplacement actif, l'icône et le libellé sont effacés.
 - Mini : 3 × 13, sprite `0x19A55`, `+0x59 = 1`. `[0x415752]` alterne : à 1, `x = raquette.x + 7`, canon gauche ; sinon `x = raquette.x + 0x3D`, canon droit. Le canon concerné rejoue son animation.
 - Canons (3 objets de type 3, dessinés après la raquette) : mini gauche `0x1CAF6` en (x + 7, y − 7), mini droit `0x1CB12` en (x + 0x37, y − 7), 12 × 18, pas 37 lignes ; gros `0x40A3E` en (x + 0x1F, y − 8), 13 × 19, pas 14. Mis en place une fois par `0x406195` (6 images, `left` 6, 12 ticks) et `0x4060BD` (4 images, `left` 1, 10 ticks). À la fin du décompte (`0x402BD5`), `+0x61 = 1` fige le canon. Ils gardent les bornes de 9 px de `0x40222D`, que `0x40687F` applique : à droite d'une petite raquette, ils restent à x = 519.
-- Vol (`0x403A39`, après les balles, attentes comprises) : position suivante hors bornes, état 0, sans rebond. Puis, en mode 3 seulement, le balayage des briques (qui tourne encore pour un tir qui vient de sortir). Puis le test des monstres (tâche 11) et le déplacement. Un code de rebond met le tir à l'état 0 au lieu de l'inverser (`0x4043CB`).
+- Vol (`0x403A39`, après les balles, attentes comprises) : position suivante hors bornes, état 0, sans rebond. Puis, en mode 3 seulement (décollage de fin de niveau compris, `0x401C54` ne change pas le mode), le balayage des briques (qui tourne encore pour un tir qui vient de sortir). Puis le test des monstres (§4.3) et le déplacement. Un code de rebond met le tir à l'état 0 au lieu de l'inverser (`0x4043CB`).
 - Briques : une brique détruite marque et tire un bonus comme avec une balle. Une indestructible clignote avec le son `wall`. Un téléporteur ne déplace pas le tir (`0x4023AA`), mais joue `telepod` et compte comme un impact.
 - L'explosion et le décollage éteignent les canons (`0x40303F`, `0x4031D1`). `0x40222D` vide les emplacements à chaque manche.
 
@@ -643,7 +662,7 @@ tant qu'un des 4 coins touche une indestructible (0x40252D, même test qu'au §4
 
 **Arrivée de la raquette** (`0x404B88`, à chaque manche, en `0x401DF6`). La balle est cachée (état sauvé, mis à 0, puis restauré). Le drapeau `[0x404BFC] = 1` choisit l'image `0x89242`, largeur `0x5C`, décalage −9, mêmes hauteur, y et cadence que le décollage. La boucle `0x402058` attend `+0x65 = 2`, soit 18 ticks, puis `0x40256C` remet la raquette et le jeu attend le service.
 
-**Remake** : `del_monster` et `add_monster` vident l'emplacement comme l'original, sans effet jusqu'à la tâche 11. Ordre de dessin : `0x40675F` parcourt les objets dans l'ordre des emplacements, donc capsules, balles, raquette, canons, puis tirs par-dessus. Simplification : sous « points ×2 », le cadre de l'icône s'assombrit avec le reste de l'écran, alors que dans l'original le clignotement réécrit séparément les couleurs 112..127.
+**Remake** : ordre de dessin : `0x40675F` parcourt les objets dans l'ordre des emplacements, donc capsules, balles, raquette, canons, monstres, puis tirs par-dessus. Simplification : sous « points ×2 », le cadre de l'icône s'assombrit avec le reste de l'écran, alors que dans l'original le clignotement réécrit séparément les couleurs 112..127.
 
 ### Les 24 bonus (texte du jeu)
 
@@ -782,7 +801,7 @@ Graphismes, sons, musiques et niveaux appartiennent à Eclipse / leurs auteurs (
 
 - ~~Signification des 6 types de briques~~ : résolu (§4).
 - ~~Types de balle 6 et 7~~ : résolu, ce sont les monstres et les projectiles (§4.2).
-- Effet exact du garde-fou « monstre bloqué en haut » (§4.3).
+- ~~Effet exact du garde-fou « monstre bloqué en haut »~~ : résolu, il n'en a aucun (§4.3).
 - Logique cadencée exactement à 50 Hz ? (§4.2)
 - Le jeu plante dès qu'il perd le plein écran (Alt+Tab, Impr. écran) : comparer le remake à l'original demandera un outil de fenêtrage (DxWnd).
 - La démo plante si le set de niveaux contient des emplacements vides (`0xFF`) parmi ceux qu'elle tire au sort : un set de test doit remplir 50 emplacements.
@@ -790,5 +809,6 @@ Graphismes, sons, musiques et niveaux appartiennent à Eclipse / leurs auteurs (
 - ~~Quel set de niveaux correspond à quel monde~~ : résolu, espace = lv0, arcade = lv1 (§4).
 - Rôle exact de `0x408AD9` après un game over (meilleurs scores ?) et du retour au menu (§4.5).
 - Contenu de `blaster.scr` une fois déchiffré, et des `.usr` : sans importance pour le remake.
-- Routines d'effet restantes (tâche 11) : `del_monster`, `add_monster`. `collision` ne concerne que le duel.
+- Routine d'effet restante : `collision`, qui ne concerne que le duel.
+- Capsules pendant le décollage de fin de niveau : `0x4054D2` les attrape en mode 3, et ce mode dure pendant le décollage. Le remake ne les attrape pas (écart connu, à corriger).
 - Rôle de l'octet patché à l'offset 28850.

@@ -9,6 +9,7 @@ import {
   addBalls,
   antiLoop,
   brickSweep,
+  clampToBounds,
   createBall,
   extraBallSpeed,
   flipX,
@@ -660,5 +661,66 @@ describe("ghost balls (0x403ED5, 0x4046C7)", () => {
       0x16ae + 30,
       0x16ae + 40,
     ]);
+  });
+});
+
+describe("clampToBounds (0x406874)", () => {
+  it("brings an object back inside its bounds, on both axes", () => {
+    const b = createBall(0);
+    Object.assign(b, { state: BallState.Active, x: 100, y: -3 });
+    clampToBounds(b);
+    expect([b.x, b.y]).toEqual([b.xMin, 0]);
+    Object.assign(b, { x: 1000, y: 1000 });
+    clampToBounds(b);
+    expect([b.x, b.y]).toEqual([519, 471]);
+  });
+
+  it("leaves a dead object alone", () => {
+    const b = createBall(0);
+    Object.assign(b, { state: BallState.Dead, x: 100, y: -3 });
+    clampToBounds(b);
+    expect([b.x, b.y]).toEqual([100, -3]);
+  });
+});
+
+describe("monster test in a ball's tick (0x403CC7)", () => {
+  const paddle = createPaddle();
+  const probe: BrickProbe = { hit: () => false };
+
+  it("runs after the wall bounce and the sweep, before the move", () => {
+    const b = createBall(100);
+    Object.assign(b, { x: 300, y: 2, dx: 3, dy: -4 });
+    let seen: number[] = [];
+    updateBall(b, paddle, probe, 100, {
+      hitMonsters: (ball) => {
+        seen = [ball.x, ball.y, ball.dy];
+      },
+    });
+    expect(seen).toEqual([300, 2, 4]);
+    expect(b.y).toBe(6);
+  });
+
+  it("also runs for a ball about to be lost", () => {
+    const b = createBall(100);
+    Object.assign(b, { x: 300, y: 200, dx: 3, dy: 4, state: BallState.Lost });
+    let calls = 0;
+    updateBall(b, paddle, probe, 100, { hitMonsters: () => calls++ });
+    expect(calls).toBe(1);
+  });
+
+  it("does not run for a dead ball", () => {
+    const b = createBall(100);
+    b.state = BallState.Dead;
+    let calls = 0;
+    updateBall(b, paddle, probe, 100, { hitMonsters: () => calls++ });
+    expect(calls).toBe(0);
+  });
+});
+
+describe("anti-loop of a monster (0x4051EC)", () => {
+  it("does nothing", () => {
+    const b = { ...createBall(0), monster: true };
+    antiLoop(b);
+    expect(b.loopCount).toBe(0);
   });
 });
