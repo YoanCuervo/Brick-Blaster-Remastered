@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { BRICK_COLOR_STRIDE, BRICK_GHOST, brickSprite, capsuleSprite, spriteAt } from "./atlas";
+import {
+  BRICK_COLOR_STRIDE,
+  BRICK_GHOST,
+  brickSprite,
+  capsuleSprite,
+  hudIconSprite,
+  spriteAt,
+} from "./atlas";
 
 describe("spriteAt", () => {
   it("decodes exe addresses as y × 640 + x", () => {
@@ -50,8 +57,13 @@ describe("brickSprite (§4, 0x404DD0)", () => {
 });
 
 describe("capsuleSprite (§5.2, 0x40528A)", () => {
-  it("steps 26 px per bonus on the capsule row", () => {
-    expect(capsuleSprite(0)).toEqual({ x: 1, y: 752, w: 26, h: 24 });
-    expect(capsuleSprite(23)).toMatchObject({ x: 1 + 26 * 23, y: 752 });
+  it("reads the bonus code as a sprite address on the capsule row", () => {
+    expect(capsuleSprite(0x75801)).toEqual({ x: 1, y: 752, w: 26, h: 24 });
+    expect(capsuleSprite(0x75a57)).toMatchObject({ x: 1 + 26 * 23, y: 752 });
+  });
+
+  it("finds the HUD icon on the third row (0x4055EF)", () => {
+    expect(hudIconSprite(0x75801)).toEqual({ x: 1, y: 802, w: 26, h: 24 });
+    expect(hudIconSprite(0x758d1)).toMatchObject({ x: 1 + 26 * 8, y: 802 });
   });
 });

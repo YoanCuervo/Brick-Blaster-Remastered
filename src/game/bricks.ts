@@ -168,15 +168,20 @@ function onIndestructible(level: Level, x: number, y: number): boolean {
   return (byte & 0x38) === Family.Indestructible;
 }
 
-/** 0x4023AA: random landing spot whose 4 corners avoid indestructible bricks. */
-export function teleport(obj: Box, level: Level, rng: Rng): void {
-  do {
-    obj.x = TELEPORT_X + rng.rand(TELEPORT_RANGE);
-    obj.y = TELEPORT_Y + rng.rand(TELEPORT_RANGE);
-  } while (
+/** Any of the 4 corners on an indestructible brick. */
+export function touchesIndestructible(obj: Box, level: Level): boolean {
+  return (
     onIndestructible(level, obj.x, obj.y) ||
     onIndestructible(level, obj.x, obj.y + obj.h) ||
     onIndestructible(level, obj.x + obj.w, obj.y) ||
     onIndestructible(level, obj.x + obj.w, obj.y + obj.h)
   );
+}
+
+/** 0x4023AA: random landing spot whose 4 corners avoid indestructible bricks. */
+export function teleport(obj: Box, level: Level, rng: Rng): void {
+  do {
+    obj.x = TELEPORT_X + rng.rand(TELEPORT_RANGE);
+    obj.y = TELEPORT_Y + rng.rand(TELEPORT_RANGE);
+  } while (touchesIndestructible(obj, level));
 }

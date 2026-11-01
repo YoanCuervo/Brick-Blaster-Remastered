@@ -9,6 +9,7 @@ import {
 } from "../data/config";
 import { LEVEL_COLS, LEVEL_ROWS, type Level } from "../data/levels";
 import { BallState } from "./ball";
+import { BONUS_TICKS, CapsuleState, bonusByKey, spawnCapsule } from "./bonus";
 import { FADE_STEPS } from "../render/fade";
 import { Game, GameMode, serveSpeed, speedInterval } from "./game";
 
@@ -291,5 +292,274 @@ describe("new game (0x401D4C)", () => {
     // Fire during the fade does not serve.
     expect(g.mode).toBe(GameMode.Ready);
     expect(g.message).toBe("ready");
+  });
+});
+
+/** Serving game with a capsule of `key` about to be caught, ball parked out of harm's way. */
+function catching(key: Parameters<typeof bonusByKey>[0], levels?: Level[]): Game {
+  const g = game(levels ?? [level([0x24, 0x24]), level()]);
+  g.tick(fire);
+  park(g);
+  spawnCapsule(g.capsules, bonusByKey(key), g.paddle.x, 414);
+  return g;
+}
+
+/** Keeps the ball in play with no brick in reach: stuck to the paddle. */
+function park(g: Game): void {
+  g.balls[0]!.stuckOffset = 10;
+}
+
+describe("bonus drop (0x40531A)", () => {
+  function hitFirstBrick(g: Game): void {
+    const b = g.balls[0]!;
+    b.stuckOffset = null;
+    b.x = 0x70 + 10;
+    b.y = 177;
+    b.dx = 0;
+    b.dy = -3;
+    g.tick(idle);
+  }
+  const all = (v: number) =>
+    Object.fromEntries(BONUS_KEYS.map((k) => [k, t(v)])) as GameConfig["bonusFreq"];
+
+  it("drops a capsule at the corner of the destroyed brick, already moved", () => {
+    const g = game([level([0x21, 0x21]), level()], { bonusFreq: all(1) });
+    g.tick(fire);
+    hitFirstBrick(g);
+    expect(g.capsules[0]).toMatchObject({ x: 112, y: 162, state: CapsuleState.Falling });
+  });
+
+  it("counts Time_Between_Option in ticks, across all modes", () => {
+    const g = newGame([level([0x21, 0x21]), level()], {
+      bonusFreq: all(1),
+      timeBetweenOption: t(FADE_IN_TICKS + 3),
+    });
+    ticks(g, FADE_IN_TICKS);
+    g.tick(fire);
+    hitFirstBrick(g);
+    expect(g.capsules[0]!.state).toBe(CapsuleState.Free);
+  });
+
+  it("drops nothing on a damaged brick", () => {
+    const g = game([level([0x24, 0x21]), level()], { bonusFreq: all(1) });
+    g.tick(fire);
+    hitFirstBrick(g);
+    expect(g.capsules[0]!.state).toBe(CapsuleState.Free);
+  });
+});
+
+describe("catching a capsule (0x4055AE)", () => {
+  it("activates the bonus on the catch tick: sound, 2 units, icon, flash", () => {
+    const g = catching("slow_ball");
+    const score = g.player.score;
+    g.tick(idle);
+    expect(g.sounds).toContain("optionon");
+    expect(g.player.score).toBe(score + 30);
+    expect(g.bonus.active?.key).toBe("slow_ball");
+    expect(g.bonus.timer).toBe(BONUS_TICKS);
+    expect(g.bonus.icon).toBe(0x758b7);
+    expect(g.flash.on).toBe(true);
+    // The label comes with the next run of 0x405DD2.
+    expect(g.message).toBe("off");
+    g.tick(idle);
+    expect(g.message).toBe("slow_ball");
+    expect(g.bonus.active?.key).toBe("slow_ball");
+  });
+
+  it("is not possible before the serve", () => {
+    const g = game();
+    spawnCapsule(g.capsules, bonusByKey("bonus"), g.paddle.x, 414);
+    g.tick(idle);
+    expect(g.bonus.active).toBeNull();
+  });
+
+  it("writes the same label only once", () => {
+    const g = catching("slow_ball");
+    ticks(g, 2);
+    g.message = "other";
+    spawnCapsule(g.capsules, bonusByKey("slow_ball"), g.paddle.x, 414);
+    ticks(g, 2);
+    expect(g.message).toBe("other");
+  });
+});
+
+describe("instant bonuses (0x405DD2)", () => {
+  it("adds 1, 3, 6 and 20 balls the tick after the catch", () => {
+    for (const [key, n] of [
+      ["3_ball", 2],
+      ["6_ball", 4],
+      ["9_ball", 7],
+      ["20_ball", 20],
+    ] as const) {
+      const g = catching(key);
+      g.tick(idle);
+      expect(g.balls).toHaveLength(1);
+      g.tick(idle);
+      expect(g.balls.filter((b) => b.state === BallState.Active)).toHaveLength(n);
+      expect(g.bonus.active).toBeNull();
+      expect(g.bonus.icon).not.toBeNull();
+      expect(g.message).toBe(key);
+    }
+  });
+
+  it("adds 20 balls with ghost, the marking comes with task 10", () => {
+    const g = catching("ghost");
+    ticks(g, 2);
+    expect(g.balls).toHaveLength(20);
+    expect(g.bonus.active).toBeNull();
+  });
+
+  it("death takes a spare life, without a game over", () => {
+    const g = catching("death");
+    ticks(g, 2);
+    expect(g.sounds).toContain("death");
+    expect(g.player.lives).toBe(1);
+    expect(g.livesShown).toBe(1);
+    expect(g.bonus.active).toBeNull();
+    g.player.lives = 0;
+    spawnCapsule(g.capsules, bonusByKey("death"), g.paddle.x, 414);
+    ticks(g, 2);
+    expect(g.player.lives).toBe(0);
+    expect(g.mode).toBe(GameMode.Playing);
+  });
+
+  it("new_life gives a life", () => {
+    const g = catching("new_life");
+    ticks(g, 2);
+    expect(g.sounds).toContain("newlife");
+    expect(g.player.lives).toBe(3);
+    expect(g.livesShown).toBe(3);
+    expect(g.bonus.active).toBeNull();
+  });
+
+  it("+100 is 8 units with the difficulty bonus, on top of the catch", () => {
+    const g = catching("bonus");
+    const score = g.player.score;
+    ticks(g, 2);
+    expect(g.player.score).toBe(score + 30 + 90);
+    expect(g.bonus.active).toBeNull();
+  });
+
+  it("−100 removes 12 units, without the difficulty bonus", () => {
+    const g = catching("malus");
+    g.player.score = 500;
+    ticks(g, 2);
+    expect(g.player.score).toBe(500 + 30 - 120);
+    expect(g.bonus.active).toBeNull();
+  });
+
+  it("clears the slot for the routines ported later", () => {
+    for (const key of ["night", "del_monster", "add_monster"] as const) {
+      const g = catching(key);
+      ticks(g, 2);
+      expect(g.bonus.active).toBeNull();
+    }
+  });
+});
+
+describe("next_level (0x4045BB)", () => {
+  it("ends the level on the catch tick", () => {
+    const g = catching("next_level");
+    g.tick(idle);
+    expect(g.mode).toBe(GameMode.LevelEnd);
+    expect(g.sounds).toContain("next");
+    expect(g.bonus.active).toBeNull();
+  });
+});
+
+describe("bonus timer (0x405E1A)", () => {
+  it("blanks the message after 100 ticks and drops the icon of an instant bonus", () => {
+    const g = catching("bonus");
+    g.tick(idle);
+    ticks(g, 99);
+    expect(g.message).toBe("bonus");
+    expect(g.bonus.icon).not.toBeNull();
+    g.tick(idle);
+    expect(g.message).toBe("off");
+    expect(g.bonus.icon).toBeNull();
+    expect(g.bonus.label).toBeNull();
+  });
+
+  it("keeps the label and icon of a lasting bonus, until it ends", () => {
+    const g = catching("slow_ball");
+    g.tick(idle);
+    ticks(g, 101);
+    expect(g.message).toBe("off");
+    expect(g.bonus.icon).toBe(0x758b7);
+    g.bonus.timer = 1;
+    g.balls[0]!.stuckOffset = 5;
+    g.tick(idle);
+    expect(g.sounds).toContain("endopt");
+    expect(g.bonus.active).toBeNull();
+    expect(g.bonus.icon).toBeNull();
+    expect(g.balls[0]!.stuckOffset).toBeNull();
+  });
+
+  it("plays endopt even after an instant bonus", () => {
+    const g = catching("bonus");
+    ticks(g, 2);
+    g.bonus.timer = 1;
+    g.tick(idle);
+    expect(g.sounds).toContain("endopt");
+  });
+
+  it("does not run before the serve", () => {
+    const g = game();
+    g.bonus.timer = 50;
+    g.tick(idle);
+    expect(g.bonus.timer).toBe(50);
+  });
+});
+
+describe("bonus cleared", () => {
+  it("by an extra life, with the timer left running (0x405FB1)", () => {
+    const g = catching("slow_ball");
+    g.tick(idle);
+    g.player.score = 10000;
+    g.tick(idle);
+    expect(g.bonus.active).toBeNull();
+    expect(g.bonus.timer).toBe(BONUS_TICKS - 1);
+    expect(g.bonus.label).toBe("new_life");
+  });
+
+  it("by a lost life, along with its timer (0x404AED)", () => {
+    const g = catching("slow_ball");
+    g.tick(idle);
+    dropBall(g);
+    until(g, GameMode.LifeLost);
+    expect(g.bonus.active).toBeNull();
+    expect(g.bonus.timer).toBe(0);
+  });
+
+  it("by a new round, with the capsules and the icon (0x401DB5)", () => {
+    const g = catching("slow_ball");
+    g.tick(idle);
+    spawnCapsule(g.capsules, bonusByKey("bonus"), 112, 0);
+    dropBall(g);
+    until(g, GameMode.LifeLost);
+    until(g, GameMode.Ready);
+    expect(g.capsules.every((c) => c.state === CapsuleState.Free)).toBe(true);
+    expect(g.bonus.icon).toBeNull();
+    expect(g.flash.shown).toBe(0);
+  });
+});
+
+describe("wait loops (0x402058)", () => {
+  it("keep capsules falling without catching them, and the flash running", () => {
+    const g = catching("slow_ball");
+    g.tick(idle);
+    const shown = g.flash.shown;
+    spawnCapsule(g.capsules, bonusByKey("bonus"), g.paddle.x, 100);
+    dropBall(g);
+    until(g, GameMode.LifeLost);
+    const c = g.capsules.find((k) => k.state === CapsuleState.Falling)!;
+    const { y } = c;
+    c.y = 414;
+    g.tick(idle);
+    expect(c.y).toBe(416);
+    expect(c.state).toBe(CapsuleState.Falling);
+    expect(g.bonus.active).toBeNull();
+    expect(y).toBeGreaterThan(100);
+    expect(g.flash.shown).toBeGreaterThan(shown);
   });
 });

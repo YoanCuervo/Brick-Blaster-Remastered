@@ -35,6 +35,17 @@ export function addScore(p: Player, units: number, difficulty: Difficulty, doubl
   for (; n > 0 && p.score !== MAX_SCORE; n--) p.score += POINTS_PER_UNIT;
 }
 
+/** 0x4083D2: no difficulty bonus here, unlike 0x40841D. The score stops at 0. */
+export function subtractScore(p: Player, units: number, doubled = false): void {
+  let n = doubled ? units << 1 : units;
+  for (; n > 0 && p.score !== 0; n--) p.score -= POINTS_PER_UNIT;
+}
+
+/** 0x405F7F: the "lost life" bonus never takes the last life, so no game over. */
+export function loseSpareLife(p: Player): void {
+  if (p.lives !== 0) p.lives--;
+}
+
 /** 0x405FB1 */
 export function gainLife(p: Player): void {
   p.lives = Math.min(p.lives + 1, MAX_LIVES);

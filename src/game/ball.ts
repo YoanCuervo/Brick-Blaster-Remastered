@@ -1,4 +1,7 @@
 // Ball physics, ported from the original routines (§4.2). Units: pixels per 50 Hz tick.
+import type { Rng } from "../core/rng";
+import type { Level } from "../data/levels";
+import { touchesIndestructible } from "./bricks";
 import { PADDLE_H, PADDLE_X_MIN, PADDLE_Y, PLAY_RIGHT, type Paddle } from "./paddle";
 
 export const BALL_SIZE = 9;
@@ -10,6 +13,8 @@ export const PADDLE_EDGE = 0x17;
 /** Wall bounces between two position snapshots of the anti-loop guard (0x4051F7). */
 export const ANTI_LOOP_PERIOD = 0x3c;
 export const ANTI_LOOP_MATCHES = 3;
+/** Ball slots from 0x413048 up to the type 3 objects. */
+export const MAX_BALLS = 20;
 
 /** [ball + 1]: 0 = gone, 1 = in play, −3 = past the paddle and about to be lost. */
 export const BallState = { Dead: 0, Active: 1, Lost: -3 } as const;
@@ -75,6 +80,53 @@ export function createBall(freqChangeSpeed: number): Ball {
     loopY: 0,
     stuckOffset: null,
   };
+}
+
+/** 0x4024C0: random speed of an extra ball, then forced upwards by 0x402440. */
+export function extraBallSpeed(ball: Ball, rng: Rng): void {
+  const speed = rng.rand(2) + 2;
+  ball.dx = speed;
+  ball.dy = speed + 1;
+  if (rng.rand(1) !== 0) ball.dx--;
+  if (rng.rand(1) !== 0) {
+    ball.dx++;
+    ball.dy--;
+    ball.mode = 1;
+  }
+  if (rng.rand(1) !== 0) ball.dx = -ball.dx;
+  if (rng.rand(1) !== 0) ball.dy = -ball.dy;
+  if (ball.dy >= 0) ball.dy = -ball.dy;
+}
+
+/** 0x40244E: above the paddle, away from its ends and from indestructible bricks. */
+export function placeExtraBall(ball: Ball, paddle: Paddle, level: Level, rng: Rng): void {
+  do {
+    ball.x = rng.rand(paddle.w - 2 * ball.w) + paddle.x + ball.w;
+    ball.y = rng.rand(PADDLE_H) + paddle.y - ball.h - PADDLE_H;
+  } while (touchesIndestructible(ball, level));
+}
+
+/**
+ * 0x40240E: fills the slots not in play, a ball about to be lost included, in slot
+ * order. With no slot left the remaining balls are dropped.
+ */
+export function addBalls(
+  balls: Ball[],
+  count: number,
+  paddle: Paddle,
+  level: Level,
+  freqChangeSpeed: number,
+  rng: Rng,
+): void {
+  let left = count;
+  for (let slot = 0; slot < MAX_BALLS && left > 0; slot++) {
+    if (balls[slot]?.state === BallState.Active) continue;
+    const ball = createBall(freqChangeSpeed);
+    extraBallSpeed(ball, rng);
+    placeExtraBall(ball, paddle, level, rng);
+    balls[slot] = ball;
+    left--;
+  }
 }
 
 /** Centred on top of the paddle (0x404FDC). */
