@@ -3,14 +3,18 @@ import {
   type Ball,
   BallState,
   type BrickProbe,
+  MAX_BALLS,
   accelerate,
+  addBalls,
   antiLoop,
   brickSweep,
   createBall,
+  extraBallSpeed,
   flipX,
   lostCheck,
   moveBall,
   paddleBounce,
+  placeExtraBall,
   placeOnPaddle,
   sampleCount,
   stickToPaddle,
@@ -18,6 +22,8 @@ import {
   updateBall,
   wallBounce,
 } from "./ball";
+import { Rng } from "../core/rng";
+import { LEVEL_COLS, LEVEL_ROWS } from "../data/levels";
 import { createPaddle } from "./paddle";
 
 function ball(props: Partial<Ball> = {}): Ball {
@@ -334,5 +340,84 @@ describe("ball stuck to the paddle (0x4048F7, 0x403D8E)", () => {
     moveBall(b, p, true);
     expect(b.stuckOffset).toBeNull();
     expect([b.x, b.y]).toEqual([236, 0x1a0 - 13]);
+  });
+});
+
+class ScriptedRng extends Rng {
+  constructor(private readonly values: number[]) {
+    super(0);
+  }
+  override rand(): number {
+    return this.values.shift() ?? 0;
+  }
+}
+
+const emptyLevel = Array.from({ length: LEVEL_ROWS }, () => new Array<number>(LEVEL_COLS).fill(0));
+
+describe("extra balls (0x40240E)", () => {
+  it("draws 2..4 + 1 going up, in steep mode (0x4024C0)", () => {
+    const b = ball();
+    extraBallSpeed(b, new ScriptedRng([2, 0, 0, 0, 0]));
+    expect([b.dx, b.dy, b.mode]).toEqual([4, -5, 0]);
+  });
+
+  it("slows dx by one on the first coin", () => {
+    const b = ball();
+    extraBallSpeed(b, new ScriptedRng([0, 1, 0, 0, 0]));
+    expect([b.dx, b.dy, b.mode]).toEqual([1, -3, 0]);
+  });
+
+  it("goes flat on the second coin", () => {
+    const b = ball();
+    extraBallSpeed(b, new ScriptedRng([0, 0, 1, 0, 0]));
+    expect([b.dx, b.dy, b.mode]).toEqual([3, -2, 1]);
+  });
+
+  it("can go left, and always goes up whatever the last coin (0x402440)", () => {
+    const b = ball();
+    extraBallSpeed(b, new ScriptedRng([0, 0, 0, 1, 1]));
+    expect([b.dx, b.dy]).toEqual([-2, -3]);
+  });
+
+  it("appears above the paddle, 9 px from its ends (0x40244E)", () => {
+    const p = createPaddle();
+    const low = ball();
+    placeExtraBall(low, p, emptyLevel, new ScriptedRng([0, 0]));
+    expect([low.x, low.y]).toEqual([p.x + 9, 382]);
+    const high = ball();
+    placeExtraBall(high, p, emptyLevel, new ScriptedRng([p.w - 18, 25]));
+    expect([high.x, high.y]).toEqual([p.x + p.w - 9, 407]);
+  });
+
+  it("draws again on an indestructible brick (0x40252D)", () => {
+    const p = createPaddle();
+    const lvl = emptyLevel.map((row) => [...row]);
+    const col = (p.x + 9 - 112) >> 5;
+    lvl[23]![col] = 0x08;
+    const b = ball();
+    // First spot has a corner on row 23, the second is clear of it.
+    placeExtraBall(b, p, lvl, new ScriptedRng([0, 0, 0, 20]));
+    expect([b.x, b.y]).toEqual([p.x + 9, 402]);
+  });
+
+  it("uses the slots not in play, a ball about to be lost included", () => {
+    const active = ball();
+    const lost = ball({ state: BallState.Lost });
+    const dead = ball({ state: BallState.Dead });
+    const balls = [active, lost, dead];
+    addBalls(balls, 2, createPaddle(), emptyLevel, 1500, new Rng(1));
+    expect(balls).toHaveLength(3);
+    expect(balls[0]).toBe(active);
+    expect(balls[1]).not.toBe(lost);
+    expect(balls[2]).not.toBe(dead);
+    expect(balls[1]!.state).toBe(BallState.Active);
+    expect(balls[1]!.speedCounter).toBe(1500);
+  });
+
+  it("stops at 20 balls", () => {
+    const balls = [ball()];
+    addBalls(balls, 20, createPaddle(), emptyLevel, 1500, new Rng(1));
+    expect(balls).toHaveLength(MAX_BALLS);
+    expect(MAX_BALLS).toBe(20);
   });
 });

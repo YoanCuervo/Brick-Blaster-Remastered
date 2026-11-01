@@ -76,11 +76,17 @@ export const PADDLE_SPRITE = spriteAt(0x6900, 0x4a, 0x19);
 
 export const CAPSULE_W = 0x1a;
 export const CAPSULE_H = 0x18;
-const CAPSULE_FIRST = 0x75801;
+/** From the capsule row to the HUD icons, two rows of 25 lines down (0x4055EF). */
+const HUD_ICON_OFFSET = 0x7d501 - 0x75801;
 
-/** Bonus capsule sprite: code = 0x75801 + 0x1A × table index (§5.2, 0x40528A). */
-export function capsuleSprite(bonusIndex: number): SpriteRef {
-  return spriteAt(CAPSULE_FIRST + CAPSULE_W * bonusIndex, CAPSULE_W, CAPSULE_H);
+/** Falling capsule of a bonus code (§5.2). */
+export function capsuleSprite(code: number): SpriteRef {
+  return spriteAt(code, CAPSULE_W, CAPSULE_H);
+}
+
+/** Active-bonus icon: same picture, with a frame in colours 112..127 (§3.5). */
+export function hudIconSprite(code: number): SpriteRef {
+  return spriteAt(code + HUD_ICON_OFFSET, CAPSULE_W, CAPSULE_H);
 }
 
 export function drawSprite(

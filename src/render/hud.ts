@@ -5,6 +5,7 @@ import type { BitmapFont } from "./font";
 export const SCORE_POS = { x: 0x1aa, y: 9 } as const;
 export const LEVEL_POS = { x: 0x7b, y: 9 } as const;
 export const MESSAGE_POS = { x: 0xc3, y: 0x1be } as const;
+export const BONUS_ICON_POS = { x: 0x7a, y: 0x1be } as const;
 /** Right end of the lives strip: x = 0x206 − 12 × lives (0x405BC1). */
 export const LIVES_POS = { x: 0x206, y: 0x1ca } as const;
 

@@ -21,6 +21,9 @@ export const backgroundImage = (world: World, level: number) =>
 /** Indices 1..15 of the sprite sheet, recoloured per background (�3.5, render/recolor.ts). */
 export const SHEET_LOW_MASK = "sprites/sprite_sheet_low";
 
+/** Frame colours 112..127 of the active-bonus icons (§3.5, render/flash.ts). */
+export const SHEET_FLASH_MASK = "sprites/sprite_sheet_flash";
+
 /** Every PNG written by tools/extract/extract_assets.py, without extension. */
 export const IMAGE_NAMES = [
   "backgrounds/title",
@@ -28,6 +31,7 @@ export const IMAGE_NAMES = [
   ...WORLDS.flatMap((world) => range(`backgrounds/${world}`, WORLD_BACKGROUNDS)),
   "sprites/sprite_sheet",
   SHEET_LOW_MASK,
+  SHEET_FLASH_MASK,
   "sprites/font",
   "sprites/menu",
   "sprites/monsters",

@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { Difficulty } from "../data/config";
-import { MAX_LIVES, MAX_SCORE, addScore, checkExtraLife, createPlayer, gainLife } from "./score";
+import {
+  MAX_LIVES,
+  MAX_SCORE,
+  addScore,
+  checkExtraLife,
+  createPlayer,
+  gainLife,
+  loseSpareLife,
+  subtractScore,
+} from "./score";
 
 describe("addScore (0x40841D)", () => {
   it("adds 10 points per unit plus the difficulty bonus", () => {
@@ -60,5 +69,34 @@ describe("checkExtraLife (0x40600B)", () => {
     expect(p.nextLife).toBe(20000);
     expect(checkExtraLife(p, 10000, Difficulty.Easy)).toBe(true);
     expect(p.lives).toBe(4);
+  });
+});
+
+describe("subtractScore (0x4083D2)", () => {
+  it("removes 10 per unit, without the difficulty bonus", () => {
+    const p = createPlayer(3, 10000);
+    p.score = 500;
+    subtractScore(p, 12);
+    expect(p.score).toBe(380);
+  });
+
+  it("doubles with points x2 and stops at 0", () => {
+    const p = createPlayer(3, 10000);
+    p.score = 500;
+    subtractScore(p, 12, true);
+    expect(p.score).toBe(260);
+    p.score = 30;
+    subtractScore(p, 12);
+    expect(p.score).toBe(0);
+  });
+});
+
+describe("loseSpareLife (0x405F7F)", () => {
+  it("never goes below 0 spare lives", () => {
+    const p = createPlayer(2, 10000);
+    loseSpareLife(p);
+    expect(p.lives).toBe(0);
+    loseSpareLife(p);
+    expect(p.lives).toBe(0);
   });
 });

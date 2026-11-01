@@ -100,6 +100,16 @@ def save_low_mask(src: Path, path: Path):
     im.point(lambda v: v if v < BACKGROUND_COLORS else 0, "L").save(path)
 
 
+# Frame colours of the active-bonus icons (§3.5): the only sheet pixels of these indices.
+# 0x405671 fades them alone when a capsule is caught, so they need their own mask.
+FLASH_FIRST, FLASH_END = 0x70, 0x80
+
+
+def save_flash_mask(src: Path, path: Path):
+    im = Image.open(src)
+    im.point(lambda v: 255 if FLASH_FIRST <= v < FLASH_END else 0, "L").save(path)
+
+
 def save_png(raw: bytes, path: Path) -> tuple:
     im = Image.open(io.BytesIO(raw))
     im.load()
@@ -209,6 +219,8 @@ def main():
         report.append(f"{name}.png  {w}x{h}")
     save_low_mask(out / "sprites/sprite_sheet.png", out / "sprites/sprite_sheet_low.png")
     report.append("sprites/sprite_sheet_low.png  (index 1..15 mask)")
+    save_flash_mask(out / "sprites/sprite_sheet.png", out / "sprites/sprite_sheet_flash.png")
+    report.append("sprites/sprite_sheet_flash.png  (index 112..127 mask)")
     bg_palettes = {}
     for world, pal in WORLD_PALETTES.items():
         vga = (original / pal).read_bytes()

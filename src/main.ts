@@ -2,20 +2,37 @@ import { TICK_RATE, startLoop } from "./core/loop";
 import { Rng } from "./core/rng";
 import { loadAssets } from "./data/assets";
 import { Difficulty, forDifficulty } from "./data/config";
-import { SHEET_LOW_MASK, WORLDS, type World, backgroundImage, worldImage } from "./data/images";
+import {
+  SHEET_FLASH_MASK,
+  SHEET_LOW_MASK,
+  WORLDS,
+  type World,
+  backgroundImage,
+  worldImage,
+} from "./data/images";
 import { LEVEL_COLS, WORLD_LEVELS } from "./data/levels";
 import { paletteColor } from "./data/palette";
 import { BallState } from "./game/ball";
+import { CAPSULE_DY, CapsuleState } from "./game/bonus";
 import { GRID_CELLS, cellSprite } from "./game/bricks";
 import { Game } from "./game/game";
 import { clampPaddleX } from "./game/paddle";
 import { FireLatch } from "./input/fire";
 import { KeyState, keyboardDx, keyboardSpeed } from "./input/keyboard";
 import { MouseAccumulator, bindPointerLock } from "./input/mouse";
-import { BALL_SPRITE, BRICK_H, BRICK_W, PADDLE_SPRITE, drawSprite, spriteAt } from "./render/atlas";
+import {
+  BALL_SPRITE,
+  BRICK_H,
+  BRICK_W,
+  PADDLE_SPRITE,
+  capsuleSprite,
+  drawSprite,
+  spriteAt,
+} from "./render/atlas";
 import { BitmapFont } from "./render/font";
 import { applyFade } from "./render/fade";
-import { drawHud } from "./render/hud";
+import { IconFlasher } from "./render/flash";
+import { BONUS_ICON_POS, drawHud } from "./render/hud";
 import { drawPlayfield } from "./render/playfield";
 import { SheetRecolorer } from "./render/recolor";
 import { Screen } from "./render/screen";
@@ -27,6 +44,7 @@ const { ctx } = screen;
 
 const assets = await loadAssets();
 const recolorer = new SheetRecolorer(assets.images.get(SHEET_LOW_MASK)!);
+const flasher = new IconFlasher(assets.images.get(SHEET_FLASH_MASK)!);
 
 // Until the menus exist (task 13): medium difficulty, [W] starts a new game in the other world.
 const difficulty = Difficulty.Medium;
@@ -87,7 +105,7 @@ startLoop({
       assets.backgroundColors[background]!,
     );
     drawPlayfield(ctx, assets.images.get(background)!, sheet);
-    if (!game.bare) drawGame(alpha, sheet);
+    if (!game.bare) drawGame(alpha, sheet, background);
     applyFade(ctx, game.fade);
     if (!locked()) font().draw(ctx, "clic", 290, 220, false);
 
@@ -118,7 +136,7 @@ function font(): BitmapFont {
   );
 }
 
-function drawGame(alpha: number, sheet: CanvasImageSource): void {
+function drawGame(alpha: number, sheet: HTMLCanvasElement, background: string): void {
   for (let i = 0; i < GRID_CELLS; i++) {
     const address = cellSprite(game.grid, i);
     if (address === null) continue;
@@ -130,6 +148,13 @@ function drawGame(alpha: number, sheet: CanvasImageSource): void {
       112 + (i % LEVEL_COLS) * BRICK_W,
       Math.floor(i / LEVEL_COLS) * BRICK_H,
     );
+  }
+
+  // 0x4068B7 draws the objects in slot order: capsules come first.
+  for (const c of game.capsules) {
+    if (c.state !== CapsuleState.Falling) continue;
+    const y = Math.round(c.y - CAPSULE_DY * (1 - alpha));
+    drawSprite(ctx, sheet, capsuleSprite(c.bonus!.code), c.x, y);
   }
 
   const { paddle, paddleAnim } = game;
@@ -164,4 +189,8 @@ function drawGame(alpha: number, sheet: CanvasImageSource): void {
     lives: game.livesShown,
     message: game.message,
   });
+  if (game.bonus.icon !== null) {
+    const { x, y } = BONUS_ICON_POS;
+    flasher.draw(ctx, sheet, background, game.bonus.icon, game.flash.shown, x, y);
+  }
 }

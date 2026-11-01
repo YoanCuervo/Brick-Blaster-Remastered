@@ -149,7 +149,11 @@ Durées des sons (s) : 0.48, 0.89, 2.57, 0.81, 1.02, 2.66, 2.94, 1.07, 0.88, 0.8
 
 **Briques** (`0x404DD0`). Sprite de base selon la famille : cassable `0xEDC2`, indestructible `0x4AC9`, téléporteur `0xEE67`, fantôme `0xEE46`. On ajoute `couleur × 0x2A80` (17 lignes par teinte), et chaque impact avance de `0x21` (33 px). Taille 32 × 16. Si `[0x411000] = 4` (mode de jeu au rôle **non identifié**), une brique à plusieurs coups part de `0xEDA1` au lieu de `0xEDC2`.
 
-**Capsules.** `0x75801 + 0x1A × n`, taille 26 × 24 (`0x40527C`). Les 3 rangées de capsules (y = 752, 776, 800) ne sont **pas encore expliquées** : animation ou couleur du joueur en coop.
+**Capsules** (vérifié dans le code et sur l'image, 01/11/2026). 26 × 24 (`0x40527C`), une image par rangée : le pas d'animation (`+0x71 = 0x3E66`) donne 25 lignes, mais `+0x61 = 1` fait que la capsule n'est **jamais animée**. Les 3 rangées ont des rôles distincts :
+- **y = 752** (`0x75801 + 0x1A × n`) : la capsule qui tombe, en solo et pour le joueur 1.
+- **y = 777** (+`0x3E80`) : la capsule du joueur 2 en coop (`0x405405`), teinte verte.
+- **y = 802** (+`0x7D00`, `0x4055EF`) : l'icône du bonus actif dans le HUD. Même dessin que la première rangée, mais son cadre utilise les index 112..127 au lieu de 96..111. Ces index n'existent que là dans la planche, ce qui permet de les faire clignoter seuls (§5.2).
+- `0x81381` (y = 827) est un sprite vide : c'est lui qui « efface » une capsule ou l'icône.
 
 **Police** (`0x408654`, `fonte.gif` 800 × 24).
 - Table des caractères en `0x41C360` : `abcdefghijklmnopqrstuvwxyz0123456789+-#!?:.&` puis espace. **Minuscules uniquement.**
@@ -417,7 +421,7 @@ Avec 50 niveaux en moyen (3, 3) : dx = 3 jusqu'au niveau 15, 4 à partir du 16, 
 
 Une balle collée suit la raquette (`x = raquette.x + décalage`, `y = raquette.y − 9`). Elle part dès que le bouton de souris est tenu (`0x403E02`, `0x407065`). Comme `0x405093` passe avant `0x403913` dans la boucle, un clic sert la balle et elle part dans le même tick. Tant qu'elle est collée en « montant », son compteur d'accélération tourne déjà.
 
-**Ordre de la boucle principale** (`0x401DFB`), pour la partie décodée : vie supplémentaire (`0x40600B`), raquette, attente du service (`0x405093`), balles (`0x403913`), animations des objets (`0x4066BA`), vie perdue (`0x404A38`), fin de niveau (`0x4045B2`), animations de la grille.
+**Ordre de la boucle principale** (`0x401DFB`), pour la partie décodée : routine du bonus actif (`0x405DD2`), minuteur du bonus (`0x405E1A`), vie supplémentaire (`0x40600B`), raquette, attente du service (`0x405093`), balles (`0x403913`), capsules (`0x405452`), animations des objets (`0x4066BA`), vie perdue (`0x404A38`), fin de niveau (`0x4045B2`), animations de la grille, attente du tick (`0x40653C`), clignotement de l'icône (`0x405671`).
 
 **Vie supplémentaire** (`0x40600B`, en mode 3 seulement, une fois par tick). Si `score ≥ seuil`, le seuil augmente de `Extra_Life` et le joueur gagne **8 unités** de points (80/90/100). Le message « vie en plus » s'affiche. Puis `0x405FB1` joue `newlife`, ajoute une vie (plafond : 19 en réserve) et **efface le bonus actif**.
 
@@ -546,20 +550,61 @@ if not table[i].actif: return           // tirage perdu : aucun bonus
 f = table[i].freq[diff]
 if f == 0: recommencer le tirage        // bonus désactivé : on en tire un autre
 if f > 1 and rand(0..f-1) != 0: return  // probabilité 1/f, sinon aucun bonus
-lâcher une capsule à l'emplacement de la brique, chute 2 px/tick
+lâcher une capsule au coin haut-gauche de la brique, chute 2 px/tick
 (en coop : capsule à la couleur du joueur dont la balle a cassé la brique)
 ```
 
 - **`Freq_Option_* = f` veut dire « 1 chance sur f »** une fois le bonus tiré au sort. La probabilité qu'une brique cassée lâche le bonus `i` vaut donc ≈ `1/24 × 1/f`. Une valeur plus haute rend le bonus plus rare : l'hypothèse de départ était juste. `0` désactive le bonus.
 - `Time_Between_Option` se compte en **ticks** : le compteur `0x40655D` avance à chaque tour de boucle principale (`0x40653C`). Avec 6/10/12 ticks (0,12 à 0,24 s à 50 Hz), il empêche surtout deux capsules quasi simultanées.
 - `[0x4125D0]`, s'il n'est pas nul, force le bonus lâché (mode test ou éditeur, probablement).
+- Le dernier bonus `[0x411C68]` vaut 0 au départ et n'est jamais remis à zéro. Le compteur `[0x40655D]` avance dans tous les modes, fondus compris.
+- **Sprites inversés** : `+100 pts` (entrée 20) utilise le dessin n° 21 (`0x75A23`), `-100 pts` (entrée 21) le n° 20 (`0x75A09`).
 
-**Bonus actif** (`0x4055AE`, à la récupération de la capsule) :
+**Capsules** (`0x405452`, objets de type 4 en `0x412B40`, 8 emplacements) :
+- Une capsule prend le premier emplacement qui n'est pas en chute. Si les 8 tombent, elle est perdue. Le compteur et le dernier bonus ont déjà été mis à jour.
+- Elle apparaît en x = 112 + col × 32, y = ligne × 16 (`0x40448E`). Elle tombe de 2 px dès le tick de sa création, car `0x405452` passe après les balles.
+- **Ramassage** (`0x4054D2`, mode 3 seulement) : y entre 416 et 440, et capsule **entièrement** dans la largeur de la raquette (`x ≥ raquette.x` et `x + 26 ≤ raquette.x + largeur`).
+- **Perdue** si `y + 24 + 2 ≥ 480`. Le son vient de l'emplacement `0x41B9FF`, juste après la table, que rien n'écrit : la capsule tombe donc sans bruit (probable).
+- Les capsules continuent de tomber pendant les attentes (`0x402058` : explosion, décollage de la raquette), sans pouvoir être ramassées. Toute nouvelle manche les efface (`0x405264`).
+
+**Bonus actif** (`0x4055AE`, à la récupération de la capsule). Le ramassage joue `optionon`, donne **2 unités** de score (20/30/40 points), affiche l'icône et lance le clignotement. Le libellé n'apparaît qu'au tick suivant, avec `0x405DD2`.
 - **Un seul bonus actif à la fois**, dans `[0x411C70]`. Un nouveau bonus remplace le précédent, qui est mémorisé dans `[0x411C74]`.
-- **Durée : 600 ticks** (`[0x411CA4] = 0x258`, soit 12 s à 50 Hz). À 0, le jeu joue un son, coupe l'effet et restaure la raquette (`0x405E58`).
-- Chaque tick, la routine d'effet du bonus actif est appelée (`0x405DD2`) et son libellé s'affiche une fois.
-- Les bonus instantanés (balles, vie, points…) remettent l'état actif à 0 dans leur routine. Par exemple, `3_ball` appelle `0x40240E` avec `ecx = 1` : il ajoute **1** balle (d'où le libellé « 1 balle »). `6_ball` en ajoute 3, `9_ball` 6.
-- Les bonus durables (`slow`, `fast`, `magnetic`, `reverse`…) ont une routine vide (`ret`). Le reste du code teste directement `[0x411C70]` : par exemple, `0x758D1` pour `fast_ball` au §4.2.
+- **Durée : 600 ticks** (`[0x411CA4] = 0x258`, soit 12 s à 50 Hz, `0x405E1A`, en mode 3). À **500**, le message s'efface et, si aucun bonus n'est actif, l'icône disparaît et le dernier libellé est oublié. À **0**, le jeu joue `endopt`, libère les balles collées (`0x403E91`), remet la palette et le score normal (`0x406392`) et efface l'icône. Le minuteur n'est pas arrêté par les bonus instantanés : **`endopt` sonne aussi 12 s après un bonus instantané**, sauf si une manche a recommencé entre-temps.
+- Chaque tick, la routine d'effet du bonus actif est appelée (`0x405DD2`, mode 3). Son libellé n'est écrit que s'il diffère du dernier écrit (`[0x411CA0]`) : reprendre le même bonus durable ne le réécrit pas.
+- **Effacement** : une vie supplémentaire ou le bonus vie (`0x405FB1`) efface le bonus actif, mais pas le minuteur. Une vie perdue (`0x404AED`) efface les deux. Une nouvelle manche (`0x401DB5`) efface aussi les capsules et l'icône, et rétablit la palette.
+- Les bonus instantanés (balles, vie, points…) remettent l'état actif à 0 dans leur routine, au tick qui suit le ramassage.
+- Les bonus durables (`slow`, `fast`, `iron`, `telepod`, `small`, `large`, `reverse`) ont une routine vide (`ret`). Le reste du code teste directement `[0x411C70]` : par exemple, `0x758D1` pour `fast_ball` au §4.2. `next_level` aussi : c'est le test de fin de niveau (`0x4045BB`) qui agit, dans le tick même du ramassage, avant tout affichage du libellé. `magnetic` n'est pas vide (`0x4063E6`) : il remet le bonus précédent comme actif (`[0x411C74]`) et pose un drapeau d'aimant en `[0x41104D]`.
+
+**Clignotement de l'icône** (`0x405671`, à chaque tick, attentes comprises). Le ramassage l'active. Les couleurs 112..127 (`0x30` octets) passent par les palettes de fondu 0 à 11, puis 12 à 1, une par tick. Le cycle de 24 ticks se répète 10 fois (240 ticks). Rien ne remet les compteurs à zéro au ramassage : une capsule prise pendant un clignotement ne le relance pas. Il s'arrête sur la palette 1 : le cadre reste un peu sombre jusqu'à la remise de la palette complète (fin du minuteur, nouvelle manche).
+
+**Effets instantanés décodés** :
+
+| Bonus | Routine | Effet |
+|---|---|---|
+| `3_ball`, `6_ball`, `9_ball`, `20_ball` | `0x405EBA`, `0x405EE3`, `0x405F0C`, `0x405F35` | `0x40240E` avec 1, 3, 6, 20 balles |
+| `ghost` | `0x40645F` | 20 balles (10 en duel), puis toutes les balles du joueur sauf une passent fantômes (`0x403ED5`, sprite +0x12, drapeau `+0x99`). Comportement du drapeau à décoder (tâche 10) |
+| `death` | `0x405F5E` | son `death`, −1 vie **seulement s'il en reste en réserve** : jamais de game over |
+| `new_life` | `0x405FB1` | son `newlife`, +1 vie (plafond 19) |
+| `bonus` (« +100 pts ») | `0x40649B` | **8 unités** avec le bonus de difficulté : 80/90/100 points, ×2 sous « points ×2 » |
+| `malus` (« −100 pts ») | `0x4064CE` | **12 unités** retirées par `0x4083D2`, sans bonus de difficulté : **−120 points** (−240 sous « points ×2 »), sans passer sous 0 |
+
+**Balles supplémentaires** (`0x40240E`). Le jeu parcourt les 20 emplacements de balle (`0x413048`) et prend ceux qui ne sont pas à l'état 1, une balle en train d'être perdue comprise. S'il n'y a plus de place, le reste est perdu. Chaque balle (`0x40242F`) :
+
+```
+a = 2 + rand(0..2)
+dx = a ; dy = a + 1 ; angle raide
+si rand(0..1) : dx −= 1
+si rand(0..1) : dx += 1 ; dy −= 1 ; angle plat
+si rand(0..1) : dx = −dx
+si rand(0..1) : dy = −dy
+dy est ensuite forcé vers le haut
+répéter :
+    x = raquette.x + 9 + rand(0..largeur − 18)
+    y = raquette.y − 9 − 25 + rand(0..25)        // 382..407
+tant qu'un des 4 coins touche une indestructible (0x40252D, même test qu'au §4.1)
+```
+
+**Remake** : les capsules des bonus durables tombent déjà pour garder le tirage fidèle. Ramassées, elles occupent l'emplacement actif (icône, libellé, minuteur) sans effet jusqu'à la tâche 10. `night`, `del_monster` et `add_monster` vident l'emplacement comme l'original, sans effet jusqu'aux tâches 10 et 11. Les capsules sont dessinées avant les balles : `0x4068B7` parcourt les objets dans l'ordre des emplacements.
 
 ### Les 24 bonus (texte du jeu)
 
@@ -585,9 +630,9 @@ lâcher une capsule à l'emplacement de la brique, chute 2 px/tick
 | del_monster | apocalypse | détruit les monstres (« wrath of god ») |
 | add_monster | invocation monstre | fait apparaître un monstre (« summon beast ») |
 | magnetic | aimant | la balle colle à la raquette |
-| ghost | fantôme | (balle ou raquette semi-transparente ?) |
-| bonus | +100 pts | |
-| malus | −100 pts | |
+| ghost | fantôme | 20 balles dont toutes sauf une fantômes (§5.2) |
+| bonus | +100 pts | 8 unités : 80/90/100 points |
+| malus | −100 pts | −120 points |
 | collision | collision | (en duel : les balles entrent en collision ? à vérifier) |
 
 ### Menus (structure complète)
@@ -618,13 +663,13 @@ tools/.venv/Scripts/python.exe tools/extract/extract_assets.py
 - `tools/extract/diet.py` : décompresseur DIET en Python pur, porté depuis deark (`modules/diet.c`, licence MIT). Il accepte les tags `dlz` et `EOS`, et sa sortie a été validée sur `blaster.cfg`.
 - `tools/extract/extract_assets.py` : découpe l'overlay, décompresse, convertit, puis vérifie la structure attendue (27 GIF, 25 blocs, doublons de musique identiques).
 
-Résultat dans `assets/` (65 fichiers) :
+Résultat dans `assets/` (66 fichiers) :
 
 | Dossier | Contenu |
 |---|---|
 | `backgrounds/` | `title`, `media` (PNG indexés, palette d'origine) ; `space_1..8`, `arcade_1..8` avec leur palette de jeu (couleurs 0..15 du GIF, 0 et 15 en noir, le reste depuis la palette du monde, §3.5) |
 | `backgrounds/palettes.json` | `{"space_1": [[r, g, b] × 16], …}` : couleurs 0..15 de chaque fond en jeu (0 et 15 en noir), pour recolorer les sprites (§3.5) |
-| `sprites/` | `sprite_sheet` 640×1900, `font` 800×24, `menu` 640×1220, `monsters` 930×220 ; `space/`, `arcade/` : `sprite_sheet`, `font`, `monsters` avec la palette du monde, index 0 transparent ; `sprite_sheet_low` : masque en niveaux de gris (valeur = index 1..15 de la planche, 0 ailleurs) |
+| `sprites/` | `sprite_sheet` 640×1900, `font` 800×24, `menu` 640×1220, `monsters` 930×220 ; `space/`, `arcade/` : `sprite_sheet`, `font`, `monsters` avec la palette du monde, index 0 transparent ; `sprite_sheet_low` : masque en niveaux de gris (valeur = index 1..15 de la planche, 0 ailleurs) ; `sprite_sheet_flash` : masque des index 112..127 (cadres des icônes de bonus) |
 | `credits/` | `credit_1..6` |
 | `sounds/` | 17 WAV 8 bits mono à 8 363 Hz (8SVX signé converti en non signé) |
 | `music/` | `love`, `starr`, `the_last`, `hunting_in_lacanau`, `rain_in_the_brain` (`.mod`, au format tracker d'origine, sans les 2 doublons) |
@@ -706,5 +751,5 @@ Graphismes, sons, musiques et niveaux appartiennent à Eclipse / leurs auteurs (
 - ~~Quel set de niveaux correspond à quel monde~~ : résolu, espace = lv0, arcade = lv1 (§4).
 - Rôle exact de `0x408AD9` après un game over (meilleurs scores ?) et du retour au menu (§4.5).
 - Contenu de `blaster.scr` une fois déchiffré, et des `.usr` : sans importance pour le remake.
-- Routines d'effet de chaque bonus pris un par un (adresses dans la table §5.2), en particulier `ghost`, `collision`, `reverse` et `telepod`.
+- Routines d'effet restantes (tâches 10 et 11) : drapeau fantôme `+0x99`, `collision` (duel), `reverse`, `telepod`, tirs.
 - Rôle de l'octet patché à l'offset 28850.
