@@ -1,9 +1,9 @@
 import type { World } from "./images";
 import { int, list, record } from "./validate";
 
-// §4: 13 columns × 24 rows, one byte per cell, top row first.
+// §4, 0x404D51: 0x186 bytes per level, 13 columns × 30 rows, one byte per cell, top row first.
 export const LEVEL_COLS = 13;
-export const LEVEL_ROWS = 24;
+export const LEVEL_ROWS = 30;
 
 /** level[row][col], raw brick byte (0 = empty). */
 export type Level = readonly (readonly number[])[];

@@ -29,9 +29,9 @@ Aucun code source n'est disponible : le remake doit être une **réécriture**, 
 | `blaster.exe` | 2 901 064 | PE32 GUI i386 + données collées en fin de fichier | Exécutable **patché** (voir §2.1) |
 | `blaster22.exe` | 2 901 064 | idem | Exécutable **original** non patché (date 2009 = date de copie) |
 | `blaster.cfg` | 1 764 | Compressé **DIET** (`dlz`) → 6 496 octets de texte | Configuration complète du gameplay (§5) |
-| `blaster.lv0` | 2 106 | DIET → 31 200 octets | Set de niveaux n°1 (49 niveaux) |
-| `blaster.lv1` | 2 457 | DIET → 31 200 octets | Set de niveaux n°2 (50 niveaux) |
-| `blaster.lv2` | 31 200 | Brut (non compressé) | Set de niveaux n°3 (50 niveaux) — version antérieure de lv1, probablement fichier de travail de l'éditeur |
+| `blaster.lv0` | 2 106 | DIET → 31 200 octets | Set de niveaux n°1 (40 niveaux) |
+| `blaster.lv1` | 2 457 | DIET → 31 200 octets | Set de niveaux n°2 (40 niveaux) |
+| `blaster.lv2` | 31 200 | Brut (non compressé) | Set de niveaux n°3 (40 niveaux) — version antérieure de lv1, probablement fichier de travail de l'éditeur |
 | `blaster.scr` | 960 | Binaire chiffré : octet `i` XOR `(960 − i) & 0xFF` (vérifié, routine `0x408E99`) | Meilleurs scores |
 | `BLASTER.usr`, `blaster..usr` | 2 | 2 octets | État/préférences utilisateur |
 | `sprite0.pal`, `sprite1.pal` | 768 | Palette brute 256 × RVB (3 octets) | Palettes des sprites (`file` les prend à tort pour du Targa) |
@@ -165,11 +165,11 @@ Durées réelles en jeu (s), à 13 208 Hz (§4.5) : 0.30, 0.56, 1.63, 0.51, 0.64
 
 ## 4. Format des niveaux (`.lv0` / `.lv1` / `.lv2`) — vérifié
 
-- Fichier décompressé = **31 200 octets = 100 emplacements × 312 octets**.
-- Les 50 premiers emplacements sont des niveaux. Les 50 suivants sont remplis de `0xFF` (vides).
-- Un niveau = **grille 13 colonnes × 24 lignes**, **1 octet par case**, ligne par ligne, du haut vers le bas.
+- Fichier décompressé = **31 200 octets = 80 emplacements × 390 octets** (`0x186`, lu en `0x404D51`, `0x402551` et `0x404EB7` ; taille de fichier `0x79E0` contrôlée en `0x407C34` ; l'éditeur plafonne à `0x50` = 80 niveaux en `0x40826E`). Une première lecture à 312 octets (24 lignes) découpait les niveaux à cheval sur deux emplacements.
+- Les 40 premiers emplacements sont des niveaux. Les 40 suivants sont remplis de `0xFF` (vides).
+- Un niveau = **grille 13 colonnes × 30 lignes**, **1 octet par case**, ligne par ligne, du haut vers le bas.
 - `0x00` = case vide.
-- Taille d'une brique à l'écran : **32 × 16 px** → aire de briques de 416 × 384 px, centrée dans l'écran 640×480 (≈ x 112–528). Cela correspond à la zone centrale visible des fonds.
+- Taille d'une brique à l'écran : **32 × 16 px** → grille de 416 × 480 px, centrée dans l'écran 640×480 (≈ x 112–528). Les briques des jeux livrés s'arrêtent à la ligne 25 (`lv0`, niveaux 16 et 35), soit y = 416, la limite `0x1A0` des collisions. Cela correspond à la zone centrale visible des fonds.
 
 ### Encodage d'une brique
 
@@ -325,9 +325,9 @@ Niveau 1                       Niveau 2 (bas)
 
 ### Les trois fichiers
 
-- `lv0` : 50 emplacements, dont le **niveau 45 entièrement vide**. Aucun niveau en commun avec lv1/lv2. **Monde « espace »** (vérifié : le chiffre du monde forme la ressource `lv0`/`lv1`, `0x407BEB`, avec un contrôle de taille 0x79E0). Un niveau sans brique cassable est probablement validé aussitôt (le test de fin de niveau `0x4045B2` ne cherche que les briques cassables).
-- `lv1` : 50 niveaux. **Monde « arcade »** (vérifié). Le menu propose 2 mondes, « espace » et « arcade », plus un 3ᵉ emplacement vide.
-- `lv2` : 50 niveaux, version **antérieure** de lv1 (12 niveaux diffèrent : 0-4, 7-10, 19, 22, 23 ; daté du 26/04/1999 contre 10/05/1999 pour lv1). Le jeu ne le charge jamais.
+- `lv0` : 40 niveaux, aucun vide. Aucun niveau en commun avec lv1/lv2. **Monde « espace »** (vérifié : le chiffre du monde forme la ressource `lv0`/`lv1`, `0x407BEB`, avec un contrôle de taille 0x79E0).
+- `lv1` : 40 niveaux. **Monde « arcade »** (vérifié). Le menu propose 2 mondes, « espace » et « arcade », plus un 3ᵉ emplacement vide.
+- `lv2` : 40 niveaux, version **antérieure** de lv1 (9 niveaux diffèrent : 1-4, 7-9, 16, 19 ; daté du 26/04/1999 contre 10/05/1999 pour lv1). Le jeu ne le charge jamais.
 - La config limite `Start_Level` à 1–40.
 
 ---
@@ -359,7 +359,7 @@ Le bonus `add_monster` (« invocation monstre ») appelle directement la même r
 
 **« Monstre bloqué en haut »** (`0x403CA1`). Si `y ≤ 0` après le déplacement, un compteur `+0x7D` avance ; à 32, il revient à 0 et `dy` est forcé à −1. **Ce code n'a aucun effet** : `dy` vaut toujours ±1 et le recadrage garantit `y ≥ 0` au début du tick, donc `y ≤ 0` après déplacement implique déjà `dy = −1`. Le remake ne le porte pas.
 
-Le vrai blocage vient de la séquence suivante, qui sort naturellement du portage. À `y = 0` avec `dy = −1`, le mur remet `dy = +1`, le coin arrière bas (`y + 33`) voit une brique et remet `dy = −1`, le déplacement donne −1 et le recadrage rend 0. Le monstre glisse donc à `y = 0` tant que son coin arrière bas voit une brique sur la ligne 2, puis repart. Sur `lv0` comme sur `lv1`, 24 niveaux ont leur première brique sur les lignes 0 à 2 : le cas arrive en jeu.
+Le vrai blocage vient de la séquence suivante, qui sort naturellement du portage. À `y = 0` avec `dy = −1`, le mur remet `dy = +1`, le coin arrière bas (`y + 33`) voit une brique et remet `dy = −1`, le déplacement donne −1 et le recadrage rend 0. Le monstre glisse donc à `y = 0` tant que son coin arrière bas voit une brique sur la ligne 2, puis repart. 15 niveaux de `lv0` et 26 de `lv1` ont leur première brique sur les lignes 0 à 2 : le cas arrive en jeu.
 
 **Collision avec une balle ou un projectile** (`0x403CC7`, `0x403D19`, entre le balayage des briques et le déplacement de l'objet). Test sur chaque monstre à l'état 1 : le centre de l'objet (`x + w/2`, `y + h/2`, division tronquée) est-il dans le rectangle du monstre, bornes **incluses** (`x .. x + 32`) ? Les balles passent donc avant le déplacement des monstres du même tick.
 1. Si l'objet a `+0x59 ≠ 0`, un code `rand(0..15)` passe dans `0x40436A` : 0 = rien, 1, 5, 10, 14 = `dx` inversé, 2, 6, 9, 13 = `dy` inversé, les autres = les deux. L'anti-boucle de la balle s'applique. Un **mini tir** disparaît sauf au code 0 (`0x4043CB`). Un **gros tir** et une **balle de fer** (`+0x59 = 0`) traversent sans tirage.
@@ -427,7 +427,7 @@ Un monstre rebondit sur les indestructibles et les téléporteurs sans aucun eff
 - clignotement (`0x405D57`) : une indestructible dont le sprite est ≥ 0xF4C9 recule de 0xAA00. Il faut 5 ticks pour revenir au sprite normal. L'image +5 est remplacée dans le tick même de l'impact : on en voit 4, puis le sprite normal ;
 - téléporteurs (`0x405CB2`) : tous les 5 ticks, ils sont redessinés avec le décalage courant, puis ce décalage avance de 0x21 et revient à 0 à 0xC6, soit 6 images.
 
-**Nombre de niveaux** (`0x404E96`) : les emplacements qui précèdent le premier emplacement vide (`0xFF`), soit 50.
+**Nombre de niveaux** (`0x404E96`) : les emplacements qui précèdent le premier emplacement dont le premier octet vaut `0xFF`, soit 40.
 
 **Manche** (`0x401DB5`). Le jeu crée une nouvelle balle (`0x40222D`) et remet la raquette à x 283 et à sa taille normale (`0x40256C`). Il recharge la grille, sauf après une vie perdue (mode 6, `0x404D0D`). Puis `0x404FBE` efface le bonus actif, pose la balle au milieu de la raquette et la **colle** : décalage = `min(|balle.x − raquette.x|, largeur − 9)` (`0x4048F7`).
 
@@ -439,7 +439,7 @@ dx = Start_Speed[diff] + q
 dy = −(dx + 1)                                                // toujours vers la droite et vers le haut
 ```
 
-Avec 50 niveaux en moyen (3, 3) : dx = 3 jusqu'au niveau 15, 4 à partir du 16, 5 à partir du 32, 6 à partir du 48.
+Avec 40 niveaux en moyen (3, 3) : dx = 3 jusqu'au niveau 12, 4 à partir du 13, 5 à partir du 26, 6 à partir du 39.
 
 Une balle collée suit la raquette (`x = raquette.x + décalage`, `y = raquette.y − 9`). Elle part dès que le bouton de souris est tenu (`0x403E02`, `0x407065`). Comme `0x405093` passe avant `0x403913` dans la boucle, un clic sert la balle et elle part dans le même tick. Tant qu'elle est collée en « montant », son compteur d'accélération tourne déjà.
 
@@ -794,7 +794,7 @@ src/
     World.ts         // état d'une partie
     Paddle.ts  Ball.ts  Brick.ts  Bonus.ts  Monster.ts  Projectile.ts
     collisions.ts
-    levels.ts        // chargement JSON 13×24
+    levels.ts        // chargement JSON 13×30
   render/
     Renderer.ts  SpriteAtlas.ts  BitmapFont.ts (police 16 px de fonte.gif)
   audio/
@@ -830,7 +830,7 @@ Graphismes, sons, musiques et niveaux appartiennent à Eclipse / leurs auteurs (
 - ~~Effet exact du garde-fou « monstre bloqué en haut »~~ : résolu, il n'en a aucun (§4.3).
 - Logique cadencée exactement à 50 Hz ? (§4.2)
 - Le jeu plante dès qu'il perd le plein écran (Alt+Tab, Impr. écran) : comparer le remake à l'original demandera un outil de fenêtrage (DxWnd).
-- La démo plante si le set de niveaux contient des emplacements vides (`0xFF`) parmi ceux qu'elle tire au sort : un set de test doit remplir 50 emplacements.
+- La démo plante si le set de niveaux contient des emplacements vides (`0xFF`) parmi ceux qu'elle tire au sort : un set de test doit remplir 40 emplacements.
 - ~~Correspondance entre noms de fichiers `.mod` et titres de modules~~ : résolu, par le répertoire de l'exe (§3.3).
 - Sortie de l'original en stéréo ou non : lue au lancement (§4.5), probable.
 - ~~Quel set de niveaux correspond à quel monde~~ : résolu, espace = lv0, arcade = lv1 (§4).

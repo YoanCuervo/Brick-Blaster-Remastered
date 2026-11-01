@@ -5,7 +5,11 @@ const grid = (cell = 0) =>
   Array.from({ length: LEVEL_ROWS }, () => Array<number>(LEVEL_COLS).fill(cell));
 
 describe("parseLevels", () => {
-  it("accepts 13 × 24 grids for lv0, lv1 and lv2", () => {
+  it("uses the 0x186-byte level of the original (0x404D51)", () => {
+    expect(LEVEL_COLS * LEVEL_ROWS).toBe(0x186);
+  });
+
+  it("accepts 13 × 30 grids for lv0, lv1 and lv2", () => {
     const set = parseLevels({ lv0: [grid(0x21), grid()], lv1: [grid()], lv2: [] });
     expect(set.lv0).toHaveLength(2);
     expect(set.lv0[0]![LEVEL_ROWS - 1]![LEVEL_COLS - 1]).toBe(0x21);
@@ -14,6 +18,12 @@ describe("parseLevels", () => {
 
   it("rejects a missing level file", () => {
     expect(() => parseLevels({ lv0: [], lv1: [] })).toThrow("levels.lv2");
+  });
+
+  it("rejects the former 13 × 24 grids", () => {
+    expect(() => parseLevels({ lv0: [grid().slice(6)], lv1: [], lv2: [] })).toThrow(
+      "levels.lv0[0]",
+    );
   });
 
   it("rejects a grid with a missing row", () => {

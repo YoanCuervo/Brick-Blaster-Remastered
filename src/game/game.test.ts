@@ -56,8 +56,8 @@ const FADE_IN_TICKS = 1 + FADE_STEPS;
 const ARRIVAL_TICKS = 18;
 const READY_TICKS = FADE_IN_TICKS + ARRIVAL_TICKS;
 
-/** Pads the set to 50 levels: the serve speed divides by levelCount / 3. */
-function newGame(levels: Level[] = [level()], over: Partial<GameConfig> = {}, count = 50) {
+/** Pads the set to 40 levels: the serve speed divides by levelCount / 3. */
+function newGame(levels: Level[] = [level()], over: Partial<GameConfig> = {}, count = 40) {
   const set = [...levels];
   while (set.length < count) set.push(level());
   return new Game(config(over), set, Difficulty.Medium, new Rng(1));
@@ -99,11 +99,12 @@ function until(g: Game, mode: GameMode, input = idle, max = 1000): number {
 
 describe("level speeds", () => {
   it("serves faster every levelCount / Nbs_Change_Speed_Level levels (0x40513F)", () => {
-    expect(serveSpeed(3, 3, 1, 50)).toEqual({ dx: 3, dy: -4 });
-    expect(serveSpeed(3, 3, 15, 50)).toEqual({ dx: 3, dy: -4 });
-    expect(serveSpeed(3, 3, 16, 50)).toEqual({ dx: 4, dy: -5 });
-    expect(serveSpeed(3, 3, 48, 50)).toEqual({ dx: 6, dy: -7 });
-    expect(serveSpeed(2, 2, 25, 50)).toEqual({ dx: 3, dy: -4 });
+    expect(serveSpeed(3, 3, 1, 40)).toEqual({ dx: 3, dy: -4 });
+    expect(serveSpeed(3, 3, 12, 40)).toEqual({ dx: 3, dy: -4 });
+    expect(serveSpeed(3, 3, 13, 40)).toEqual({ dx: 4, dy: -5 });
+    expect(serveSpeed(3, 3, 26, 40)).toEqual({ dx: 5, dy: -6 });
+    expect(serveSpeed(3, 3, 39, 40)).toEqual({ dx: 6, dy: -7 });
+    expect(serveSpeed(2, 2, 20, 40)).toEqual({ dx: 3, dy: -4 });
   });
 
   it("speeds up sooner on each level (0x404DB4)", () => {
