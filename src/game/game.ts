@@ -21,6 +21,7 @@ import {
   type BrickProbe,
   type Magnet,
   addBalls,
+  clampToBounds,
   createBall,
   makeGhosts,
   placeOnPaddle,
@@ -58,6 +59,16 @@ import {
   teleport,
 } from "./bricks";
 import {
+  type MonsterSystem,
+  createMonsterSystem,
+  explodeAll,
+  hitMonsters,
+  spawnMonster,
+  stepMonsterTimer,
+  stepMonsters,
+  updateMonsters,
+} from "./monsters";
+import {
   PADDLE_LARGE,
   PADDLE_NORMAL,
   PADDLE_SMALL,
@@ -71,6 +82,7 @@ import { BRICK_H, BRICK_W } from "../render/atlas";
 import { FADE_STEPS } from "../render/fade";
 import {
   BRICK_UNITS,
+  MONSTER_UNITS,
   type Player,
   addScore,
   checkExtraLife,
@@ -134,7 +146,8 @@ export type SoundName =
   | "large"
   | "small"
   | "night"
-  | "shoot";
+  | "shoot"
+  | "monstoff";
 
 /** Fade step of the "points x2" palette: 0x3000 / 0x300 (0x406330). */
 export const NIGHT_FADE = 16;
@@ -196,6 +209,7 @@ export class Game {
   /** [0x411CA8]: "points x2" is on, score doubled and palette darkened. */
   doubled = false;
   shotSystem: ShotSystem = createShotSystem();
+  monsterSystem: MonsterSystem = createMonsterSystem();
   /** 18-character status line, from the cfg texts. */
   message = "";
   paddleAnim: PaddleAnim | null = null;
@@ -213,6 +227,13 @@ export class Game {
   private readonly probe: BrickProbe = {
     hit: (x, y, ball) => this.hitBrick(x, y, ball),
     endSweep: () => clearMarks(this.grid),
+  };
+  private readonly hitMonsters = (ball: Ball) => {
+    const hits = hitMonsters(this.monsterSystem, ball, this.rng);
+    for (let i = 0; i < hits; i++) {
+      this.sounds.push("monstoff");
+      addScore(this.player, MONSTER_UNITS, this.difficulty, this.doubled);
+    }
   };
 
   constructor(
@@ -296,6 +317,12 @@ export class Game {
       this.largePaddle();
       this.smallPaddle();
       this.fireShots(input.fire);
+      stepMonsterTimer(
+        this.monsterSystem,
+        forDifficulty(this.config.freqCreateMonster, this.difficulty),
+        this.level,
+        this.rng,
+      );
     } else {
       this.shotSystem.latch = false;
     }
@@ -305,7 +332,7 @@ export class Game {
     placeCannons(this.shotSystem, this.paddle);
     if (this.mode === GameMode.Ready) this.ready(input.fire);
     if (this.mode === GameMode.Playing) this.updateBalls(input.fire);
-    updateShots(this.shotSystem, this.mode === GameMode.Playing ? this.probe : null);
+    this.updateShotsAndMonsters();
     for (const b of updateCapsules(this.capsules, this.paddle, this.mode === GameMode.Playing)) {
       this.capsuleCaught(b);
     }
@@ -323,14 +350,32 @@ export class Game {
       return;
     }
     this.animateGrid();
+    this.clampObjects();
     stepIconFlash(this.flash);
+  }
+
+  /**
+   * 0x403A39 then 0x403C69. Only a lost life changes [0x411000]: it is still 3 while the
+   * paddle leaves a finished level (0x401C54), so bricks and monsters still count.
+   */
+  private updateShotsAndMonsters(): void {
+    const live = this.mode === GameMode.Playing || this.mode === GameMode.LevelEnd;
+    const probe = live ? this.probe : null;
+    updateShots(this.shotSystem, probe, this.hitMonsters);
+    updateMonsters(this.monsterSystem, probe);
   }
 
   /** 0x403913: the ball loop, then 0x4039E9 clears the one-tick bonuses. */
   private updateBalls(fire: boolean): void {
     const active = this.bonus.active?.key ?? null;
     const teleportBall = (ball: Ball) => teleport(ball, this.grid.level, this.rng);
-    const ctx = { fire, magnet: this.magnet, active, teleport: teleportBall };
+    const ctx = {
+      fire,
+      magnet: this.magnet,
+      active,
+      teleport: teleportBall,
+      hitMonsters: this.hitMonsters,
+    };
     for (const ball of this.balls) {
       for (const e of updateBall(ball, this.paddle, this.probe, this.interval, ctx)) {
         this.sounds.push(e === "paddle" ? "wall" : e === "speedUp" ? "speedup" : "pertebal");
@@ -343,7 +388,15 @@ export class Game {
   private stepObjects(): void {
     stepAnim(this.paddle.anim);
     stepShotSystem(this.shotSystem);
+    stepMonsters(this.monsterSystem);
     for (const ball of this.balls) stepBallAnim(ball);
+  }
+
+  /** 0x406874, called by 0x40675F for each object it draws. */
+  private clampObjects(): void {
+    for (const ball of this.balls) clampToBounds(ball);
+    for (const shot of this.shotSystem.shots) clampToBounds(shot);
+    for (const monster of this.monsterSystem.monsters) clampToBounds(monster);
   }
 
   /** 0x4033A9 */
@@ -468,8 +521,13 @@ export class Game {
         setupMiniCannons(this.shotSystem);
         break;
       case "del_monster":
+        // 0x4063C2: no score, unlike a hit.
+        for (let i = explodeAll(this.monsterSystem); i > 0; i--) this.sounds.push("monstoff");
+        this.bonus.active = null;
+        break;
       case "add_monster":
-        // Their routines end by clearing the slot; the effects come with task 11.
+        // 0x40643B
+        spawnMonster(this.monsterSystem, this.level, this.rng);
         this.bonus.active = null;
         break;
     }
@@ -518,7 +576,7 @@ export class Game {
 
   /** A shot (type 7) is not moved by a teleporter but still counts as a hit (0x4023AA). */
   private hitBrick(x: number, y: number, ball: Ball): boolean {
-    const hit = hitBrick(this.grid, x, y);
+    const hit = hitBrick(this.grid, x, y, ball.monster);
     switch (hit.kind) {
       case "none":
         return false;
@@ -527,6 +585,8 @@ export class Game {
         this.dropBonus(hit.index);
         this.sounds.push("bounce");
         return hit.bounce;
+      case "solid":
+        return true;
       case "teleporter":
         if (!ball.shot) teleport(ball, this.grid.level, this.rng);
         this.sounds.push("telepod");
@@ -590,10 +650,11 @@ export class Game {
   /** Wait loops of 0x404C66 and 0x404C00: animation, then a pause with the paddle hidden. */
   private waitAnim(): void {
     const pa = this.paddleAnim!;
-    updateShots(this.shotSystem, null);
+    this.updateShotsAndMonsters();
     // 0x402058 keeps the capsules falling; nothing can catch them outside mode 3.
     updateCapsules(this.capsules, this.paddle, false);
     stepShotSystem(this.shotSystem);
+    stepMonsters(this.monsterSystem);
     if (!pa.done) {
       stepAnim(pa.anim);
       pa.done = pa.anim.left === ANIM_END_LEFT;
@@ -601,6 +662,7 @@ export class Game {
       pa.visible = false;
     }
     this.animateGrid();
+    this.clampObjects();
     stepIconFlash(this.flash);
     if (this.mode === GameMode.Arrival) {
       if (pa.done) this.endArrival();
@@ -686,6 +748,7 @@ export class Game {
     this.paddle.x = createPaddle().x;
     setPaddleSize(this.paddle, PADDLE_NORMAL);
     this.shotSystem = resetShotSystem(this.shotSystem);
+    this.monsterSystem = createMonsterSystem();
     // 0x401DD3 clears the flag, 0x40504F sets it for the serve.
     this.magnet.on = true;
     const ball = createBall(this.config.freqChangeSpeed);

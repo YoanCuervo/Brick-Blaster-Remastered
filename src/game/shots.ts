@@ -267,12 +267,19 @@ export function placeCannons(s: ShotSystem, paddle: Paddle): void {
   }
 }
 
-/** 0x403A39: bricks only in mode 3, so in the wait loops shots just keep moving. */
-export function updateShots(s: ShotSystem, probe: BrickProbe | null): void {
+/** 0x403A39: bricks and monsters only in mode 3, otherwise shots just keep moving. */
+export function updateShots(
+  s: ShotSystem,
+  probe: BrickProbe | null,
+  hitMonsters?: (shot: Ball) => void,
+): void {
   for (const shot of s.shots) {
     if (shot.state === BallState.Dead) continue;
     wallBounce(shot);
-    if (probe) brickSweep(shot, probe);
+    if (probe) {
+      brickSweep(shot, probe);
+      hitMonsters?.(shot);
+    }
     moveBall(shot);
   }
 }

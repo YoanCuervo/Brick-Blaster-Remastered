@@ -11,6 +11,7 @@ import {
 describe("spriteAt", () => {
   it("decodes exe addresses as y × 640 + x", () => {
     expect(spriteAt(0xedc2, 32, 16)).toEqual({ x: 66, y: 95, w: 32, h: 16 });
+    expect(spriteAt(0x3a3, 32, 32, 930)).toEqual({ x: 1, y: 1, w: 32, h: 32 });
     expect(spriteAt(BRICK_GHOST, 32, 16)).toMatchObject({ x: 198, y: 95 });
   });
 

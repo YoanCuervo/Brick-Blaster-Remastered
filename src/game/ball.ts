@@ -65,6 +65,8 @@ export interface Ball {
   dying: number;
   /** Object type 7 (§5.2): vanishes instead of bouncing, ignores teleports. */
   shot: boolean;
+  /** Object type 6 (§4.3): leaves bricks intact, has no anti-loop guard. */
+  monster: boolean;
 }
 
 /** [0x41104D] bit 0: balls touching the paddle stick to it, the stuck ones follow it. */
@@ -116,6 +118,7 @@ export function createBall(freqChangeSpeed: number): Ball {
     ghost: false,
     dying: 0,
     shot: false,
+    monster: false,
   };
 }
 
@@ -253,6 +256,8 @@ export function steeper(ball: Ball, s: number): void {
  * that stores the position already counts as a match.
  */
 export function antiLoop(ball: Ball): void {
+  // 0x4051EC
+  if (ball.monster) return;
   if (ball.loopCount === 0 || ball.loopCount === ANTI_LOOP_PERIOD) {
     ball.loopCount = 0;
     ball.loopMatches = 0;
@@ -435,6 +440,16 @@ export function lostCheck(ball: Ball): boolean {
   return false;
 }
 
+/**
+ * 0x406874: 0x40675F brings every object back inside its bounds before drawing it, which
+ * moves the object itself. A brick can undo a wall bounce and send it out for one tick.
+ */
+export function clampToBounds(ball: Ball): void {
+  if (ball.state === BallState.Dead) return;
+  ball.x = Math.min(Math.max(ball.x, ball.xMin), ball.xMax);
+  ball.y = Math.min(Math.max(ball.y, ball.yMin), ball.yMax);
+}
+
 /** 0x403FAC / 0x403FC9: one step faster, up to |dx| < 14 + mode and |dy| < 15 − mode. */
 export function speedUp(ball: Ball): void {
   const lx = 14 + ball.mode;
@@ -474,6 +489,8 @@ export interface BallContext {
   active?: BonusKey | null;
   /** The telepod bonus (0x4023AA). */
   teleport?: (ball: Ball) => void;
+  /** Monster test between the sweep and the move (0x403CC7). */
+  hitMonsters?: (ball: Ball) => void;
 }
 
 /** One tick of one ball, in the order of the main loop (0x403932). */
@@ -486,7 +503,7 @@ export function updateBall(
 ): BallEvent[] {
   const events: BallEvent[] = [];
   if (ball.state === BallState.Dead) return events;
-  const { fire = false, magnet, active = null, teleport } = ctx;
+  const { fire = false, magnet, active = null, teleport, hitMonsters } = ctx;
   // A ball about to be lost skips the iron bonus and the paddle (0x403936).
   if (ball.state !== BallState.Lost) {
     if (active === "iron_ball") makeIron(ball);
@@ -494,6 +511,7 @@ export function updateBall(
   }
   wallBounce(ball);
   brickSweep(ball, probe);
+  hitMonsters?.(ball);
   moveBall(ball, paddle, magnet, fire);
   if (active === "telepod") teleport?.(ball);
   if (lostCheck(ball)) events.push("lost");

@@ -8,8 +8,8 @@ export interface SpriteRef {
   readonly h: number;
 }
 
-export function spriteAt(address: number, w: number, h: number): SpriteRef {
-  return { x: address % SHEET_PITCH, y: Math.floor(address / SHEET_PITCH), w, h };
+export function spriteAt(address: number, w: number, h: number, pitch = SHEET_PITCH): SpriteRef {
+  return { x: address % pitch, y: Math.floor(address / pitch), w, h };
 }
 
 export const BRICK_W = 32;

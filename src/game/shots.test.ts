@@ -284,3 +284,31 @@ describe("shots in flight (0x403A39)", () => {
     expect(shot.anim.frame).toBe(0x3513c + 11);
   });
 });
+
+describe("monster test of a shot (0x403A5C)", () => {
+  function fired() {
+    const s = createShotSystem();
+    mini(s, true);
+    return { s, shot: s.shots[0]! };
+  }
+
+  it("runs only with the bricks, in mode 3", () => {
+    const { s } = fired();
+    let calls = 0;
+    updateShots(s, null, () => calls++);
+    expect(calls).toBe(0);
+    updateShots(s, noBricks, () => calls++);
+    expect(calls).toBe(1);
+  });
+
+  it("still runs for a shot that just left or hit a brick, then it moves", () => {
+    const { s, shot } = fired();
+    shot.y = 3;
+    let seen: number[] = [];
+    updateShots(s, noBricks, (b) => {
+      seen = [b.state, b.y];
+    });
+    expect(seen).toEqual([BallState.Dead, 3]);
+    expect(shot.y).toBe(-1);
+  });
+});
