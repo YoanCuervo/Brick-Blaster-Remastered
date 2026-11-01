@@ -8,10 +8,10 @@ import {
   type Triplet,
 } from "../data/config";
 import { LEVEL_COLS, LEVEL_ROWS, type Level } from "../data/levels";
-import { BallState } from "./ball";
+import { BALL_SPRITE, BallState } from "./ball";
 import { BONUS_TICKS, CapsuleState, bonusByKey, spawnCapsule } from "./bonus";
 import { FADE_STEPS } from "../render/fade";
-import { Game, GameMode, serveSpeed, speedInterval } from "./game";
+import { Game, GameMode, NIGHT_FADE, serveSpeed, speedInterval } from "./game";
 
 const t = (v: number): Triplet => [v, v, v];
 
@@ -344,6 +344,7 @@ function catching(key: Parameters<typeof bonusByKey>[0], levels?: Level[]): Game
 /** Keeps the ball in play with no brick in reach: stuck to the paddle. */
 function park(g: Game): void {
   g.balls[0]!.stuckOffset = 10;
+  g.magnet.on = true;
 }
 
 describe("bonus drop (0x40531A)", () => {
@@ -387,20 +388,20 @@ describe("bonus drop (0x40531A)", () => {
 
 describe("catching a capsule (0x4055AE)", () => {
   it("activates the bonus on the catch tick: sound, 2 units, icon, flash", () => {
-    const g = catching("slow_ball");
+    const g = catching("reverse");
     const score = g.player.score;
     g.tick(idle);
     expect(g.sounds).toContain("optionon");
     expect(g.player.score).toBe(score + 30);
-    expect(g.bonus.active?.key).toBe("slow_ball");
+    expect(g.bonus.active?.key).toBe("reverse");
     expect(g.bonus.timer).toBe(BONUS_TICKS);
-    expect(g.bonus.icon).toBe(0x758b7);
+    expect(g.bonus.icon).toBe(0x7596d);
     expect(g.flash.on).toBe(true);
     // The label comes with the next run of 0x405DD2.
     expect(g.message).toBe("off");
     g.tick(idle);
-    expect(g.message).toBe("slow_ball");
-    expect(g.bonus.active?.key).toBe("slow_ball");
+    expect(g.message).toBe("reverse");
+    expect(g.bonus.active?.key).toBe("reverse");
   });
 
   it("is not possible before the serve", () => {
@@ -411,10 +412,10 @@ describe("catching a capsule (0x4055AE)", () => {
   });
 
   it("writes the same label only once", () => {
-    const g = catching("slow_ball");
+    const g = catching("reverse");
     ticks(g, 2);
     g.message = "other";
-    spawnCapsule(g.capsules, bonusByKey("slow_ball"), g.paddle.x, 414);
+    spawnCapsule(g.capsules, bonusByKey("reverse"), g.paddle.x, 414);
     ticks(g, 2);
     expect(g.message).toBe("other");
   });
@@ -437,13 +438,6 @@ describe("instant bonuses (0x405DD2)", () => {
       expect(g.bonus.icon).not.toBeNull();
       expect(g.message).toBe(key);
     }
-  });
-
-  it("adds 20 balls with ghost, the marking comes with task 10", () => {
-    const g = catching("ghost");
-    ticks(g, 2);
-    expect(g.balls).toHaveLength(20);
-    expect(g.bonus.active).toBeNull();
   });
 
   it("death takes a spare life, without a game over", () => {
@@ -486,7 +480,7 @@ describe("instant bonuses (0x405DD2)", () => {
   });
 
   it("clears the slot for the routines ported later", () => {
-    for (const key of ["night", "del_monster", "add_monster"] as const) {
+    for (const key of ["del_monster", "add_monster"] as const) {
       const g = catching(key);
       ticks(g, 2);
       expect(g.bonus.active).toBeNull();
@@ -518,11 +512,11 @@ describe("bonus timer (0x405E1A)", () => {
   });
 
   it("keeps the label and icon of a lasting bonus, until it ends", () => {
-    const g = catching("slow_ball");
+    const g = catching("reverse");
     g.tick(idle);
     ticks(g, 101);
     expect(g.message).toBe("off");
-    expect(g.bonus.icon).toBe(0x758b7);
+    expect(g.bonus.icon).toBe(0x7596d);
     g.bonus.timer = 1;
     g.balls[0]!.stuckOffset = 5;
     g.tick(idle);
@@ -550,7 +544,7 @@ describe("bonus timer (0x405E1A)", () => {
 
 describe("bonus cleared", () => {
   it("by an extra life, with the timer left running (0x405FB1)", () => {
-    const g = catching("slow_ball");
+    const g = catching("reverse");
     g.tick(idle);
     g.player.score = 10000;
     g.tick(idle);
@@ -560,7 +554,7 @@ describe("bonus cleared", () => {
   });
 
   it("by a lost life, along with its timer (0x404AED)", () => {
-    const g = catching("slow_ball");
+    const g = catching("reverse");
     g.tick(idle);
     dropBall(g);
     until(g, GameMode.LifeLost);
@@ -569,7 +563,7 @@ describe("bonus cleared", () => {
   });
 
   it("by a new round, with the capsules and the icon (0x401DB5)", () => {
-    const g = catching("slow_ball");
+    const g = catching("reverse");
     g.tick(idle);
     spawnCapsule(g.capsules, bonusByKey("bonus"), 112, 0);
     dropBall(g);
@@ -583,7 +577,7 @@ describe("bonus cleared", () => {
 
 describe("wait loops (0x402058)", () => {
   it("keep capsules falling without catching them, and the flash running", () => {
-    const g = catching("slow_ball");
+    const g = catching("reverse");
     g.tick(idle);
     const shown = g.flash.shown;
     spawnCapsule(g.capsules, bonusByKey("bonus"), g.paddle.x, 100);
@@ -598,5 +592,530 @@ describe("wait loops (0x402058)", () => {
     expect(g.bonus.active).toBeNull();
     expect(y).toBeGreaterThan(100);
     expect(g.flash.shown).toBeGreaterThan(shown);
+  });
+});
+
+/** `catching` then the catch tick: the bonus runs from the next tick on. */
+function caught(key: Parameters<typeof bonusByKey>[0], levels?: Level[]): Game {
+  const g = catching(key, levels);
+  g.tick(idle);
+  return g;
+}
+
+describe("one-tick bonuses (0x4039E9)", () => {
+  it("act once, the icon and the label staying until the message ends", () => {
+    for (const key of ["fast_ball", "slow_ball", "iron_ball", "telepod"] as const) {
+      const g = caught(key);
+      g.tick(idle);
+      expect(g.bonus.active).toBeNull();
+      expect(g.message).toBe(key);
+      expect(g.bonus.icon).not.toBeNull();
+      ticks(g, 100);
+      expect(g.message).toBe("off");
+      expect(g.bonus.icon).toBeNull();
+    }
+  });
+
+  it("fast speeds up all the balls once, silently", () => {
+    const g = caught("fast_ball");
+    const b = g.balls[0]!;
+    const [dx, dy] = [b.dx, b.dy];
+    g.tick(idle);
+    expect([b.dx, b.dy]).toEqual([dx + 1, dy - 1]);
+    expect(g.sounds).not.toContain("speedup");
+    g.tick(idle);
+    expect([b.dx, b.dy]).toEqual([dx + 1, dy - 1]);
+  });
+
+  it("slow slows down all the balls once", () => {
+    const g = caught("slow_ball");
+    const b = g.balls[0]!;
+    const [dx, dy] = [b.dx, b.dy];
+    g.tick(idle);
+    expect([b.dx, b.dy]).toEqual([dx - 1, dy + 1]);
+    g.tick(idle);
+    expect([b.dx, b.dy]).toEqual([dx - 1, dy + 1]);
+  });
+
+  it("telepod moves the balls silently into the landing zone", () => {
+    const g = caught("telepod");
+    const b = g.balls[0]!;
+    b.stuckOffset = null;
+    g.magnet.on = false;
+    b.x = 300;
+    b.y = 300;
+    b.dx = 0;
+    b.dy = -1;
+    g.tick(idle);
+    expect(b.x).toBeGreaterThanOrEqual(212);
+    expect(b.y).toBeGreaterThanOrEqual(100);
+    expect(g.sounds).not.toContain("telepod");
+  });
+
+  it("iron stays on the balls in play and not on the ones created later", () => {
+    const g = caught("iron_ball");
+    g.tick(idle);
+    const b = g.balls[0]!;
+    expect(b.bouncesOnBricks).toBe(false);
+    expect(b.anim.frame).toBe(0);
+    spawnCapsule(g.capsules, bonusByKey("3_ball"), g.paddle.x, 414);
+    ticks(g, 2);
+    expect(g.balls[1]!.bouncesOnBricks).toBe(true);
+    expect(g.balls[1]!.anim.frame).toBe(BALL_SPRITE);
+    expect(g.balls[0]!.bouncesOnBricks).toBe(false);
+  });
+});
+
+describe("reverse (0x406E12)", () => {
+  it("negates the paddle movement while active", () => {
+    const g = caught("reverse");
+    const { x } = g.paddle;
+    expect(g.reversed).toBe(true);
+    g.tick({ paddleDx: 10, fire: false });
+    expect(g.paddle.x).toBe(x - 10);
+    g.bonus.timer = 1;
+    // The timer runs before the input: this move is already a normal one.
+    g.tick({ paddleDx: 10, fire: false });
+    expect(g.reversed).toBe(false);
+    expect(g.paddle.x).toBe(x);
+  });
+});
+
+describe("large and small paddles (0x4033A9, 0x4034B0)", () => {
+  it("large widens the paddle with its sound", () => {
+    const g = caught("large_ship");
+    expect(g.paddle.w).toBe(74);
+    g.tick(idle);
+    expect(g.sounds).toContain("large");
+    expect(g.paddle.w).toBe(105);
+    expect(g.paddle.anim.first).toBe(0x6a28);
+    g.tick(idle);
+    expect(g.sounds).not.toContain("large");
+  });
+
+  it("small narrows it, unsticking the balls but keeping the magnet", () => {
+    const g = caught("small_ship");
+    g.tick(idle);
+    expect(g.sounds).toContain("small");
+    expect(g.paddle.w).toBe(38);
+    expect(g.paddle.anim.first).toBe(0x6afa);
+    expect(g.balls[0]!.stuckOffset).toBeNull();
+    expect(g.magnet.on).toBe(true);
+  });
+
+  it("goes back to normal when the bonus ends, with the cannons off (0x4025B0)", () => {
+    const g = caught("large_ship");
+    g.tick(idle);
+    g.bonus.timer = 1;
+    g.tick(idle);
+    expect(g.bonus.active).toBeNull();
+    g.tick(idle);
+    expect(g.paddle.w).toBe(74);
+    expect(g.paddle.anim).toMatchObject({ first: 0x6900, frames: 4 });
+  });
+
+  it("unsticks the balls when leaving the large paddle, not the small one", () => {
+    const g = caught("large_ship");
+    g.tick(idle);
+    g.bonus.active = bonusByKey("reverse");
+    g.balls[0]!.stuckOffset = 12;
+    g.tick(idle);
+    expect(g.paddle.w).toBe(74);
+    expect(g.balls[0]!.stuckOffset).toBeNull();
+    expect(g.magnet.on).toBe(true);
+
+    const s = caught("small_ship");
+    s.tick(idle);
+    s.bonus.active = bonusByKey("reverse");
+    s.balls[0]!.stuckOffset = 12;
+    s.tick(idle);
+    expect(s.paddle.w).toBe(74);
+    expect(s.balls[0]!.stuckOffset).toBe(12);
+  });
+
+  it("goes straight from large to small on the same tick", () => {
+    const g = caught("large_ship");
+    g.tick(idle);
+    g.bonus.active = bonusByKey("small_ship");
+    g.tick(idle);
+    expect(g.paddle.w).toBe(38);
+    expect(g.sounds).toContain("small");
+  });
+
+  it("is clamped by the input of the tick it grows", () => {
+    const g = catching("large_ship");
+    g.paddle.x = 454;
+    g.capsules[0]!.x = 454;
+    ticks(g, 2);
+    expect(g.paddle.x).toBe(0x210 - 105);
+  });
+
+  it("uses the explosion of its size when a life is lost (0x4030DC)", () => {
+    const g = caught("large_ship");
+    g.tick(idle);
+    dropBall(g);
+    const { x } = g.paddle;
+    until(g, GameMode.LifeLost);
+    expect(g.paddleAnim!.anim).toMatchObject({ first: 0x1c7d5, w: 0x8f });
+    expect(g.paddleAnim!.x).toBe(x - 0x13);
+  });
+
+  it("uses the warp of its size at the level end (0x4032B4)", () => {
+    const g = caught("small_ship", [level([0x24, 0x24]), level()]);
+    g.tick(idle);
+    const { x } = g.paddle;
+    g.grid.cells.fill(0);
+    g.tick(idle);
+    expect(g.mode).toBe(GameMode.LevelEnd);
+    expect(g.paddleAnim!.anim).toMatchObject({ first: 0x8929f, w: 0x5c });
+    expect(g.paddleAnim!.x).toBe(x - 0x1b);
+  });
+
+  it("is normal again at the next round", () => {
+    const g = caught("large_ship");
+    g.tick(idle);
+    dropBall(g);
+    until(g, GameMode.LifeLost);
+    until(g, GameMode.Ready);
+    expect(g.paddle.w).toBe(74);
+    expect(g.paddle.anim.first).toBe(0x6900);
+  });
+});
+
+describe("paddle animation in the loop (0x4066BA)", () => {
+  it("runs while waiting for the serve", () => {
+    const g = game();
+    const { anim } = g.paddle;
+    ticks(g, 12);
+    expect(anim.frame).toBe(0x6900 + 74);
+  });
+});
+
+describe("magnet (0x4063E6)", () => {
+  it("runs the tick after the catch: previous bonus back, label forgotten, flag on", () => {
+    const g = caught("reverse");
+    g.tick(idle);
+    g.magnet.on = false;
+    spawnCapsule(g.capsules, bonusByKey("magnetic"), g.paddle.x, 414);
+    g.tick(idle);
+    expect(g.bonus.active?.key).toBe("magnetic");
+    g.tick(idle);
+    expect(g.message).toBe("magnetic");
+    expect(g.magnet.on).toBe(true);
+    expect(g.bonus.active?.key).toBe("reverse");
+    expect(g.bonus.label).toBeNull();
+    g.tick(idle);
+    expect(g.message).toBe("reverse");
+  });
+
+  it("sticks the next ball that touches the paddle", () => {
+    const g = caught("magnetic");
+    g.tick(idle);
+    const b = g.balls[0]!;
+    b.stuckOffset = null;
+    b.x = g.paddle.x + 20;
+    b.y = 0x1a0 - 9;
+    b.dx = 2;
+    b.dy = 3;
+    g.tick(idle);
+    expect(b.stuckOffset).toBe(20);
+    expect(b.dy).toBe(-3);
+    ticks(g, 3, { paddleDx: 5, fire: false });
+    expect(b.x).toBe(g.paddle.x + 20);
+    expect(b.y).toBe(0x1a0 - 9);
+  });
+
+  it("ends at the first release: all the stuck balls leave", () => {
+    const g = caught("magnetic");
+    g.tick(idle);
+    spawnCapsule(g.capsules, bonusByKey("3_ball"), g.paddle.x, 414);
+    ticks(g, 2);
+    const [a, b] = g.balls as [(typeof g.balls)[0], (typeof g.balls)[0]];
+    b.stuckOffset = 30;
+    b.dx = 2;
+    b.dy = -3;
+    a.dx = 2;
+    a.dy = -3;
+    const [ay, by] = [g.paddle.y - 9, g.paddle.y - 9];
+    g.tick(idle);
+    expect(a.y).toBe(ay);
+    expect(b.y).toBe(by);
+    g.tick(fire);
+    expect(g.magnet.on).toBe(false);
+    expect(a.stuckOffset).toBeNull();
+    expect(a.y).toBe(ay - 3);
+    expect(b.y).toBe(by - 3);
+  });
+
+  it("is released by the end of the timer (0x405E58)", () => {
+    const g = caught("magnetic");
+    g.tick(idle);
+    g.bonus.timer = 1;
+    g.tick(idle);
+    expect(g.magnet.on).toBe(false);
+    expect(g.balls[0]!.stuckOffset).toBeNull();
+  });
+
+  it("is the same flag that holds the ball for the serve (0x40504F)", () => {
+    const g = game();
+    expect(g.magnet.on).toBe(true);
+    g.tick(fire);
+    expect(g.magnet.on).toBe(false);
+  });
+});
+
+describe("points x2 (0x406310)", () => {
+  it("turns on with its sound, darkens the screen and clears the slot", () => {
+    const g = caught("night");
+    g.tick(idle);
+    expect(g.doubled).toBe(true);
+    expect(g.sounds).toContain("night");
+    expect(g.screenFade).toBe(NIGHT_FADE);
+    expect(g.bonus.active).toBeNull();
+    expect(g.bonus.icon).not.toBeNull();
+  });
+
+  it("doubles every score, after the difficulty bonus", () => {
+    const g = caught("night");
+    g.tick(idle);
+    const start = g.player.score;
+    spawnCapsule(g.capsules, bonusByKey("bonus"), g.paddle.x, 414);
+    g.tick(idle);
+    expect(g.player.score).toBe(start + 60);
+    g.tick(idle);
+    expect(g.player.score).toBe(start + 60 + 180);
+    g.bonus.active = bonusByKey("malus");
+    g.tick(idle);
+    expect(g.player.score).toBe(start + 60 + 180 - 240);
+  });
+
+  it("doubles a brick (0x40841D)", () => {
+    const g = caught("night", [level([0x21, 0x21]), level()]);
+    g.tick(idle);
+    const start = g.player.score;
+    const b = g.balls[0]!;
+    b.stuckOffset = null;
+    b.x = 0x70 + 10;
+    b.y = 177;
+    b.dx = 0;
+    b.dy = -3;
+    g.tick(idle);
+    expect(g.player.score).toBe(start + 40);
+  });
+
+  it("doubles the extra life award (0x40600B)", () => {
+    const g = caught("night");
+    g.tick(idle);
+    g.player.score = 10000;
+    g.tick(idle);
+    expect(g.player.score).toBe(10000 + 180);
+  });
+
+  it("is cancelled by a lasting bonus, not by an instant one (0x406370)", () => {
+    const g = caught("night");
+    g.tick(idle);
+    g.bonus.active = bonusByKey("bonus");
+    g.tick(idle);
+    expect(g.doubled).toBe(true);
+    g.flash.on = false;
+    g.flash.shown = 5;
+    g.bonus.active = bonusByKey("reverse");
+    g.tick(idle);
+    expect(g.doubled).toBe(false);
+    expect(g.screenFade).toBe(0);
+    expect(g.flash.shown).toBe(0);
+  });
+
+  it("flickers off for one tick when caught again, then back on", () => {
+    const g = caught("night");
+    g.tick(idle);
+    g.bonus.active = bonusByKey("night");
+    g.tick(idle);
+    expect(g.doubled).toBe(false);
+    expect(g.bonus.active?.key).toBe("night");
+    expect(g.sounds).not.toContain("night");
+    g.tick(idle);
+    expect(g.doubled).toBe(true);
+    expect(g.bonus.active).toBeNull();
+    expect(g.sounds).toContain("night");
+  });
+
+  it("ends with the timer, palette back (0x405E88)", () => {
+    const g = caught("night");
+    g.tick(idle);
+    g.bonus.timer = 1;
+    g.flash.on = false;
+    g.flash.shown = 3;
+    g.tick(idle);
+    expect(g.doubled).toBe(false);
+    expect(g.screenFade).toBe(0);
+    expect(g.flash.shown).toBe(0);
+  });
+
+  it("ends with a new round (0x401DCE)", () => {
+    const g = caught("night");
+    g.tick(idle);
+    dropBall(g);
+    until(g, GameMode.LifeLost);
+    expect(g.doubled).toBe(true);
+    expect(g.screenFade).toBe(NIGHT_FADE);
+    until(g, GameMode.Arrival);
+    expect(g.doubled).toBe(false);
+  });
+
+  it("starts the fade out at step 16 and ends there (0x4065F9)", () => {
+    const g = caught("night", [level([0x24, 0x24]), level()]);
+    g.tick(idle);
+    g.grid.cells.fill(0);
+    until(g, GameMode.FadeOut);
+    expect(g.doubled).toBe(false);
+    g.tick(idle);
+    expect(g.screenFade).toBe(NIGHT_FADE);
+    g.tick(idle);
+    expect(g.screenFade).toBe(NIGHT_FADE + 1);
+    expect(until(g, GameMode.FadeIn)).toBe(FADE_STEPS - NIGHT_FADE - 2);
+  });
+});
+
+describe("ghost bonus (0x40645F)", () => {
+  it("adds 20 balls, all ghost but the first in play", () => {
+    const g = caught("ghost");
+    g.tick(idle);
+    expect(g.balls).toHaveLength(20);
+    expect(g.bonus.active).toBeNull();
+    expect(g.balls[0]!.ghost).toBe(false);
+    expect(g.balls.slice(1).every((b) => b.ghost)).toBe(true);
+    expect(g.balls[1]!.anim.frame).toBe(0x1692);
+  });
+
+  it("counts a dying ghost as in play until it is gone (0x404A38)", () => {
+    const g = caught("ghost");
+    g.tick(idle);
+    for (const b of g.balls.slice(2)) b.state = BallState.Dead;
+    g.balls[0]!.state = BallState.Dead;
+    const ghost = g.balls[1]!;
+    ghost.x = g.paddle.x + 10;
+    ghost.y = 0x1a0 - 9;
+    ghost.dx = 0;
+    ghost.dy = 3;
+    g.tick(idle);
+    expect(ghost.dying).toBe(7);
+    expect(g.sounds).not.toContain("wall");
+    ticks(g, 10);
+    expect(g.mode).toBe(GameMode.Playing);
+    g.tick(idle);
+    expect(ghost.state).toBe(BallState.Dead);
+    expect(g.mode).toBe(GameMode.LifeLost);
+  });
+});
+
+describe("shots in the game (0x402828)", () => {
+  it("shows the cannons once its routine has run", () => {
+    const g = caught("mini_shoot");
+    const { miniLeft, miniRight } = g.shotSystem;
+    expect(miniLeft.on).toBe(false);
+    g.tick(idle);
+    expect([miniLeft.on, miniRight.on]).toEqual([true, true]);
+    expect(miniLeft.x).toBe(g.paddle.x + 7);
+    expect(miniLeft.anim.frame).toBeGreaterThanOrEqual(0x1caf6);
+  });
+
+  it("plays the shoot sound, one shot per press", () => {
+    const g = caught("mini_shoot");
+    g.magnet.on = false;
+    g.balls[0]!.stuckOffset = null;
+    g.balls[0]!.x = 300;
+    g.balls[0]!.y = 300;
+    g.tick(fire);
+    expect(g.sounds).toContain("shoot");
+    g.tick(fire);
+    expect(g.sounds).not.toContain("shoot");
+    expect(g.shotSystem.shots).toHaveLength(1);
+    expect(g.bonus.active?.key).toBe("mini_shoot");
+  });
+
+  it("big is a single shot: slot, icon and label go, the cannon next tick", () => {
+    const g = caught("shoot");
+    g.magnet.on = false;
+    g.balls[0]!.stuckOffset = null;
+    g.balls[0]!.x = 300;
+    g.balls[0]!.y = 300;
+    g.tick(fire);
+    expect(g.sounds).toContain("shoot");
+    expect(g.bonus.active).toBeNull();
+    expect(g.bonus.icon).toBeNull();
+    expect(g.bonus.label).toBeNull();
+    expect(g.shotSystem.big.on).toBe(true);
+    g.tick(idle);
+    expect(g.shotSystem.big.on).toBe(false);
+  });
+
+  /** Game with a mini shot right under the first cell of row 10. */
+  function shotUnderBrick(bytes: number[]) {
+    const g = caught("mini_shoot", [level(bytes), level()]);
+    g.tick(idle);
+    g.tick(fire);
+    const shot = g.shotSystem.shots[0]!;
+    shot.x = 0x70 + 10;
+    shot.y = 177;
+    return { g, shot };
+  }
+
+  it("scores a brick and vanishes", () => {
+    const { g, shot } = shotUnderBrick([0x21, 0x21]);
+    const { score } = g.player;
+    g.tick(idle);
+    expect(g.player.score).toBe(score + 20);
+    expect(g.sounds).toContain("bounce");
+    expect(shot.state).toBe(BallState.Dead);
+    expect(g.grid.cells[130]).toBe(0);
+  });
+
+  it("makes an indestructible brick blink, with the wall sound, and vanishes", () => {
+    const { g, shot } = shotUnderBrick([0x08, 0x21]);
+    const frame = g.grid.frames[130]!;
+    g.tick(idle);
+    expect(g.sounds).toContain("wall");
+    expect(shot.state).toBe(BallState.Dead);
+    expect(g.grid.frames[130]).not.toBe(frame);
+  });
+
+  it("is not moved by a teleporter, which still sounds and counts as a hit (0x4023AA)", () => {
+    const { g, shot } = shotUnderBrick([0x18, 0x21]);
+    g.tick(idle);
+    expect(g.sounds).toContain("telepod");
+    expect(shot.state).toBe(BallState.Dead);
+    expect(shot.x).toBe(0x70 + 10);
+    expect(shot.y).toBe(177 - 4);
+  });
+
+  it("clears the cannons on a lost life, the shots keep flying without hitting bricks", () => {
+    const { g, shot } = shotUnderBrick([0x21, 0x21]);
+    shot.y = 400;
+    const ball = g.balls[0]!;
+    g.magnet.on = false;
+    ball.stuckOffset = null;
+    dropBall(g);
+    until(g, GameMode.LifeLost);
+    expect(g.shotSystem.miniLeft.on).toBe(false);
+    expect(g.shotSystem.miniRight.on).toBe(false);
+    const { y } = shot;
+    shot.x = 0x70 + 10;
+    shot.y = 177;
+    g.tick(idle);
+    expect(shot.y).toBe(173);
+    expect(y).toBeLessThan(400);
+    expect(g.grid.cells[130]).toBe(1);
+    expect(shot.state).toBe(BallState.Active);
+  });
+
+  it("empties the slots at the next round (0x40222D)", () => {
+    const { g } = shotUnderBrick([0x21, 0x21]);
+    g.magnet.on = false;
+    g.balls[0]!.stuckOffset = null;
+    dropBall(g);
+    until(g, GameMode.LifeLost);
+    until(g, GameMode.Arrival);
+    expect(g.shotSystem.shots).toEqual([]);
   });
 });

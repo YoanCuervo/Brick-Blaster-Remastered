@@ -68,12 +68,6 @@ export function brickSprite(byte: number, gameMode = 0): BrickSprite | null {
   return { address, cell: b & 0x1f };
 }
 
-/** Standard ball, 9 × 9 (0x402275). */
-export const BALL_SPRITE = spriteAt(0x1680, 9, 9);
-
-/** Player 1 paddle, 74 × 25 (0x4025E1). */
-export const PADDLE_SPRITE = spriteAt(0x6900, 0x4a, 0x19);
-
 export const CAPSULE_W = 0x1a;
 export const CAPSULE_H = 0x18;
 /** From the capsule row to the HUD icons, two rows of 25 lines down (0x4055EF). */

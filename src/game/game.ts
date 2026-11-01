@@ -1,27 +1,30 @@
 // One-player game flow: rounds, lives, level end, game over (§4.5).
 import type { Rng } from "../core/rng";
-import { type Difficulty, type GameConfig, forDifficulty } from "../data/config";
+import { type BonusKey, type Difficulty, type GameConfig, forDifficulty } from "../data/config";
 import { LEVEL_COLS, type Level } from "../data/levels";
 import {
   ANIM_END_LEFT,
   ARRIVAL,
-  EXPLOSION,
-  EXPLOSION_DX,
   EXPLOSION_Y,
+  PaddleSprite,
+  type PaddleEffect,
   type SpriteAnim,
-  WARP,
-  WARP_DX,
   WARP_Y,
   createAnim,
+  explosionOf,
   stepAnim,
+  warpOf,
 } from "./animation";
 import {
   type Ball,
   BallState,
   type BrickProbe,
+  type Magnet,
   addBalls,
   createBall,
+  makeGhosts,
   placeOnPaddle,
+  stepBallAnim,
   stickToPaddle,
   updateBall,
 } from "./ball";
@@ -54,7 +57,16 @@ import {
   restoreBlink,
   teleport,
 } from "./bricks";
-import { PADDLE_X_MIN, type Paddle, createPaddle, movePaddle } from "./paddle";
+import {
+  PADDLE_LARGE,
+  PADDLE_NORMAL,
+  PADDLE_SMALL,
+  PADDLE_X_MIN,
+  type Paddle,
+  createPaddle,
+  movePaddle,
+  setPaddleSize,
+} from "./paddle";
 import { BRICK_H, BRICK_W } from "../render/atlas";
 import { FADE_STEPS } from "../render/fade";
 import {
@@ -67,6 +79,19 @@ import {
   loseSpareLife,
   subtractScore,
 } from "./score";
+import {
+  type ShotKind,
+  type ShotSystem,
+  createShotSystem,
+  hideCannons,
+  placeCannons,
+  resetShotSystem,
+  setupBigCannon,
+  setupMiniCannons,
+  stepShotSystem,
+  updateCannons,
+  updateShots,
+} from "./shots";
 
 /** Game modes, numbered after [0x411000] where the original has one. */
 export const GameMode = {
@@ -105,7 +130,17 @@ export type SoundName =
   | "pertebal"
   | "speedup"
   | "optionon"
-  | "endopt";
+  | "endopt"
+  | "large"
+  | "small"
+  | "night"
+  | "shoot";
+
+/** Fade step of the "points x2" palette: 0x3000 / 0x300 (0x406330). */
+export const NIGHT_FADE = 16;
+
+/** Bonuses that act on every ball for one tick, then 0x4039E9 clears the slot. */
+const ONE_TICK_BONUSES: readonly BonusKey[] = ["iron_ball", "telepod", "fast_ball", "slow_ball"];
 
 /** Ticks waited once the paddle animation is over: 0x404CCF and 0x404C5B. */
 export const LIFE_LOST_PAUSE = 0x4b;
@@ -156,6 +191,11 @@ export class Game {
   capsules: Capsule[] = createCapsules();
   readonly bonus: ActiveBonus = createActiveBonus();
   readonly flash = createIconFlash();
+  /** [0x41104D] */
+  readonly magnet: Magnet = { on: false };
+  /** [0x411CA8]: "points x2" is on, score doubled and palette darkened. */
+  doubled = false;
+  shotSystem: ShotSystem = createShotSystem();
   /** 18-character status line, from the cfg texts. */
   message = "";
   paddleAnim: PaddleAnim | null = null;
@@ -186,6 +226,20 @@ export class Game {
 
   get levelCount(): number {
     return this.levels.length;
+  }
+
+  /** 0x406E12: the reverse bonus negates the paddle movement. */
+  get reversed(): boolean {
+    return this.bonus.active?.key === "reverse";
+  }
+
+  /**
+   * Fade step on screen. 0x406392 and the fades write the whole palette, so while the
+   * screen fades only the fade counts: 0x4065F9 even cancels "points x2" as it starts.
+   */
+  get screenFade(): number {
+    if (this.mode === GameMode.FadeOut || this.mode === GameMode.FadeIn) return this.fade;
+    return this.doubled ? NIGHT_FADE : this.fade;
   }
 
   /** 0x401D4C: background load and fade in, without a fade out. */
@@ -233,25 +287,29 @@ export class Game {
     if (this.mode === GameMode.Playing) {
       this.runActiveBonus();
       this.stepBonusTimer();
-      if (checkExtraLife(this.player, this.config.extraLife, this.difficulty)) {
+      if (checkExtraLife(this.player, this.config.extraLife, this.difficulty, this.doubled)) {
         // 0x406040 writes the label itself, then shares the end of the bonus routine.
         this.bonus.label = "new_life";
         this.message = this.config.texts.bonus.new_life;
         this.lifeGained();
       }
+      this.largePaddle();
+      this.smallPaddle();
+      this.fireShots(input.fire);
+    } else {
+      this.shotSystem.latch = false;
     }
-    movePaddle(this.paddle, input.paddleDx);
+    // 0x406370: a lasting bonus cancels "points x2"; an instant one has cleared the slot.
+    if (this.doubled && this.bonus.active) this.fullPalette();
+    movePaddle(this.paddle, this.reversed ? -input.paddleDx : input.paddleDx);
+    placeCannons(this.shotSystem, this.paddle);
     if (this.mode === GameMode.Ready) this.ready(input.fire);
-    if (this.mode === GameMode.Playing) {
-      for (const ball of this.balls) {
-        for (const e of updateBall(ball, this.paddle, this.probe, this.interval, input.fire)) {
-          this.sounds.push(e === "paddle" ? "wall" : e === "speedUp" ? "speedup" : "pertebal");
-        }
-      }
-    }
+    if (this.mode === GameMode.Playing) this.updateBalls(input.fire);
+    updateShots(this.shotSystem, this.mode === GameMode.Playing ? this.probe : null);
     for (const b of updateCapsules(this.capsules, this.paddle, this.mode === GameMode.Playing)) {
       this.capsuleCaught(b);
     }
+    this.stepObjects();
     if (this.mode === GameMode.Playing && this.ballsInPlay() === 0) {
       this.loseLife();
       return;
@@ -268,15 +326,90 @@ export class Game {
     stepIconFlash(this.flash);
   }
 
+  /** 0x403913: the ball loop, then 0x4039E9 clears the one-tick bonuses. */
+  private updateBalls(fire: boolean): void {
+    const active = this.bonus.active?.key ?? null;
+    const teleportBall = (ball: Ball) => teleport(ball, this.grid.level, this.rng);
+    const ctx = { fire, magnet: this.magnet, active, teleport: teleportBall };
+    for (const ball of this.balls) {
+      for (const e of updateBall(ball, this.paddle, this.probe, this.interval, ctx)) {
+        this.sounds.push(e === "paddle" ? "wall" : e === "speedUp" ? "speedup" : "pertebal");
+      }
+    }
+    if (active && ONE_TICK_BONUSES.includes(active)) this.bonus.active = null;
+  }
+
+  /** The objects of the stepper 0x4066BA. */
+  private stepObjects(): void {
+    stepAnim(this.paddle.anim);
+    stepShotSystem(this.shotSystem);
+    for (const ball of this.balls) stepBallAnim(ball);
+  }
+
+  /** 0x4033A9 */
+  private largePaddle(): void {
+    const wanted = this.bonus.active?.key === "large_ship";
+    if (this.paddle.anim.first === PaddleSprite.Large) {
+      if (!wanted) this.normalPaddle();
+    } else if (wanted) {
+      this.sounds.push("large");
+      setPaddleSize(this.paddle, PADDLE_LARGE);
+    }
+  }
+
+  /** 0x4034B0 */
+  private smallPaddle(): void {
+    const wanted = this.bonus.active?.key === "small_ship";
+    if (this.paddle.anim.first === PaddleSprite.Small) {
+      if (!wanted) this.normalPaddle();
+    } else if (wanted) {
+      this.sounds.push("small");
+      this.unstickBalls();
+      setPaddleSize(this.paddle, PADDLE_SMALL);
+    }
+  }
+
+  /** 0x4025B0 */
+  private normalPaddle(): void {
+    if (this.paddle.anim.first === PaddleSprite.Large) this.unstickBalls();
+    setPaddleSize(this.paddle, PADDLE_NORMAL);
+    hideCannons(this.shotSystem);
+  }
+
+  /** 0x403E91 without its clearing of the flag: the callers put it back (0x4025BC, 0x4034EA). */
+  private unstickBalls(): void {
+    for (const b of this.balls) b.stuckOffset = null;
+  }
+
+  /** 0x402828 */
+  private fireShots(fire: boolean): void {
+    const key = this.bonus.active?.key;
+    const active: ShotKind | null = key === "shoot" || key === "mini_shoot" ? key : null;
+    const fired = updateCannons(this.shotSystem, active, fire, this.paddle);
+    if (fired) this.sounds.push("shoot");
+    if (fired === "shoot") {
+      // A single shot (0x40299E): slot, icon and label all go.
+      this.bonus.active = null;
+      this.bonus.icon = null;
+      this.bonus.label = null;
+    }
+  }
+
+  /** 0x406392 */
+  private fullPalette(): void {
+    this.doubled = false;
+    this.flash.shown = 0;
+  }
+
   /** 0x4055AE */
   private capsuleCaught(bonus: BonusDef): void {
     catchBonus(this.bonus, bonus);
     this.flash.on = true;
     this.sounds.push("optionon");
-    addScore(this.player, CAPSULE_UNITS, this.difficulty);
+    addScore(this.player, CAPSULE_UNITS, this.difficulty, this.doubled);
   }
 
-  /** 0x405DD2: label once, then the routine of the table. Lasting bonuses come with task 10. */
+  /** 0x405DD2: label once, then the routine of the table. */
   private runActiveBonus(): void {
     const bonus = this.bonus.active;
     if (!bonus) return;
@@ -288,6 +421,8 @@ export class Game {
     if (balls !== undefined) {
       const { paddle, grid, config, rng } = this;
       addBalls(this.balls, balls, paddle, grid.level, config.freqChangeSpeed, rng);
+      // 0x40645F then 0x403ED5.
+      if (bonus.key === "ghost") makeGhosts(this.balls);
       this.bonus.active = null;
       return;
     }
@@ -305,18 +440,36 @@ export class Game {
         break;
       case "bonus":
         // 0x40649B
-        addScore(this.player, BONUS_UNITS, this.difficulty);
+        addScore(this.player, BONUS_UNITS, this.difficulty, this.doubled);
         this.bonus.active = null;
         break;
       case "malus":
         // 0x4064CE
-        subtractScore(this.player, MALUS_UNITS);
+        subtractScore(this.player, MALUS_UNITS, this.doubled);
         this.bonus.active = null;
         break;
       case "night":
+        // 0x406310: caught again, the slot stays and 0x406370 turns it off for one tick.
+        if (this.doubled) break;
+        this.doubled = true;
+        this.sounds.push("night");
+        this.bonus.active = null;
+        break;
+      case "magnetic":
+        // 0x4063E6: the previous bonus runs again, its label is written again.
+        this.bonus.active = this.bonus.previous;
+        this.bonus.label = null;
+        this.magnet.on = true;
+        break;
+      case "shoot":
+        setupBigCannon(this.shotSystem);
+        break;
+      case "mini_shoot":
+        setupMiniCannons(this.shotSystem);
+        break;
       case "del_monster":
       case "add_monster":
-        // Their routines end by clearing the slot; the effects come with tasks 10 and 11.
+        // Their routines end by clearing the slot; the effects come with task 11.
         this.bonus.active = null;
         break;
     }
@@ -336,8 +489,9 @@ export class Game {
     if (event !== "expired") return;
     // 0x405E58: magnet released (0x403E91), full palette back (0x406392).
     this.sounds.push("endopt");
-    for (const b of this.balls) b.stuckOffset = null;
-    this.flash.shown = 0;
+    this.unstickBalls();
+    this.magnet.on = false;
+    this.fullPalette();
   }
 
   /** 0x405093: the ball sits centred on the paddle until fire is pressed. */
@@ -362,18 +516,19 @@ export class Game {
     return this.balls.filter((b) => b.state === BallState.Active || b.state === BallState.Lost).length;
   }
 
+  /** A shot (type 7) is not moved by a teleporter but still counts as a hit (0x4023AA). */
   private hitBrick(x: number, y: number, ball: Ball): boolean {
     const hit = hitBrick(this.grid, x, y);
     switch (hit.kind) {
       case "none":
         return false;
       case "destroyed":
-        addScore(this.player, BRICK_UNITS, this.difficulty);
+        addScore(this.player, BRICK_UNITS, this.difficulty, this.doubled);
         this.dropBonus(hit.index);
         this.sounds.push("bounce");
         return hit.bounce;
       case "teleporter":
-        teleport(ball, this.grid.level, this.rng);
+        if (!ball.shot) teleport(ball, this.grid.level, this.rng);
         this.sounds.push("telepod");
         return true;
       default:
@@ -411,7 +566,7 @@ export class Game {
       this.message = this.config.texts.status.again;
     }
     this.sounds.push("boom", "death");
-    this.startPaddleAnim(EXPLOSION, EXPLOSION_DX, EXPLOSION_Y, LIFE_LOST_PAUSE);
+    this.startPaddleAnim(explosionOf(this.paddle.anim.first), EXPLOSION_Y, LIFE_LOST_PAUSE);
   }
 
   /** 0x401C54: past the last level the game ends at once, without the paddle leaving. */
@@ -422,10 +577,12 @@ export class Game {
     }
     for (const b of this.balls) b.state = BallState.Dead;
     this.mode = GameMode.LevelEnd;
-    this.startPaddleAnim(WARP, WARP_DX, WARP_Y, LEVEL_END_PAUSE);
+    this.startPaddleAnim(warpOf(this.paddle.anim.first), WARP_Y, LEVEL_END_PAUSE);
   }
 
-  private startPaddleAnim(spec: typeof EXPLOSION, dx: number, y: number, pause: number): void {
+  /** 0x40303F and 0x4031D1 also take the cannons away. */
+  private startPaddleAnim({ spec, dx }: PaddleEffect, y: number, pause: number): void {
+    hideCannons(this.shotSystem);
     this.paddleAnim = { anim: createAnim(spec), x: this.paddle.x + dx, y, visible: true, done: false };
     this.pause = pause;
   }
@@ -433,8 +590,10 @@ export class Game {
   /** Wait loops of 0x404C66 and 0x404C00: animation, then a pause with the paddle hidden. */
   private waitAnim(): void {
     const pa = this.paddleAnim!;
+    updateShots(this.shotSystem, null);
     // 0x402058 keeps the capsules falling; nothing can catch them outside mode 3.
     updateCapsules(this.capsules, this.paddle, false);
+    stepShotSystem(this.shotSystem);
     if (!pa.done) {
       stepAnim(pa.anim);
       pa.done = pa.anim.left === ANIM_END_LEFT;
@@ -464,7 +623,9 @@ export class Game {
         break;
       case GameMode.LevelEnd:
         this.mode = GameMode.FadeOut;
-        this.fadeStep = 0;
+        // 0x4065F9: already dark under "points x2", which the fade ends.
+        this.fadeStep = this.doubled ? NIGHT_FADE : 0;
+        this.doubled = false;
         break;
     }
   }
@@ -519,23 +680,27 @@ export class Game {
     this.bonus.active = null;
     this.bonus.timer = 0;
     this.bonus.icon = null;
-    this.flash.shown = 0;
+    this.fullPalette();
     this.mode = GameMode.Arrival;
     this.message = this.config.texts.status.ready;
     this.paddle.x = createPaddle().x;
-    this.paddle.w = createPaddle().w;
+    setPaddleSize(this.paddle, PADDLE_NORMAL);
+    this.shotSystem = resetShotSystem(this.shotSystem);
+    // 0x401DD3 clears the flag, 0x40504F sets it for the serve.
+    this.magnet.on = true;
     const ball = createBall(this.config.freqChangeSpeed);
     placeOnPaddle(ball, this.paddle);
     stickToPaddle(ball, this.paddle);
     this.balls = [ball];
     // 0x404B88: the ball is hidden while the paddle arrives.
     ball.state = BallState.Dead;
-    this.startPaddleAnim(ARRIVAL, WARP_DX, WARP_Y, 0);
+    this.startPaddleAnim(ARRIVAL, WARP_Y, 0);
   }
 
   /** End of 0x404B88: ball back in play, paddle back from its animation (0x40256C). */
   private endArrival(): void {
     this.paddleAnim = null;
+    setPaddleSize(this.paddle, PADDLE_NORMAL);
     this.balls[0]!.state = BallState.Active;
     this.mode = GameMode.Ready;
   }

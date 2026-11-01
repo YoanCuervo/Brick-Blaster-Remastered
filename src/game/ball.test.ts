@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  BALL_SPRITE,
   type Ball,
   BallState,
   type BrickProbe,
@@ -12,11 +13,15 @@ import {
   extraBallSpeed,
   flipX,
   lostCheck,
+  makeGhosts,
+  makeIron,
   moveBall,
   paddleBounce,
   placeExtraBall,
   placeOnPaddle,
   sampleCount,
+  slowDown,
+  stepBallAnim,
   stickToPaddle,
   sweepTrack,
   updateBall,
@@ -335,11 +340,43 @@ describe("ball stuck to the paddle (0x4048F7, 0x403D8E)", () => {
     const p = createPaddle();
     const b = ball({ dx: 3, dy: -4, stuckOffset: 33 });
     p.x = 200;
-    moveBall(b, p, false);
+    const magnet = { on: true };
+    moveBall(b, p, magnet, false);
     expect([b.x, b.y]).toEqual([233, 0x1a0 - 9]);
-    moveBall(b, p, true);
+    moveBall(b, p, magnet, true);
     expect(b.stuckOffset).toBeNull();
+    expect(magnet.on).toBe(false);
     expect([b.x, b.y]).toEqual([236, 0x1a0 - 13]);
+  });
+
+  it("lets the other stuck balls leave once the magnet is off (0x403E0C)", () => {
+    const p = createPaddle();
+    const a = ball({ dx: 3, dy: -4, stuckOffset: 10 });
+    const b = ball({ dx: 2, dy: -5, x: 300, y: 300, stuckOffset: 20 });
+    const magnet = { on: true };
+    moveBall(a, p, magnet, true);
+    moveBall(b, p, magnet, true);
+    expect(b.stuckOffset).toBe(20);
+    expect([b.x, b.y]).toEqual([302, 295]);
+    // The offset survives: a new magnet takes the ball back.
+    magnet.on = true;
+    moveBall(b, p, magnet, false);
+    expect(b.x).toBe(p.x + 20);
+  });
+
+  it("sticks at the paddle contact with the magnet on, keeping the bounce (0x4048C9)", () => {
+    const p = createPaddle();
+    const b = ball({ x: p.x + 30, y: 0x1a0 - 9, dx: 3, dy: 4 });
+    expect(paddleBounce(b, p, { on: true })).toBe(true);
+    expect(b.stuckOffset).toBe(30);
+    expect(b.dy).toBe(-4);
+  });
+
+  it("clears the stuck state at a contact with the magnet off (0x4048D5)", () => {
+    const p = createPaddle();
+    const b = ball({ x: p.x + 30, y: 0x1a0 - 9, dx: 3, dy: 4, stuckOffset: 7 });
+    expect(paddleBounce(b, p, { on: false })).toBe(true);
+    expect(b.stuckOffset).toBeNull();
   });
 });
 
@@ -419,5 +456,209 @@ describe("extra balls (0x40240E)", () => {
     addBalls(balls, 20, createPaddle(), emptyLevel, 1500, new Rng(1));
     expect(balls).toHaveLength(MAX_BALLS);
     expect(MAX_BALLS).toBe(20);
+  });
+});
+
+describe("fast ball, for one tick (0x403F5F)", () => {
+  it("speeds up and reloads the counter, even going down, silently", () => {
+    const b = ball({ dx: 3, dy: 4, speedCounter: 50 });
+    expect(accelerate(b, 1483, true)).toBe(false);
+    expect([b.dx, b.dy]).toEqual([4, 5]);
+    expect(b.speedCounter).toBe(1483);
+  });
+
+  it("speeds up only once when the counter ends on that tick, with the sound (0x403F7E)", () => {
+    const b = ball({ dx: 3, dy: -4, speedCounter: 1 });
+    expect(accelerate(b, 1483, true)).toBe(true);
+    expect([b.dx, b.dy]).toEqual([4, -5]);
+    expect(b.speedCounter).toBe(1483);
+  });
+
+  it("gets a dying ghost ball moving: a null dx counts as positive (0x404963)", () => {
+    const b = ball({ dx: 0, dy: 0 });
+    accelerate(b, 1483, true);
+    expect([b.dx, b.dy]).toEqual([1, 1]);
+  });
+});
+
+describe("slow ball, for one tick (0x403F8D)", () => {
+  it("slows down and reloads the counter", () => {
+    const b = ball({ dx: 5, dy: -6, speedCounter: 50 });
+    slowDown(b, 1483);
+    expect([b.dx, b.dy]).toEqual([4, -5]);
+    expect(b.speedCounter).toBe(1483);
+  });
+
+  it("stops at |dx| = 1 + mode and |dy| = 2 - mode (0x403FE6, 0x404004)", () => {
+    const steep = ball({ dx: -1, dy: 2, mode: 0 });
+    slowDown(steep, 10);
+    expect([steep.dx, steep.dy]).toEqual([-1, 2]);
+    const flat = ball({ dx: 2, dy: -1, mode: 1 });
+    slowDown(flat, 10);
+    expect([flat.dx, flat.dy]).toEqual([2, -1]);
+    const moving = ball({ dx: -3, dy: 2, mode: 1 });
+    slowDown(moving, 10);
+    expect([moving.dx, moving.dy]).toEqual([-2, 1]);
+  });
+});
+
+describe("one-tick bonuses in the ball loop (0x403932)", () => {
+  it("telepod teleports after the move, without changing the speed", () => {
+    const b = ball({ x: 300, y: 200, dx: 3, dy: -4 });
+    const seen: number[][] = [];
+    const teleport = (t: Ball) => {
+      seen.push([t.x, t.y]);
+      t.x = 250;
+      t.y = 150;
+    };
+    updateBall(b, createPaddle(), noBricks, 1500, { active: "telepod", teleport });
+    expect(seen).toEqual([[303, 196]]);
+    expect([b.x, b.y, b.dx, b.dy]).toEqual([250, 150, 3, -4]);
+  });
+
+  it("telepod also takes a ball about to be lost, before its lost check (0x4039AA)", () => {
+    const b = ball({ x: 300, y: 450, dx: 3, dy: -4, state: BallState.Lost });
+    const teleport = (t: Ball) => {
+      t.y = 150;
+    };
+    updateBall(b, createPaddle(), noBricks, 1500, { active: "telepod", teleport });
+    expect(b.y).toBe(150);
+    expect(b.state).toBe(BallState.Dead);
+  });
+
+  it("iron goes through bricks from then on, on every ball in play", () => {
+    const b = ball({ x: 300, y: 200, dx: 3, dy: -4 });
+    updateBall(b, createPaddle(), noBricks, 1500, { active: "iron_ball" });
+    expect(b.bouncesOnBricks).toBe(false);
+    expect(b.anim.frame).toBe(0);
+    updateBall(b, createPaddle(), noBricks, 1500);
+    expect(b.bouncesOnBricks).toBe(false);
+  });
+
+  it("iron skips a ball about to be lost (0x403936)", () => {
+    const b = ball({ x: 300, y: 450, dx: 0, dy: 3, state: BallState.Lost });
+    updateBall(b, createPaddle(), noBricks, 1500, { active: "iron_ball" });
+    expect(b.bouncesOnBricks).toBe(true);
+    expect(b.anim.frame).toBe(BALL_SPRITE);
+  });
+
+  it("iron keeps a ghost ball looking ghost (0x403975)", () => {
+    const b = ball({ ghost: true });
+    makeIron(b);
+    expect(b.anim.first).toBe(0x12);
+    expect(b.anim.frame).toBe(0x12);
+  });
+
+  it("fast and slow also apply to a ball about to be lost", () => {
+    const f = ball({ x: 300, y: 300, dx: 3, dy: 4, state: BallState.Lost });
+    updateBall(f, createPaddle(), noBricks, 1500, { active: "fast_ball" });
+    expect([f.dx, f.dy]).toEqual([4, 5]);
+    const s = ball({ x: 300, y: 300, dx: 3, dy: 4, state: BallState.Lost });
+    updateBall(s, createPaddle(), noBricks, 1500, { active: "slow_ball" });
+    expect([s.dx, s.dy]).toEqual([2, 3]);
+  });
+});
+
+describe("ghost balls (0x403ED5, 0x4046C7)", () => {
+  it("marks every ball but the first in play (0x403F16)", () => {
+    const dead = ball({ state: BallState.Dead });
+    const first = ball();
+    const other = ball();
+    const iron = ball();
+    makeIron(iron);
+    makeGhosts([dead, first, other, iron]);
+    expect(dead.ghost).toBe(true);
+    expect(first.ghost).toBe(false);
+    expect(first.anim.frame).toBe(BALL_SPRITE);
+    expect(other.ghost).toBe(true);
+    expect(other.anim.frame).toBe(0x1692);
+    expect(other.anim.first).toBe(0x1692);
+    expect(iron.anim.frame).toBe(0x12);
+  });
+
+  it("does not mark a ghost twice, and frees the first ball in play again", () => {
+    const first = ball();
+    const other = ball();
+    makeGhosts([first, other]);
+    makeGhosts([first, other]);
+    expect(first.ghost).toBe(false);
+    expect(first.anim.frame).toBe(BALL_SPRITE);
+    expect(other.anim.frame).toBe(0x1692);
+  });
+
+  function ghostOnPaddle(props: Partial<Ball> = {}) {
+    const p = createPaddle();
+    const b = ball({ x: p.x + 30, y: 0x1a0 - 9, dx: 3, dy: 4, ...props });
+    makeGhosts([ball(), b]);
+    return { p, b };
+  }
+
+  it("dies at the paddle contact: no bounce, no stick, speed zero (0x40465C)", () => {
+    const { p, b } = ghostOnPaddle();
+    expect(paddleBounce(b, p, { on: true })).toBe(false);
+    expect([b.dx, b.dy]).toEqual([0, 0]);
+    expect(b.stuckOffset).toBeNull();
+    expect(b.dying).toBe(7);
+    expect(b.anim).toMatchObject({
+      first: 0x16ae,
+      frame: 0x16ae,
+      frames: 5,
+      left: 1,
+      delay: 1,
+      countdown: 1,
+      step: 10,
+    });
+  });
+
+  it("uses the iron death sprite for an iron ghost", () => {
+    const { p, b } = ghostOnPaddle();
+    makeIron(b);
+    paddleBounce(b, p);
+    expect(b.anim.frame).toBe(0x2e);
+  });
+
+  it("does not restart a death already running (0x404660)", () => {
+    const { p, b } = ghostOnPaddle();
+    paddleBounce(b, p);
+    stepBallAnim(b);
+    stepBallAnim(b);
+    b.dy = 1;
+    const { dying } = b;
+    paddleBounce(b, p);
+    expect(b.dying).toBe(dying);
+    expect(b.dy).toBe(1);
+  });
+
+  it("disappears after 6 anim steps, 12 stepper ticks (0x406708)", () => {
+    const { p, b } = ghostOnPaddle();
+    paddleBounce(b, p);
+    for (let i = 0; i < 11; i++) {
+      stepBallAnim(b);
+      expect(b.state).toBe(BallState.Active);
+    }
+    stepBallAnim(b);
+    expect(b.state).toBe(BallState.Dead);
+  });
+
+  it("walks its 5 frames, 10 px apart", () => {
+    const { p, b } = ghostOnPaddle();
+    paddleBounce(b, p);
+    const seen: number[] = [];
+    for (let i = 0; i < 10; i++) {
+      stepBallAnim(b);
+      seen.push(b.anim.frame);
+    }
+    expect(seen).toEqual([
+      0x16ae,
+      0x16ae,
+      0x16ae,
+      0x16ae + 10,
+      0x16ae + 10,
+      0x16ae + 20,
+      0x16ae + 20,
+      0x16ae + 30,
+      0x16ae + 30,
+      0x16ae + 40,
+    ]);
   });
 });
