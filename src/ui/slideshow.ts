@@ -1,6 +1,7 @@
 // Full-screen pictures one after the other: start of the game (0x401058) and credits (0x4011FF).
 import { creditImage, creditText } from "../data/images";
 import { FADE_STEPS } from "../render/fade";
+import type { Film } from "./film";
 
 export interface Slide {
   image: string;
@@ -51,14 +52,26 @@ export interface SlideshowOptions {
   keyExits?: boolean;
   /** Song position that ends the slideshow, tested after each picture. */
   lastOrder?: number;
+  /** Credits: played before the pictures, on each turn of the loop (0x401209). */
+  film?: () => Film;
 }
 
-const Phase = { Release: 0, FadeOut: 1, FadeText: 2, Pause: 3, FadeImage: 4, Hold: 5 } as const;
+const Phase = {
+  Release: 0,
+  FadeOut: 1,
+  FadeText: 2,
+  Pause: 3,
+  FadeImage: 4,
+  Hold: 5,
+  Film: 6,
+} as const;
 type Phase = (typeof Phase)[keyof typeof Phase];
 
 export class Slideshow {
   /** The picture on screen, null for the black before the first one. */
   shown: Slide | null = null;
+  /** The film on screen, until the next picture has faded it out. */
+  film: Film | null = null;
   /** Fade step of the whole picture, 0 (normal) to FADE_STEPS − 1 (darkest). */
   fade = FADE_STEPS - 1;
   /** Fade step of the text of the picture. */
@@ -71,11 +84,15 @@ export class Slideshow {
   private hold = 0;
   private keyPressed = false;
   private started = false;
+  private filmDue = false;
 
   constructor(
     private readonly slides: readonly Slide[],
     private readonly options: SlideshowOptions = {},
-  ) {}
+  ) {
+    // The screen before the first turn has already faded out (0x4065EF, in Transition).
+    if (options.film) this.startFilm();
+  }
 
   /** The text is ahead of the picture: fading in alone, or in full over the fading rest. */
   get textAhead(): boolean {
@@ -111,7 +128,9 @@ export class Slideshow {
       case Phase.FadeOut:
         // 0x40768E fades out what is there before it loads the picture.
         this.fade = this.step++;
-        if (this.step === FADE_STEPS) this.show();
+        if (this.step < FADE_STEPS) return false;
+        if (this.filmDue) this.startFilm();
+        else this.show();
         return false;
       case Phase.FadeText:
         this.textFade = --this.step;
@@ -135,10 +154,28 @@ export class Slideshow {
       case Phase.Hold:
         if (fire || this.keyPressed) return this.next(this.options.keyExits ?? false, order);
         return --this.hold === 0 ? this.next(false, order) : false;
+      case Phase.Film: {
+        const over = this.film!.tick(fire);
+        this.fade = this.film!.fade;
+        if (!over) return false;
+        // 0x40120E: the same test as after a picture. The next one forgets the keys (0x401BD6).
+        if (this.options.lastOrder !== undefined && order === this.options.lastOrder) return true;
+        this.phase = Phase.Release;
+        return false;
+      }
     }
   }
 
+  private startFilm(): void {
+    this.film = this.options.film!();
+    this.shown = null;
+    this.filmDue = false;
+    this.fade = FADE_STEPS - 1;
+    this.phase = Phase.Film;
+  }
+
   private show(): void {
+    this.film = null;
     this.shown = this.slide;
     this.fade = FADE_STEPS - 1;
     this.textFade = FADE_STEPS - 1;
@@ -157,6 +194,13 @@ export class Slideshow {
     if (this.index === this.slides.length - 1) {
       if (!this.options.loop) return true;
       this.index = 0;
+      if (this.options.film) {
+        // 0x4070C5 fades out by itself, with no wait for a release before it.
+        this.filmDue = true;
+        this.step = 0;
+        this.phase = Phase.FadeOut;
+        return false;
+      }
     } else {
       this.index++;
     }

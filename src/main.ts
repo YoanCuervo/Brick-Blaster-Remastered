@@ -9,8 +9,9 @@ import {
 } from "./audio/rules";
 import { TICK_RATE, startLoop } from "./core/loop";
 import { Rng } from "./core/rng";
-import { loadAssets } from "./data/assets";
+import { loadAssets, loadEndFilm } from "./data/assets";
 import { forDifficulty } from "./data/config";
+import type { FlcFile } from "./data/flc";
 import {
   MENU_FONT,
   MENU_INDEX_MASK,
@@ -38,9 +39,10 @@ import { IconFlasher } from "./render/flash";
 import { BONUS_ICON_POS, drawHud } from "./render/hud";
 import { MenuRenderer } from "./render/menu";
 import { drawPlayfield } from "./render/playfield";
-import { drawFinal, drawScores, drawSlide } from "./render/screens";
+import { FilmRenderer, black, drawFinal, drawScores, drawSlide } from "./render/screens";
 import { SheetRecolorer } from "./render/recolor";
 import { SCREEN_HEIGHT, SCREEN_WIDTH, Screen } from "./render/screen";
+import { ENDING_STEPS, Film } from "./ui/film";
 import { FinalScreen } from "./ui/final";
 import { type Arrow, Menu, type MenuEvent } from "./ui/menu";
 import { ScoresScreen, loadScores, saveScores } from "./ui/scores";
@@ -71,7 +73,7 @@ const menuRenderer = new MenuRenderer(
 
 const newMenu = () => new Menu(assets.config.texts.menus, settings);
 
-type Scene = "slides" | "menu" | "game" | "scores" | "final" | "transition";
+type Scene = "slides" | "menu" | "game" | "scores" | "film" | "final" | "transition";
 let scene: Scene = "slides";
 let menu = newMenu();
 let world: World = "space";
@@ -84,6 +86,10 @@ let scores!: ScoresScreen;
 let scoresBackground = "";
 let afterScores = () => {};
 let final!: FinalScreen;
+const films = new FilmRenderer();
+/** The end film: undefined while it loads, null if it cannot be played. */
+let endFile: FlcFile | null | undefined;
+let endFilm: Film | null = null;
 /** Only picks the background of a visit from the menu. */
 const screenRng = new Rng(Date.now());
 let transition: Transition | null = null;
@@ -197,20 +203,48 @@ function showGameOverScores(): void {
   );
 }
 
-/** 0x408710: module and fade out of 0x407143, whose FLC comes with task 15, then the text. */
+/** 0x408710: module and fade out of 0x407143, its FLC, a fade out, then the text. */
 function showEnding(): void {
   document.exitPointerLock();
+  endFile = undefined;
+  endFilm = null;
+  loadEndFilm().then(
+    (file) => (endFile = file),
+    (error: unknown) => {
+      console.error(error);
+      endFile = null;
+    },
+  );
   const t = new Transition({
     musicTicks: musicTicks(SCORES_MUSIC),
     onMusic: () => audio.playMusic(SCORES_MUSIC),
   });
-  startTransition(t, () => {
-    final = new FinalScreen(assets.config.texts.final);
-    setScene("final");
-  });
+  startTransition(t, () => setScene("film"));
 }
 
-/** 0x4011FF: the module, then 0x407078, whose intro.flc comes with task 15, then the pictures. */
+function showFinal(): void {
+  endFile = undefined;
+  endFilm = null;
+  final = new FinalScreen(assets.config.texts.final);
+  setScene("final");
+}
+
+function updateEndFilm(): void {
+  if (!endFilm) {
+    // The original reads the file as it plays: here the screen stays black until it is there.
+    if (endFile === undefined) return;
+    // 0x40715E goes on without the film.
+    if (endFile === null) return showFinal();
+    endFilm = new Film(endFile, ENDING_STEPS);
+  }
+  if (endFilm.tick(fire.take())) {
+    // The last picture is on screen as soon as it is decoded: it is the one that fades out.
+    films.draw(ctx, endFilm, endFilm.fade);
+    startTransition(new Transition(), showFinal);
+  }
+}
+
+/** 0x4011FF: the module, then in a loop 0x407078, which plays intro.flc, and the pictures. */
 function showCredits(): void {
   const t = new Transition({
     musicTicks: musicTicks(CREDITS_MUSIC),
@@ -221,6 +255,7 @@ function showCredits(): void {
       loop: true,
       keyExits: true,
       lastOrder: CREDITS_LAST_ORDER,
+      film: () => new Film(assets.intro),
     });
     showMusic = CREDITS_MUSIC;
     afterShow = () => returnToMenu(false);
@@ -365,6 +400,9 @@ startLoop({
           afterScores();
         }
         break;
+      case "film":
+        updateEndFilm();
+        break;
       case "final":
         if (final.tick(fire.take(), anyKeyPressed)) {
           // 0x401C87 comes after these scores: the module they bring back is theirs.
@@ -387,7 +425,10 @@ startLoop({
       ctx.drawImage(frozen, 0, 0);
       applyFade(ctx, transition!.fade);
     } else if (scene === "slides") {
-      drawSlide(ctx, show, assets.images);
+      drawSlide(ctx, show, assets.images, films);
+    } else if (scene === "film") {
+      if (endFilm) films.draw(ctx, endFilm, endFilm.fade);
+      else black(ctx);
     } else if (scene === "scores") {
       drawScores(
         ctx,

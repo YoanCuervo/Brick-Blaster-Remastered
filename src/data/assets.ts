@@ -1,6 +1,7 @@
 import { SOUND_NAMES } from "../audio/rules";
 import type { SoundName } from "../game/game";
 import { type GameConfig, parseConfig } from "./config";
+import { type FlcFile, parseFlc } from "./flc";
 import { IMAGE_NAMES, type Images, WORLDS, type World, loadImages } from "./images";
 import { type LevelSet, parseLevels } from "./levels";
 import {
@@ -19,6 +20,8 @@ export interface Assets {
   /** Keyed by background image name, as given by backgroundImage(). */
   backgroundColors: Record<string, BackgroundColors>;
   sounds: Record<SoundName, Uint8Array>;
+  /** Played by the credits. blaster.flc, 29 MB, waits for loadEndFilm(). */
+  intro: FlcFile;
 }
 
 async function fetchOk(url: string): Promise<Response> {
@@ -49,9 +52,16 @@ async function loadSounds(base: string): Promise<Record<SoundName, Uint8Array>> 
   return Object.fromEntries(sounds) as Record<SoundName, Uint8Array>;
 }
 
+async function loadFlc(url: string): Promise<FlcFile> {
+  return parseFlc(await (await fetchOk(url)).arrayBuffer(), url);
+}
+
+export const loadEndFilm = (base = import.meta.env.BASE_URL): Promise<FlcFile> =>
+  loadFlc(`${base}video/blaster.flc`);
+
 // BASE_URL keeps paths relative, so the same build also works from file:// in Electron.
 export async function loadAssets(base = import.meta.env.BASE_URL): Promise<Assets> {
-  const [config, levels, images, palettes, backgroundColors, sounds] = await Promise.all([
+  const [config, levels, images, palettes, backgroundColors, sounds, intro] = await Promise.all([
     fetchJson(`${base}config.json`).then(parseConfig),
     fetchJson(`${base}levels.json`).then(parseLevels),
     loadImages(base, IMAGE_NAMES),
@@ -65,6 +75,7 @@ export async function loadAssets(base = import.meta.env.BASE_URL): Promise<Asset
       ),
     ),
     loadSounds(base),
+    loadFlc(`${base}video/intro.flc`),
   ]);
-  return { config, levels, images, palettes, backgroundColors, sounds };
+  return { config, levels, images, palettes, backgroundColors, sounds, intro };
 }

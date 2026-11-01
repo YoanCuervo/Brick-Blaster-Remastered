@@ -8,10 +8,65 @@ import { FINAL_POS, type FinalScreen } from "../ui/final";
 import { SCORES_POS, type ScoresScreen } from "../ui/scores";
 import type { Slideshow } from "../ui/slideshow";
 import type { Images } from "../data/images";
+import type { FlcDecoder } from "../data/flc";
+import type { Film } from "../ui/film";
+import { SCREEN_HEIGHT, SCREEN_WIDTH } from "./screen";
 
-function black(ctx: CanvasRenderingContext2D): void {
+export function black(ctx: CanvasRenderingContext2D): void {
   ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+}
+
+/** 0x409861: centred on the screen. */
+export function filmPosition(width: number, height: number): { x: number; y: number } {
+  return { x: (SCREEN_WIDTH - width) >> 1, y: (SCREEN_HEIGHT - height) >> 1 };
+}
+
+/** Palette indices to opaque RGBA, 6-bit VGA values scaled like the GIF palettes (63 -> 252). */
+export function indexedToRgba(
+  pixels: Uint8Array,
+  palette: Uint8Array,
+  rgba: Uint8ClampedArray,
+): void {
+  for (let i = 0, o = 0; i < pixels.length; i++) {
+    const c = pixels[i]! * 3;
+    rgba[o++] = palette[c]! << 2;
+    rgba[o++] = palette[c + 1]! << 2;
+    rgba[o++] = palette[c + 2]! << 2;
+    rgba[o++] = 255;
+  }
+}
+
+/** Converts a picture once, when it is decoded, and keeps it in its own canvas. */
+export class FilmRenderer {
+  private canvas = document.createElement("canvas");
+  private image: ImageData | null = null;
+  private decoder: FlcDecoder | null = null;
+  private revision = -1;
+
+  draw(ctx: CanvasRenderingContext2D, film: Film, fade: number): void {
+    black(ctx);
+    if (film.shown) {
+      this.update(film.decoder);
+      const { x, y } = filmPosition(this.canvas.width, this.canvas.height);
+      ctx.drawImage(this.canvas, x, y);
+    }
+    applyFade(ctx, fade);
+  }
+
+  private update(decoder: FlcDecoder): void {
+    if (decoder === this.decoder && decoder.revision === this.revision) return;
+    const { width, height } = decoder.file;
+    if (this.image?.width !== width || this.image.height !== height) {
+      this.canvas.width = width;
+      this.canvas.height = height;
+      this.image = new ImageData(width, height);
+    }
+    indexedToRgba(decoder.pixels, decoder.palette, this.image.data);
+    this.canvas.getContext("2d")!.putImageData(this.image, 0, 0);
+    this.decoder = decoder;
+    this.revision = decoder.revision;
+  }
 }
 
 /** 0x408523: the rows over the bare background, transparent like the text of 0x408654. */
@@ -40,7 +95,13 @@ export function drawFinal(
   font.draw(ctx, screen.lines.join("\n"), FINAL_POS.x, FINAL_POS.y, false);
 }
 
-export function drawSlide(ctx: CanvasRenderingContext2D, show: Slideshow, images: Images): void {
+export function drawSlide(
+  ctx: CanvasRenderingContext2D,
+  show: Slideshow,
+  images: Images,
+  films: FilmRenderer,
+): void {
+  if (show.film) return films.draw(ctx, show.film, show.fade);
   const { shown } = show;
   if (!shown) return black(ctx);
   const image = images.get(shown.image)!;
