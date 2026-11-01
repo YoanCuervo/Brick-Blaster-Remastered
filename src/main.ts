@@ -150,7 +150,7 @@ function drawGame(alpha: number, sheet: HTMLCanvasElement, background: string): 
     );
   }
 
-  // 0x4068B7 draws the objects in slot order: capsules come first.
+  // 0x40675F draws the objects in slot order: capsules, balls, then the paddle.
   for (const c of game.capsules) {
     if (c.state !== CapsuleState.Falling) continue;
     const y = Math.round(c.y - CAPSULE_DY * (1 - alpha));
@@ -160,15 +160,6 @@ function drawGame(alpha: number, sheet: HTMLCanvasElement, background: string): 
   const { paddle, paddleAnim } = game;
   // Drawn with the mouse movement of the current tick already applied, to cut visible lag.
   const ahead = paddleAnim ? 0 : clampPaddleX(paddle, paddle.x + mouse.peek()) - paddle.x;
-  if (paddleAnim) {
-    const { anim } = paddleAnim;
-    if (paddleAnim.visible) {
-      drawSprite(ctx, sheet, spriteAt(anim.frame, anim.w, anim.h), paddleAnim.x, paddleAnim.y);
-    }
-  } else {
-    drawSprite(ctx, sheet, PADDLE_SPRITE, paddle.x + ahead, paddle.y);
-  }
-
   for (const b of game.balls) {
     if (b.state === BallState.Dead) continue;
     // A ball waiting on the paddle follows it; a moving one is interpolated.
@@ -181,6 +172,15 @@ function drawGame(alpha: number, sheet: HTMLCanvasElement, background: string): 
     const x = near ? Math.round(p.x + (b.x - p.x) * alpha) : b.x;
     const y = near ? Math.round(p.y + (b.y - p.y) * alpha) : b.y;
     drawSprite(ctx, sheet, BALL_SPRITE, x, y);
+  }
+
+  if (paddleAnim) {
+    const { anim } = paddleAnim;
+    if (paddleAnim.visible) {
+      drawSprite(ctx, sheet, spriteAt(anim.frame, anim.w, anim.h), paddleAnim.x, paddleAnim.y);
+    }
+  } else {
+    drawSprite(ctx, sheet, PADDLE_SPRITE, paddle.x + ahead, paddle.y);
   }
 
   drawHud(ctx, sheet, font(), {

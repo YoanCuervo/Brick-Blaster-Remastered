@@ -604,7 +604,7 @@ répéter :
 tant qu'un des 4 coins touche une indestructible (0x40252D, même test qu'au §4.1)
 ```
 
-**Remake** : les capsules des bonus durables tombent déjà pour garder le tirage fidèle. Ramassées, elles occupent l'emplacement actif (icône, libellé, minuteur) sans effet jusqu'à la tâche 10. `night`, `del_monster` et `add_monster` vident l'emplacement comme l'original, sans effet jusqu'aux tâches 10 et 11. Les capsules sont dessinées avant les balles : `0x4068B7` parcourt les objets dans l'ordre des emplacements.
+**Remake** : les capsules des bonus durables tombent déjà pour garder le tirage fidèle. Ramassées, elles occupent l'emplacement actif (icône, libellé, minuteur) sans effet jusqu'à la tâche 10. `night`, `del_monster` et `add_monster` vident l'emplacement comme l'original, sans effet jusqu'aux tâches 10 et 11. Ordre de dessin : `0x40675F` parcourt les objets dans l'ordre des emplacements, donc capsules, balles, puis raquette par-dessus.
 
 ### Les 24 bonus (texte du jeu)
 
