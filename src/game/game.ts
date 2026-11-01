@@ -114,11 +114,14 @@ export const GameMode = {
   LifeLost: 6,
   /** Paddle explosion after the last life (mode 5). */
   GameOver: 5,
-  /** 7: waiting for fire to start a new game (0x401FB4). */
+  /**
+   * 7: 0x401FB4 starts a new game as soon as fire is released, after the scores screen of
+   * 0x408AD9. Until that screen exists (task 14), fire stands in for it.
+   */
   GameOverWait: 7,
   /** Paddle leaving the level (0x404C00). */
   LevelEnd: 8,
-  /** Past the last level (0x408710); the congratulations screen comes with task 14. */
+  /** Past the last level (0x408710): fire stands in for the congratulations screen (task 14). */
   Finished: 9,
   /** Palette fade to black before a new level (0x4065EF). */
   FadeOut: 10,
@@ -219,6 +222,11 @@ export class Game {
   fade = 0;
   /** Only the background is on screen: 0x407430 copies it over the whole screen. */
   bare = false;
+  /** Waiting for a key or fire, set by startPause() (0x4020C1). */
+  paused = false;
+  /** The game is over for good: 0x401C87 returns to the menu loop. */
+  finished = false;
+  private pauseStep = false;
   private interval = 0;
   private pause = 0;
   private fadeStep = 0;
@@ -263,6 +271,32 @@ export class Game {
     return this.doubled ? NIGHT_FADE : this.fade;
   }
 
+  /** The test of the P key (0x401F37) is in the main loop: fades and animations block it. */
+  get canPause(): boolean {
+    return this.mode === GameMode.Ready || this.mode === GameMode.Playing;
+  }
+
+  /**
+   * Same place for Esc (0x401EF9). The original never reads it in mode 7, which starts a
+   * new game at once: with fire standing in for the scores screen, Esc has to work there.
+   */
+  get canLeave(): boolean {
+    return this.canPause || this.mode === GameMode.GameOverWait;
+  }
+
+  /** 0x4020A8: the status line says so, then the game runs one more tick and stands still. */
+  startPause(): void {
+    this.paused = true;
+    this.pauseStep = true;
+    this.message = this.config.texts.status.paused;
+  }
+
+  /** 0x40863E: whatever the status line said before is gone, "pret ?" included. */
+  endPause(): void {
+    this.paused = false;
+    this.message = this.config.texts.status.off;
+  }
+
   /** 0x401D4C: background load and fade in, without a fade out. */
   newGame(): void {
     this.level = this.config.startLevel;
@@ -275,6 +309,10 @@ export class Game {
 
   tick(input: GameInput): void {
     this.sounds.length = 0;
+    if (this.paused) {
+      if (this.pauseStep) this.stepPaused(input.fire);
+      return;
+    }
     switch (this.mode) {
       case GameMode.Ready:
       case GameMode.Playing:
@@ -293,14 +331,29 @@ export class Game {
         this.fadeIn();
         break;
       case GameMode.GameOverWait:
-      case GameMode.Finished:
         if (input.fire) {
           this.sounds.push("restart");
           this.newGame();
         }
         break;
+      case GameMode.Finished:
+        if (input.fire) this.finished = true;
+        break;
     }
     this.bonusDraw.ticks++;
+  }
+
+  /** 0x402058: the objects move once, but neither the paddle nor the end tests run. */
+  private stepPaused(fire: boolean): void {
+    this.pauseStep = false;
+    if (this.mode === GameMode.Playing) this.updateBalls(fire);
+    this.updateShotsAndMonsters();
+    for (const b of updateCapsules(this.capsules, this.paddle, this.mode === GameMode.Playing)) {
+      this.capsuleCaught(b);
+    }
+    this.stepObjects();
+    this.animateGrid();
+    stepIconFlash(this.flash);
   }
 
   /** Main loop 0x401DFB, in the original order. */

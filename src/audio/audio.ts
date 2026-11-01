@@ -31,6 +31,10 @@ export class GameAudio {
     this.music.play(name);
   }
 
+  setMusicVolume(volume: number): void {
+    this.music.setVolume(volume);
+  }
+
   /** To call after each tick, with the sounds that tick started. */
   playSounds(sounds: readonly SoundName[]): void {
     const sound = soundToPlay(sounds);

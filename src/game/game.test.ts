@@ -223,6 +223,70 @@ describe("level end (0x4045B2, 0x401C54)", () => {
     expect(g.mode).toBe(GameMode.Finished);
     expect(g.paddleAnim).toBeNull();
   });
+
+  it("goes back to the menu on fire, not to a new game (0x401C87)", () => {
+    const g = game([level([])], {}, 1);
+    g.tick(idle);
+    g.tick(idle);
+    expect(g.finished).toBe(false);
+    g.tick(fire);
+    expect(g.finished).toBe(true);
+    expect(g.mode).toBe(GameMode.Finished);
+    expect(g.sounds).toEqual([]);
+  });
+});
+
+describe("pause (0x4020A8)", () => {
+  const ready = () => {
+    const g = game([level([0x24, 0x21]), level()]);
+    for (let i = 0; i < 100 && g.mode !== GameMode.Ready; i++) g.tick(idle);
+    return g;
+  };
+
+  it("only works in the main loop", () => {
+    const g = ready();
+    expect(g.canPause).toBe(true);
+    expect(g.canLeave).toBe(true);
+    g.mode = GameMode.FadeIn;
+    expect(g.canPause).toBe(false);
+    expect(g.canLeave).toBe(false);
+    g.mode = GameMode.GameOverWait;
+    expect(g.canPause).toBe(false);
+    expect(g.canLeave).toBe(true);
+  });
+
+  it("moves the objects once, then stands still", () => {
+    const g = ready();
+    g.tick(fire);
+    expect(g.mode).toBe(GameMode.Playing);
+    g.startPause();
+    expect(g.message).toBe("paused");
+    const before = { x: g.balls[0]!.x, y: g.balls[0]!.y };
+    g.tick(idle);
+    const after = { x: g.balls[0]!.x, y: g.balls[0]!.y };
+    expect(after).not.toEqual(before);
+    for (let i = 0; i < 10; i++) g.tick(idle);
+    expect({ x: g.balls[0]!.x, y: g.balls[0]!.y }).toEqual(after);
+  });
+
+  it("does not move the paddle", () => {
+    const g = ready();
+    const x = g.paddle.x;
+    g.startPause();
+    g.tick({ paddleDx: 20, fire: false });
+    g.tick({ paddleDx: 20, fire: false });
+    expect(g.paddle.x).toBe(x);
+  });
+
+  it("blanks the status line on resume, even a ready message", () => {
+    const g = ready();
+    expect(g.message).toBe("ready");
+    g.startPause();
+    g.tick(idle);
+    g.endPause();
+    expect(g.paused).toBe(false);
+    expect(g.message).toBe("off");
+  });
 });
 
 describe("lost life (0x404A38, 0x404AED)", () => {

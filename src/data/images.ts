@@ -24,6 +24,12 @@ export const SHEET_LOW_MASK = "sprites/sprite_sheet_low";
 /** Frame colours 112..127 of the active-bonus icons (§3.5, render/flash.ts). */
 export const SHEET_FLASH_MASK = "sprites/sprite_sheet_flash";
 
+/** Palette entries of menu.gif, for the pulse of the hovered quadrant (render/menu.ts). */
+export const MENU_INDEX_MASK = "sprites/menu_index";
+
+/** fonte.gif under the menu palette. */
+export const MENU_FONT = "sprites/menu_font";
+
 /** Every PNG written by tools/extract/extract_assets.py, without extension. */
 export const IMAGE_NAMES = [
   "backgrounds/title",
@@ -34,6 +40,8 @@ export const IMAGE_NAMES = [
   SHEET_FLASH_MASK,
   "sprites/font",
   "sprites/menu",
+  MENU_INDEX_MASK,
+  MENU_FONT,
   "sprites/monsters",
   ...range("credits/credit", 6),
   ...WORLDS.flatMap((world) => WORLD_SPRITES.map((sprite) => worldImage(world, sprite))),

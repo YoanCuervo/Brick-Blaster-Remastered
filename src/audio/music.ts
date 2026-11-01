@@ -23,6 +23,8 @@ export class Music {
   private wanted: MusicName | null = null;
   private started = false;
   private ticket = 0;
+  private volume = DEFAULT_MUSIC_VOLUME;
+  private channels = 0;
 
   constructor(
     private readonly ctx: AudioContext,
@@ -41,6 +43,14 @@ export class Music {
     this.switchTo(name, ++this.ticket).catch((e: unknown) => {
       console.error("music unavailable:", e);
     });
+  }
+
+  setVolume(volume: number): void {
+    this.volume = volume;
+    if (!this.started) return;
+    const { gain } = this.gain;
+    gain.cancelScheduledValues(this.ctx.currentTime);
+    gain.setValueAtTime(musicGain(this.channels, volume), this.ctx.currentTime);
   }
 
   private async createNode(): Promise<AudioWorkletNode> {
@@ -73,9 +83,10 @@ export class Music {
     await this.running();
     if (ticket !== this.ticket) return;
     const channels = MUSIC_CHANNELS[name];
-    await this.start(node, file, ticket, musicGain(channels, DEFAULT_MUSIC_VOLUME));
+    await this.start(node, file, ticket, musicGain(channels, this.volume));
     if (ticket === this.ticket) {
       this.started = true;
+      this.channels = channels;
       this.onStart(channels);
     }
   }
@@ -83,7 +94,7 @@ export class Music {
   /** Only the music fades before a change, one step per tick (0x40666A). */
   private fadeOut(): Promise<void> {
     if (!this.started) return Promise.resolve();
-    const ms = musicFadeTicks(DEFAULT_MUSIC_VOLUME) * TICK_MS;
+    const ms = musicFadeTicks(this.volume) * TICK_MS;
     const { gain } = this.gain;
     const now = this.ctx.currentTime;
     gain.cancelScheduledValues(now);

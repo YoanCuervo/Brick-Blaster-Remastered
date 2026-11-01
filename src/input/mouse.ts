@@ -35,18 +35,25 @@ export class MouseAccumulator {
 }
 
 /**
- * Locks the pointer on click and feeds raw movement to `acc`. Raw input
- * (`unadjustedMovement`) skips OS acceleration; browsers without it fall back
+ * Raw input (`unadjustedMovement`) skips OS acceleration; browsers without it fall back
  * to a plain lock.
  */
-export function bindPointerLock(target: HTMLElement, acc: MouseAccumulator): () => void {
+export function lockPointer(target: HTMLElement): void {
+  target
+    .requestPointerLock({ unadjustedMovement: true })
+    .catch(() => target.requestPointerLock())
+    .catch(() => undefined);
+}
+
+/** Locks the pointer on click while `enabled` says so, and feeds raw movement to `acc`. */
+export function bindPointerLock(
+  target: HTMLElement,
+  acc: MouseAccumulator,
+  enabled: () => boolean = () => true,
+): () => void {
   const locked = () => document.pointerLockElement === target;
   const onClick = () => {
-    if (locked()) return;
-    target
-      .requestPointerLock({ unadjustedMovement: true })
-      .catch(() => target.requestPointerLock())
-      .catch(() => undefined);
+    if (!locked() && enabled()) lockPointer(target);
   };
   const onMove = (e: MouseEvent) => {
     if (locked()) acc.add(e.movementX);
