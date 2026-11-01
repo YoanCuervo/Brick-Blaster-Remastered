@@ -1,3 +1,5 @@
+import { GameAudio } from "./audio/audio";
+import { WORLD_MUSIC } from "./audio/rules";
 import { TICK_RATE, startLoop } from "./core/loop";
 import { Rng } from "./core/rng";
 import { loadAssets } from "./data/assets";
@@ -45,6 +47,8 @@ let world: World = "space";
 const newGame = (w: World) =>
   new Game(assets.config, assets.levels[WORLD_LEVELS[w]], difficulty, new Rng(Date.now()));
 let game = newGame(world);
+const audio = new GameAudio(assets.sounds);
+audio.playMusic(WORLD_MUSIC[world]);
 
 const mouse = new MouseAccumulator();
 bindPointerLock(canvas, mouse);
@@ -70,6 +74,7 @@ window.addEventListener("keydown", (e) => {
   if (e.code === "KeyW") {
     world = WORLDS[(WORLDS.indexOf(world) + 1) % WORLDS.length]!;
     game = newGame(world);
+    audio.playMusic(WORLD_MUSIC[world]);
   }
   if (e.code === "Space") fire.press();
 });
@@ -89,6 +94,7 @@ startLoop({
     const paddleDx =
       mouse.take() + keyboardDx(keys.isDown("ArrowLeft"), keys.isDown("ArrowRight"), keySpeed);
     game.tick({ paddleDx, fire: fire.take() });
+    audio.playSounds(game.sounds);
     stats.ticks++;
   },
   render(alpha) {
