@@ -282,8 +282,8 @@ L'angle n'est donc **pas continu** : il n'existe que **deux angles** par vitesse
 
 **Accélération progressive** (`0x403F50`). Le compteur `+0x5D` ne baisse que **quand la balle monte**. À 0, le jeu joue un son, recharge le compteur avec `[0x4111A9]`, puis fait `|dx| += 1` et `|dy| += 1`, dans la limite de `|dx| ≤ 14 + mode` et `|dy| ≤ 15 − mode`. On a `[0x4111A9] = [0x41BB70] − 17 × (niveau − 1)` (`0x404DB4`) : l'accélération vient plus vite à chaque niveau. `[0x41BB70]` est bien `Freq_Change_Speed`, 1500 par défaut (vérifié, §5.1).
 
-- Bonus `fast_ball` (état `0x758D1`) : même accélération, sans attendre le compteur.
-- Bonus `slow_ball` (état `0x758B7`) : `|dx| -= 1` et `|dy| -= 1`, avec un plancher à `|dx| ≥ 1 + mode` et `|dy| ≥ 2 − mode`.
+- Bonus `fast_ball` (état `0x758D1`, `0x403F5F`), **pendant un seul tick** : le compteur est rechargé et la balle accélère une fois, même en descente, sans son. Si le compteur tombe à 0 ce tick-là, il n'y a toujours qu'une accélération, avec le son (`0x403F7E` saute en `0x403F6B`).
+- Bonus `slow_ball` (état `0x758B7`, `0x403F8D`), **pendant un seul tick** : le compteur est rechargé, puis `|dx| -= 1` et `|dy| -= 1`, avec un plancher à `|dx| ≥ 1 + mode` et `|dy| ≥ 2 − mode`.
 
 **Score** (`0x40841D`). Chaque événement rapporte `u × 10` points, avec `u = base + bonus de difficulté` (+0 facile, +1 moyen, +2 difficile), doublé si le bonus `night` (« points ×2 ») est actif. Base : **1 par brique**, **3 par monstre**. Une brique vaut donc 10/20/30 points, un monstre 30/40/50. Le score plafonne à 999 990. Détail de `0x40841D` : le bonus de difficulté est ajouté avant le doublement, puis le jeu ajoute 10 points par unité tant que le score n'est pas pile à 999 990.
 
@@ -307,9 +307,9 @@ si (x, y) == position mémorisée :
 | Type (`+0x00`) | Objet | Tableau | Nombre max |
 |---|---|---|---|
 | 4 | capsule de bonus | `0x412B40` | 8 |
-| 2 | balle | `0x413048` | 28 |
+| 2 | balle | `0x413048` | 20 (`0x413048 + 20 × 0xA1 = 0x413CDC`, la raquette ; 8 objets de type 3 suivent) |
 | 6 | monstre | `0x4141E4` | 5 |
-| 7 | projectile (tir) | `0x414509` | jusqu'à la fin du tableau |
+| 7 | projectile (tir) | `0x414509` | 20 |
 
 Ce sont donc les monstres (type 6) qui ne rebondissent pas sur la raquette et n'abîment pas les briques. Les projectiles (type 7) disparaissent en sortant de l'écran, et ce sont eux qui ignorent les téléporteurs (§4.1).
 
@@ -365,7 +365,9 @@ En résumé, un monstre est un **obstacle mobile qui perturbe la trajectoire des
 - largeur `0x4A` = 74, hauteur `0x19` = 25, sprite `0x6900`, soit (0, 42) dans la planche (§3.5) ;
 - y fixe : 416 (`0x1A0`), avec bornes y min = max ;
 - x borné entre 112 (`0x70`) et `0x210 − largeur` (528 − 74 = 454) ;
-- départ centré en x = `0x140 − 0x25` = 283. En 2 joueurs (`0x40256C`), J1 part à +80 px et J2 à −80 px du centre.
+- départ centré en x = `0x140 − 0x25` = 283. En 2 joueurs (`0x40256C`), J1 part à +80 px et J2 à −80 px du centre ;
+- animation : 4 images côte à côte (`0x6900`, +74 par image), un pas tous les 6 ticks, dans toutes les boucles (`0x4066BA`) ;
+- grande (`0x4033A9`) : largeur `0x69` = 105, sprite `0x6A28`, 2 images, délai `0x0A`, son `large`. Petite (`0x4034B0`) : largeur `0x26` = 38, sprite `0x6AFA`, 2 images, délai 8, son `small`, et les balles collées sont libérées sans toucher au drapeau d'aimant. Actives tant que le bonus est dans l'emplacement. Ensuite, `0x4025B0` remet la raquette normale, éteint les canons et, si elle était grande, libère les balles collées.
 
 **Souris** (`0x406DFF`, appelé à chaque tick) :
 1. `int 33h` fonction `0Bh` (DOS émulé) : déplacement relatif depuis la lecture précédente, en mickeys.
@@ -382,7 +384,8 @@ En résumé, un monstre est un **obstacle mobile qui perturbe la trajectoire des
 - la souris passe par Pointer Lock (`unadjustedMovement`), avec `x += movementX × 0,5 × sensibilité` et une sensibilité continue (1,0 = `Mouse_Speed 0`, 0,5 par défaut = `−1`) ;
 - le reste fractionnaire est conservé d'un tick à l'autre ;
 - le rejeu d'un tick sans mouvement n'est pas reproduit (artefact d'époque) ;
-- le joueur 1 a aussi le clavier, selon la règle du J2.
+- le joueur 1 a aussi le clavier, selon la règle du J2 ;
+- `reverse` inverse le déplacement déjà mis à l'échelle (souris et clavier). L'original inverse avant l'arrondi `⌈d/2⌉` : l'écart est d'au plus 1 px sur un déplacement impair, et le reste fractionnaire du remake le rattrape.
 
 ### 4.5 Déroulement d'une partie (vérifié dans le code, 30/10/2026)
 
@@ -570,10 +573,10 @@ lâcher une capsule au coin haut-gauche de la brique, chute 2 px/tick
 **Bonus actif** (`0x4055AE`, à la récupération de la capsule). Le ramassage joue `optionon`, donne **2 unités** de score (20/30/40 points), affiche l'icône et lance le clignotement. Le libellé n'apparaît qu'au tick suivant, avec `0x405DD2`.
 - **Un seul bonus actif à la fois**, dans `[0x411C70]`. Un nouveau bonus remplace le précédent, qui est mémorisé dans `[0x411C74]`.
 - **Durée : 600 ticks** (`[0x411CA4] = 0x258`, soit 12 s à 50 Hz, `0x405E1A`, en mode 3). À **500**, le message s'efface et, si aucun bonus n'est actif, l'icône disparaît et le dernier libellé est oublié. À **0**, le jeu joue `endopt`, libère les balles collées (`0x403E91`), remet la palette et le score normal (`0x406392`) et efface l'icône. Le minuteur n'est pas arrêté par les bonus instantanés : **`endopt` sonne aussi 12 s après un bonus instantané**, sauf si une manche a recommencé entre-temps.
-- Chaque tick, la routine d'effet du bonus actif est appelée (`0x405DD2`, mode 3). Son libellé n'est écrit que s'il diffère du dernier écrit (`[0x411CA0]`) : reprendre le même bonus durable ne le réécrit pas.
+- Chaque tick, la routine d'effet du bonus actif est appelée (`0x405DD2`, mode 3). Son libellé n'est écrit que s'il diffère du dernier écrit (`[0x411CA0]`) : reprendre le même bonus ne le réécrit pas.
 - **Effacement** : une vie supplémentaire ou le bonus vie (`0x405FB1`) efface le bonus actif, mais pas le minuteur. Une vie perdue (`0x404AED`) efface les deux. Une nouvelle manche (`0x401DB5`) efface aussi les capsules et l'icône, et rétablit la palette.
 - Les bonus instantanés (balles, vie, points…) remettent l'état actif à 0 dans leur routine, au tick qui suit le ramassage.
-- Les bonus durables (`slow`, `fast`, `iron`, `telepod`, `small`, `large`, `reverse`) ont une routine vide (`ret`). Le reste du code teste directement `[0x411C70]` : par exemple, `0x758D1` pour `fast_ball` au §4.2. `next_level` aussi : c'est le test de fin de niveau (`0x4045BB`) qui agit, dans le tick même du ramassage, avant tout affichage du libellé. `magnetic` n'est pas vide (`0x4063E6`) : il remet le bonus précédent comme actif (`[0x411C74]`) et pose un drapeau d'aimant en `[0x41104D]`.
+- `slow`, `fast`, `iron`, `telepod`, `small`, `large` et `reverse` ont une routine vide (`ret`). Le reste du code teste directement `[0x411C70]`. `next_level` aussi : c'est le test de fin de niveau (`0x4045BB`) qui agit, dans le tick même du ramassage, avant tout affichage du libellé.
 
 **Clignotement de l'icône** (`0x405671`, à chaque tick, attentes comprises). Le ramassage l'active. Les couleurs 112..127 (`0x30` octets) passent par les palettes de fondu 0 à 11, puis 12 à 1, une par tick. Le cycle de 24 ticks se répète 10 fois (240 ticks). Rien ne remet les compteurs à zéro au ramassage : une capsule prise pendant un clignotement ne le relance pas. Il s'arrête sur la palette 1 : le cadre reste un peu sombre jusqu'à la remise de la palette complète (fin du minuteur, nouvelle manche).
 
@@ -582,7 +585,7 @@ lâcher une capsule au coin haut-gauche de la brique, chute 2 px/tick
 | Bonus | Routine | Effet |
 |---|---|---|
 | `3_ball`, `6_ball`, `9_ball`, `20_ball` | `0x405EBA`, `0x405EE3`, `0x405F0C`, `0x405F35` | `0x40240E` avec 1, 3, 6, 20 balles |
-| `ghost` | `0x40645F` | 20 balles (10 en duel), puis toutes les balles du joueur sauf une passent fantômes (`0x403ED5`, sprite +0x12, drapeau `+0x99`). Comportement du drapeau à décoder (tâche 10) |
+| `ghost` | `0x40645F` | 20 balles (10 en duel), puis toutes les balles du joueur passent fantômes (`0x403ED5`, sprite +0x12, drapeau `+0x99`), sauf la première à l'état 1 (`0x403F16`). Voir plus bas |
 | `death` | `0x405F5E` | son `death`, −1 vie **seulement s'il en reste en réserve** : jamais de game over |
 | `new_life` | `0x405FB1` | son `newlife`, +1 vie (plafond 19) |
 | `bonus` (« +100 pts ») | `0x40649B` | **8 unités** avec le bonus de difficulté : 80/90/100 points, ×2 sous « points ×2 » |
@@ -604,7 +607,43 @@ répéter :
 tant qu'un des 4 coins touche une indestructible (0x40252D, même test qu'au §4.1)
 ```
 
-**Remake** : les capsules des bonus durables tombent déjà pour garder le tirage fidèle. Ramassées, elles occupent l'emplacement actif (icône, libellé, minuteur) sans effet jusqu'à la tâche 10. `night`, `del_monster` et `add_monster` vident l'emplacement comme l'original, sans effet jusqu'aux tâches 10 et 11. Ordre de dessin : `0x40675F` parcourt les objets dans l'ordre des emplacements, donc capsules, balles, puis raquette par-dessus.
+**Effets d'un seul tick** (`0x403932`). `fast`, `slow`, `telepod` et `iron` **ne durent pas 12 s** : ils agissent sur chaque balle au tick qui suit le ramassage, puis `0x4039E9` vide l'emplacement. L'icône et le libellé restent jusqu'à 500.
+- `fast` et `slow` : voir §4.2. Les balles sur le point d'être perdues (état −3) sont concernées.
+- `telepod` (`0x4039BE`) : téléportation `0x4023AA` après le déplacement, avant le test de perte, sans son, état −3 compris.
+- `iron` (`0x40394B`, état −3 exclu) : `+0x59 = 0`, sprite 0, ou `0x12` pour une balle fantôme. L'effet dure jusqu'à ce que l'objet soit recréé (`0x403866`) : les balles créées ensuite restent normales.
+
+**Aimant** (`magnetic`, `0x4063E6`, au tick qui suit le ramassage). Le bonus précédent `[0x411C74]` redevient actif et son libellé est réécrit. Le drapeau `[0x41104D]` bit 0 passe à 1. C'est le même drapeau que celui du service (`0x40504F`).
+- Contact raquette (`0x4048C9`) : drapeau levé, la balle se colle (`0x4048F7`) ; sinon elle se décolle. Le rebond continue ensuite normalement : la vitesse de départ est déjà calculée.
+- Déplacement (`0x403E02`) : drapeau baissé, le déplacement est normal même si la balle reste marquée collée. Drapeau levé, elle suit la raquette, et le bouton baisse le drapeau, décolle cette balle et la fait partir. **Le premier lâcher met donc fin à l'aimant, et les autres balles collées partent aussi.** Un nouvel aimant reprend celles qui sont restées marquées.
+- La fin du minuteur (`0x403E91`) décolle tout et baisse le drapeau.
+
+**Points ×2** (`night`, `0x406310`). Si `[0x411CA8]` vaut déjà 1, la routine sort sans vider l'emplacement. Sinon : drapeau à 1, son `night`, toute la palette à l'étape de fondu 16 (`0x3000 / 0x300`), emplacement vidé.
+- `0x406370` tourne à chaque tick, avant l'entrée de la raquette : drapeau à 1 et bonus actif ≠ 0 remettent la palette complète (`0x406392`). Un bonus durable annule donc le ×2. Un bonus instantané ne l'annule pas, car sa routine a déjà vidé l'emplacement. Reprendre `night` éteint le ×2 un tick, puis le rallume.
+- `0x406392` est aussi appelé par la fin du minuteur (`0x405E88`) et par chaque manche (`0x401DCE`).
+- Le fondu de sortie part de l'étape 16 si le drapeau est levé, et le baisse (`0x4065F9`).
+
+**Fantômes** (`+0x99`). Au contact de la raquette (`0x4046C7` → `0x40465C`), pas de rebond, pas de son, pas de collage. Si le sprite vaut déjà `0x2E` ou `0x16AE`, rien ne se passe. Sinon le sprite devient `0x16AE` (depuis `0x1692`) ou `0x2E`, `dx = dy = 0`, `+0x8D = 7`, animation de 5 images, délai 1, pas w + 1 = 10. Chaque pas baisse `+0x8D` ; à 1, la balle passe à l'état 0 (`0x406708`), soit 6 pas : elle disparaît au 12ᵉ passage du stepper après le contact, celui du tick de contact compris. Elle compte comme en jeu jusque-là (`0x404A38`), et les règles de perte normales s'appliquent.
+
+**Tirs** (`0x402828`, mode 3, avant l'entrée de la raquette ; 20 emplacements de type 7 en `0x414509`). `shoot` (`0x7589D`) : gros tir. `mini_shoot` (`0x75A3D`) : mini tirs. Chaque tick, le bonus actif allume ses canons et éteint les autres ; sans l'un des deux, tout s'éteint et le verrou `[0x415756]` retombe.
+- Tir (`0x407065`) : bouton relâché, verrou à 0. Bouton tenu et verrou à 1 : rien. Sinon, premier emplacement libre (aucun : verrou à 0), son `shoot`, `dx = 0`, `dy = −4`, `y = raquette.y − 0x12`, verrou à 1.
+- Gros : 8 × 42, sprite `0x3513C`, `+0x59 = 0` (traverse les briques), centré sur la raquette, 11 images, délai 5, pas 11. **Un seul tir** : l'emplacement actif, l'icône et le libellé sont effacés.
+- Mini : 3 × 13, sprite `0x19A55`, `+0x59 = 1`. `[0x415752]` alterne : à 1, `x = raquette.x + 7`, canon gauche ; sinon `x = raquette.x + 0x3D`, canon droit. Le canon concerné rejoue son animation.
+- Canons (3 objets de type 3, dessinés après la raquette) : mini gauche `0x1CAF6` en (x + 7, y − 7), mini droit `0x1CB12` en (x + 0x37, y − 7), 12 × 18, pas 37 lignes ; gros `0x40A3E` en (x + 0x1F, y − 8), 13 × 19, pas 14. Mis en place une fois par `0x406195` (6 images, `left` 6, 12 ticks) et `0x4060BD` (4 images, `left` 1, 10 ticks). À la fin du décompte (`0x402BD5`), `+0x61 = 1` fige le canon. Ils gardent les bornes de 9 px de `0x40222D`, que `0x40687F` applique : à droite d'une petite raquette, ils restent à x = 519.
+- Vol (`0x403A39`, après les balles, attentes comprises) : position suivante hors bornes, état 0, sans rebond. Puis, en mode 3 seulement, le balayage des briques (qui tourne encore pour un tir qui vient de sortir). Puis le test des monstres (tâche 11) et le déplacement. Un code de rebond met le tir à l'état 0 au lieu de l'inverser (`0x4043CB`).
+- Briques : une brique détruite marque et tire un bonus comme avec une balle. Une indestructible clignote avec le son `wall`. Un téléporteur ne déplace pas le tir (`0x4023AA`), mais joue `telepod` et compte comme un impact.
+- L'explosion et le décollage éteignent les canons (`0x40303F`, `0x4031D1`). `0x40222D` vide les emplacements à chaque manche.
+
+**Explosion et décollage selon la raquette** (`0x4030DC`, `0x4032B4`) :
+
+| Raquette | Explosion : 1ʳᵉ image, largeur, décalage x | Décollage : 1ʳᵉ image, largeur, décalage x |
+|---|---|---|
+| normale | `0x1C701`, `0x76`, −`0x15` | `0x891E5`, `0x5C`, −9 |
+| grande | `0x1C7D5`, `0x8F`, −`0x13` | `0xE1C81`, `0x7F`, −`0x0B` |
+| petite | `0x1C778`, `0x5C`, −`0x1B` | `0x8929F`, `0x5C`, −`0x1B` |
+
+**Arrivée de la raquette** (`0x404B88`, à chaque manche, en `0x401DF6`). La balle est cachée (état sauvé, mis à 0, puis restauré). Le drapeau `[0x404BFC] = 1` choisit l'image `0x89242`, largeur `0x5C`, décalage −9, mêmes hauteur, y et cadence que le décollage. La boucle `0x402058` attend `+0x65 = 2`, soit 18 ticks, puis `0x40256C` remet la raquette et le jeu attend le service.
+
+**Remake** : `del_monster` et `add_monster` vident l'emplacement comme l'original, sans effet jusqu'à la tâche 11. Ordre de dessin : `0x40675F` parcourt les objets dans l'ordre des emplacements, donc capsules, balles, raquette, canons, puis tirs par-dessus. Simplification : sous « points ×2 », le cadre de l'icône s'assombrit avec le reste de l'écran, alors que dans l'original le clignotement réécrit séparément les couleurs 112..127.
 
 ### Les 24 bonus (texte du jeu)
 
@@ -751,5 +790,5 @@ Graphismes, sons, musiques et niveaux appartiennent à Eclipse / leurs auteurs (
 - ~~Quel set de niveaux correspond à quel monde~~ : résolu, espace = lv0, arcade = lv1 (§4).
 - Rôle exact de `0x408AD9` après un game over (meilleurs scores ?) et du retour au menu (§4.5).
 - Contenu de `blaster.scr` une fois déchiffré, et des `.usr` : sans importance pour le remake.
-- Routines d'effet restantes (tâches 10 et 11) : drapeau fantôme `+0x99`, `collision` (duel), `reverse`, `telepod`, tirs.
+- Routines d'effet restantes (tâche 11) : `del_monster`, `add_monster`. `collision` ne concerne que le duel.
 - Rôle de l'octet patché à l'offset 28850.

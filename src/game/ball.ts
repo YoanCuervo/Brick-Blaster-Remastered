@@ -1,6 +1,8 @@
 // Ball physics, ported from the original routines (§4.2). Units: pixels per 50 Hz tick.
 import type { Rng } from "../core/rng";
+import type { BonusKey } from "../data/config";
 import type { Level } from "../data/levels";
+import { type SpriteAnim, createAnim, stepAnim } from "./animation";
 import { touchesIndestructible } from "./bricks";
 import { PADDLE_H, PADDLE_X_MIN, PADDLE_Y, PLAY_RIGHT, type Paddle } from "./paddle";
 
@@ -16,6 +18,16 @@ export const ANTI_LOOP_MATCHES = 3;
 /** Ball slots from 0x413048 up to the type 3 objects. */
 export const MAX_BALLS = 20;
 
+/** Sprites of a ball [+0x0D]: the iron ball is at the top of the sheet (0x403957). */
+export const BALL_SPRITE = 0x1680;
+export const IRON_SPRITE = 0;
+/** A ghost ball is the sprite next to it (0x403F00), its death further right (0x40466B). */
+export const GHOST_OFFSET = 0x12;
+export const GHOST_DEATH = 0x16ae;
+export const IRON_GHOST_DEATH = 0x2e;
+/** [+0x8D] at the paddle contact: the ball goes at 1, after 6 anim steps (0x404684, 0x406717). */
+export const GHOST_DEATH_STEPS = 5 + 2;
+
 /** [ball + 1]: 0 = gone, 1 = in play, −3 = past the paddle and about to be lost. */
 export const BallState = { Dead: 0, Active: 1, Lost: -3 } as const;
 export type BallState = (typeof BallState)[keyof typeof BallState];
@@ -23,8 +35,8 @@ export type BallState = (typeof BallState)[keyof typeof BallState];
 export interface Ball {
   x: number;
   y: number;
-  readonly w: number;
-  readonly h: number;
+  w: number;
+  h: number;
   dx: number;
   dy: number;
   /** Angle mode [+0x19]: 0 = steep, 1 = flat. */
@@ -34,10 +46,10 @@ export interface Ball {
   speedCounter: number;
   /** [+0x59]: 0 lets the ball go through bricks (iron ball). */
   bouncesOnBricks: boolean;
-  readonly xMin: number;
-  readonly xMax: number;
-  readonly yMin: number;
-  readonly yMax: number;
+  xMin: number;
+  xMax: number;
+  yMin: number;
+  yMax: number;
   // Anti-loop guard [+0x75], [+0x79], [+0x81], [+0x85].
   loopCount: number;
   loopMatches: number;
@@ -45,6 +57,19 @@ export interface Ball {
   loopY: number;
   /** Offset on the paddle while the ball is stuck to it [+0x95], null when free [+0x91]. */
   stuckOffset: number | null;
+  /** [+0x0D], [+0x3D] and the animation fields. */
+  anim: SpriteAnim;
+  /** [+0x99] */
+  ghost: boolean;
+  /** [+0x8D]: anim steps left before a ghost ball is gone, 0 when not dying. */
+  dying: number;
+  /** Object type 7 (§5.2): vanishes instead of bouncing, ignores teleports. */
+  shot: boolean;
+}
+
+/** [0x41104D] bit 0: balls touching the paddle stick to it, the stuck ones follow it. */
+export interface Magnet {
+  on: boolean;
 }
 
 export type BallEvent = "paddle" | "speedUp" | "lost";
@@ -79,6 +104,18 @@ export function createBall(freqChangeSpeed: number): Ball {
     loopX: 0,
     loopY: 0,
     stuckOffset: null,
+    anim: createAnim({
+      first: BALL_SPRITE,
+      w: BALL_SIZE,
+      h: BALL_SIZE,
+      step: BALL_SIZE,
+      frames: 1,
+      delay: 1,
+      countdown: 1,
+    }),
+    ghost: false,
+    dying: 0,
+    shot: false,
   };
 }
 
@@ -127,6 +164,55 @@ export function addBalls(
     balls[slot] = ball;
     left--;
   }
+}
+
+/**
+ * 0x403ED5: every ball not yet ghost becomes one, then 0x403F16 gives the first ball
+ * in play back its normal state.
+ */
+export function makeGhosts(balls: Ball[]): void {
+  for (const ball of balls) {
+    if (ball.ghost) continue;
+    ball.ghost = true;
+    ball.anim.first += GHOST_OFFSET;
+    ball.anim.frame += GHOST_OFFSET;
+  }
+  const first = balls.find((b) => b.state === BallState.Active);
+  if (!first) return;
+  first.ghost = false;
+  first.anim.first -= GHOST_OFFSET;
+  first.anim.frame -= GHOST_OFFSET;
+}
+
+/** 0x40394B: an iron ball stays so until its object is recreated (0x403866). */
+export function makeIron(ball: Ball): void {
+  ball.bouncesOnBricks = false;
+  const sprite = ball.ghost ? IRON_SPRITE + GHOST_OFFSET : IRON_SPRITE;
+  ball.anim.first = sprite;
+  ball.anim.frame = sprite;
+}
+
+/** 0x40465C: a ghost ball dies on the paddle, with no bounce, no sound and no stick. */
+export function ghostContact(ball: Ball): void {
+  const { anim } = ball;
+  if (anim.first === IRON_GHOST_DEATH || anim.first === GHOST_DEATH) return;
+  const sprite = anim.first === BALL_SPRITE + GHOST_OFFSET ? GHOST_DEATH : IRON_GHOST_DEATH;
+  anim.first = sprite;
+  anim.frame = sprite;
+  anim.frames = 5;
+  anim.left = 1;
+  anim.delay = 1;
+  anim.countdown = 1;
+  anim.step = ball.w + 1;
+  ball.dying = GHOST_DEATH_STEPS;
+  ball.dx = 0;
+  ball.dy = 0;
+}
+
+/** Stepper 0x4066BA on one ball or shot, with the death count 0x406708. */
+export function stepBallAnim(ball: Ball): void {
+  if (ball.state === BallState.Dead || !stepAnim(ball.anim)) return;
+  if (ball.dying !== 0 && --ball.dying === 1) ball.state = BallState.Dead;
 }
 
 /** Centred on top of the paddle (0x404FDC). */
@@ -196,14 +282,21 @@ export function flipY(ball: Ball): void {
 
 /**
  * 0x404610. Only the top of the paddle is tested: a falling ball still bounces
- * when it is already lower, as long as it overlaps horizontally.
+ * when it is already lower, as long as it overlaps horizontally. With the magnet on
+ * the ball sticks, the bounce still sets the speed it will leave with (0x4048C9).
  */
-export function paddleBounce(ball: Ball, paddle: Paddle): boolean {
+export function paddleBounce(ball: Ball, paddle: Paddle, magnet?: Magnet): boolean {
   if (ball.dy < 0) return false;
   if (ball.y + ball.h < paddle.y) return false;
   if (ball.x + ball.w < paddle.x) return false;
   if (ball.x >= paddle.x + paddle.w) return false;
 
+  if (ball.ghost) {
+    ghostContact(ball);
+    return false;
+  }
+  if (magnet?.on) stickToPaddle(ball, paddle);
+  else ball.stuckOffset = null;
   ball.dy = -ball.dy;
   const s = sign(ball.dx);
   if (ball.dx >= 0) {
@@ -220,12 +313,21 @@ export function paddleBounce(ball: Ball, paddle: Paddle): boolean {
   return true;
 }
 
-/** 0x404022: reflects when the next position reaches a bound. */
+/** 0x404022: reflects when the next position reaches a bound. A shot goes instead (0x40405F). */
 export function wallBounce(ball: Ball): void {
   const nx = ball.x + ball.dx;
-  if (nx >= ball.xMax || nx <= ball.xMin) flipX(ball);
+  if (nx >= ball.xMax || nx <= ball.xMin) {
+    if (ball.shot) {
+      ball.state = BallState.Dead;
+      return;
+    }
+    flipX(ball);
+  }
   const ny = ball.y + ball.dy;
-  if (ny >= ball.yMax || ny <= ball.yMin) flipY(ball);
+  if (ny >= ball.yMax || ny <= ball.yMin) {
+    if (ball.shot) ball.state = BallState.Dead;
+    else flipY(ball);
+  }
 }
 
 /** Number of sub-steps of the sweep (0x404098); 0 for a still ball. */
@@ -256,6 +358,11 @@ export function sweepTrack(start: number, end: number, n: number): (number | nul
  */
 export function applyBounceCode(ball: Ball, code: number): void {
   if (code === 0) return;
+  // 0x4043CB
+  if (ball.shot) {
+    ball.state = BallState.Dead;
+    return;
+  }
   if (code === 1 || code === 5 || code === 10 || code === 14) flipX(ball);
   else if (code === 2 || code === 6 || code === 9 || code === 13) flipY(ball);
   else {
@@ -294,14 +401,17 @@ export function brickSweep(ball: Ball, probe: BrickProbe): number {
 }
 
 /**
- * 0x403D8E: a stuck ball follows the paddle until fire is held (0x403E02), then
- * leaves on the same tick. 0x403DEF is the move itself.
+ * 0x403D8E: with the magnet on, a stuck ball follows the paddle until fire is held
+ * (0x403E02), then leaves on the same tick. The first release ends the magnet, so
+ * the other stuck balls leave too: with it off their offset is ignored. 0x403DEF is
+ * the move itself.
  */
-export function moveBall(ball: Ball, paddle?: Paddle, fire = false): void {
-  if (ball.stuckOffset !== null && paddle) {
+export function moveBall(ball: Ball, paddle?: Paddle, magnet?: Magnet, fire = false): void {
+  if (ball.stuckOffset !== null && paddle && magnet?.on) {
     ball.x = paddle.x + ball.stuckOffset;
     ball.y = paddle.y - ball.h;
     if (!fire) return;
+    magnet.on = false;
     ball.stuckOffset = null;
   }
   ball.x += ball.dx;
@@ -333,13 +443,37 @@ export function speedUp(ball: Ball): void {
   if (ball.dy < ly && ball.dy > -ly) ball.dy += sign(ball.dy);
 }
 
-/** 0x403F50: the counter only runs while the ball climbs. */
-export function accelerate(ball: Ball, interval: number): boolean {
-  if (ball.dy >= 0) return false;
-  if (--ball.speedCounter !== 0) return false;
+/**
+ * 0x403F50: the counter only runs while the ball climbs. The fast ball bonus takes the
+ * same speed-up on any tick, silently; true means the counter ran out (0x403F7E, sound).
+ */
+export function accelerate(ball: Ball, interval: number, fast = false): boolean {
+  const ranOut = ball.dy < 0 && --ball.speedCounter === 0;
+  if (ranOut || fast) {
+    ball.speedCounter = interval;
+    speedUp(ball);
+  }
+  return ranOut;
+}
+
+/** 0x403F8D: one step slower down to |dx| = 1 + mode and |dy| = 2 − mode. */
+export function slowDown(ball: Ball, interval: number): void {
   ball.speedCounter = interval;
-  speedUp(ball);
-  return true;
+  const lx = 1 + ball.mode;
+  if (ball.dx > lx || ball.dx < -lx) ball.dx -= sign(ball.dx);
+  const ly = 2 - ball.mode;
+  if (ball.dy > ly || ball.dy < -ly) ball.dy -= sign(ball.dy);
+}
+
+/** What one ball sees of the rest of the game during a tick. */
+export interface BallContext {
+  /** Fire held. */
+  fire?: boolean;
+  magnet?: Magnet;
+  /** One-tick bonus in the active slot (§5.2). */
+  active?: BonusKey | null;
+  /** The telepod bonus (0x4023AA). */
+  teleport?: (ball: Ball) => void;
 }
 
 /** One tick of one ball, in the order of the main loop (0x403932). */
@@ -348,15 +482,22 @@ export function updateBall(
   paddle: Paddle,
   probe: BrickProbe,
   speedInterval: number,
-  fire = false,
+  ctx: BallContext = {},
 ): BallEvent[] {
   const events: BallEvent[] = [];
   if (ball.state === BallState.Dead) return events;
-  if (ball.state !== BallState.Lost && paddleBounce(ball, paddle)) events.push("paddle");
+  const { fire = false, magnet, active = null, teleport } = ctx;
+  // A ball about to be lost skips the iron bonus and the paddle (0x403936).
+  if (ball.state !== BallState.Lost) {
+    if (active === "iron_ball") makeIron(ball);
+    if (paddleBounce(ball, paddle, magnet)) events.push("paddle");
+  }
   wallBounce(ball);
   brickSweep(ball, probe);
-  moveBall(ball, paddle, fire);
+  moveBall(ball, paddle, magnet, fire);
+  if (active === "telepod") teleport?.(ball);
   if (lostCheck(ball)) events.push("lost");
-  if (accelerate(ball, speedInterval)) events.push("speedUp");
+  if (accelerate(ball, speedInterval, active === "fast_ball")) events.push("speedUp");
+  if (active === "slow_ball") slowDown(ball, speedInterval);
   return events;
 }

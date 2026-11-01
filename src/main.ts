@@ -12,23 +12,15 @@ import {
 } from "./data/images";
 import { LEVEL_COLS, WORLD_LEVELS } from "./data/levels";
 import { paletteColor } from "./data/palette";
-import { BallState } from "./game/ball";
+import { type Ball, BallState } from "./game/ball";
 import { CAPSULE_DY, CapsuleState } from "./game/bonus";
 import { GRID_CELLS, cellSprite } from "./game/bricks";
 import { Game } from "./game/game";
-import { clampPaddleX } from "./game/paddle";
+import { PADDLE_H, clampPaddleX } from "./game/paddle";
 import { FireLatch } from "./input/fire";
 import { KeyState, keyboardDx, keyboardSpeed } from "./input/keyboard";
 import { MouseAccumulator, bindPointerLock } from "./input/mouse";
-import {
-  BALL_SPRITE,
-  BRICK_H,
-  BRICK_W,
-  PADDLE_SPRITE,
-  capsuleSprite,
-  drawSprite,
-  spriteAt,
-} from "./render/atlas";
+import { BRICK_H, BRICK_W, capsuleSprite, drawSprite, spriteAt } from "./render/atlas";
 import { BitmapFont } from "./render/font";
 import { applyFade } from "./render/fade";
 import { IconFlasher } from "./render/flash";
@@ -91,7 +83,8 @@ const MAX_LERP = 32;
 
 startLoop({
   update() {
-    prevBalls = new Map(game.balls.map((b) => [b, { x: b.x, y: b.y }]));
+    const moving = [...game.balls, ...game.shotSystem.shots];
+    prevBalls = new Map(moving.map((b) => [b, { x: b.x, y: b.y }]));
     const paddleDx =
       mouse.take() + keyboardDx(keys.isDown("ArrowLeft"), keys.isDown("ArrowRight"), keySpeed);
     game.tick({ paddleDx, fire: fire.take() });
@@ -106,7 +99,7 @@ startLoop({
     );
     drawPlayfield(ctx, assets.images.get(background)!, sheet);
     if (!game.bare) drawGame(alpha, sheet, background);
-    applyFade(ctx, game.fade);
+    applyFade(ctx, game.screenFade);
     if (!locked()) font().draw(ctx, "clic", 290, 220, false);
 
     stats.frames++;
@@ -136,6 +129,15 @@ function font(): BitmapFont {
   );
 }
 
+/** A moving ball or shot, interpolated between ticks. */
+function drawMoving(b: Ball, alpha: number, sheet: HTMLCanvasElement): void {
+  const p = prevBalls.get(b);
+  const near = p && Math.abs(b.x - p.x) <= MAX_LERP && Math.abs(b.y - p.y) <= MAX_LERP;
+  const x = near ? Math.round(p.x + (b.x - p.x) * alpha) : b.x;
+  const y = near ? Math.round(p.y + (b.y - p.y) * alpha) : b.y;
+  drawSprite(ctx, sheet, spriteAt(b.anim.frame, b.w, b.h), x, y);
+}
+
 function drawGame(alpha: number, sheet: HTMLCanvasElement, background: string): void {
   for (let i = 0; i < GRID_CELLS; i++) {
     const address = cellSprite(game.grid, i);
@@ -159,19 +161,16 @@ function drawGame(alpha: number, sheet: HTMLCanvasElement, background: string): 
 
   const { paddle, paddleAnim } = game;
   // Drawn with the mouse movement of the current tick already applied, to cut visible lag.
-  const ahead = paddleAnim ? 0 : clampPaddleX(paddle, paddle.x + mouse.peek()) - paddle.x;
+  const pending = game.reversed ? -mouse.peek() : mouse.peek();
+  const ahead = paddleAnim ? 0 : clampPaddleX(paddle, paddle.x + pending) - paddle.x;
   for (const b of game.balls) {
     if (b.state === BallState.Dead) continue;
     // A ball waiting on the paddle follows it; a moving one is interpolated.
-    if (b.stuckOffset !== null) {
-      drawSprite(ctx, sheet, BALL_SPRITE, b.x + ahead, b.y);
+    if (b.stuckOffset !== null && game.magnet.on) {
+      drawSprite(ctx, sheet, spriteAt(b.anim.frame, b.w, b.h), b.x + ahead, b.y);
       continue;
     }
-    const p = prevBalls.get(b);
-    const near = p && Math.abs(b.x - p.x) <= MAX_LERP && Math.abs(b.y - p.y) <= MAX_LERP;
-    const x = near ? Math.round(p.x + (b.x - p.x) * alpha) : b.x;
-    const y = near ? Math.round(p.y + (b.y - p.y) * alpha) : b.y;
-    drawSprite(ctx, sheet, BALL_SPRITE, x, y);
+    drawMoving(b, alpha, sheet);
   }
 
   if (paddleAnim) {
@@ -180,7 +179,22 @@ function drawGame(alpha: number, sheet: HTMLCanvasElement, background: string): 
       drawSprite(ctx, sheet, spriteAt(anim.frame, anim.w, anim.h), paddleAnim.x, paddleAnim.y);
     }
   } else {
-    drawSprite(ctx, sheet, PADDLE_SPRITE, paddle.x + ahead, paddle.y);
+    drawSprite(
+      ctx,
+      sheet,
+      spriteAt(paddle.anim.frame, paddle.w, PADDLE_H),
+      paddle.x + ahead,
+      paddle.y,
+    );
+  }
+
+  // Next in slot order: the cannons, then the shots.
+  const { miniLeft, miniRight, big, shots } = game.shotSystem;
+  for (const c of [miniLeft, miniRight, big]) {
+    if (c.on) drawSprite(ctx, sheet, spriteAt(c.anim.frame, c.anim.w, c.anim.h), c.x + ahead, c.y);
+  }
+  for (const s of shots) {
+    if (s.state !== BallState.Dead) drawMoving(s, alpha, sheet);
   }
 
   drawHud(ctx, sheet, font(), {
