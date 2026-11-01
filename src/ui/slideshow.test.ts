@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { parseFlc } from "../data/flc";
+import { countingFlc } from "../data/flc.testdata";
 import { IMAGE_NAMES } from "../data/images";
 import { FADE_STEPS } from "../render/fade";
+import { Film } from "./film";
 import { BOOT_SLIDES, CREDITS_LAST_ORDER, CREDITS_SLIDES, Slideshow } from "./slideshow";
 
 const IDLE_TO_HOLD = 1 + FADE_STEPS + FADE_STEPS + 5 + FADE_STEPS;
@@ -98,6 +101,68 @@ describe("credits (0x4011FF)", () => {
     expect(s.tick(false, false, CREDITS_LAST_ORDER)).toBe(true);
     const other = new Slideshow(CREDITS_SLIDES, options);
     run(other, IDLE_TO_HOLD + 150, CREDITS_LAST_ORDER - 1);
+  });
+});
+
+describe("the film of the credits (0x401209)", () => {
+  const FRAMES = 2;
+  const file = parseFlc(countingFlc(FRAMES), "test.flc");
+  const withFilm = { ...options, film: () => new Film(file) };
+  /** Release, fade in, then 5 ticks per frame: the last 5 only find the end. */
+  const FILM_TICKS = 1 + FADE_STEPS + FRAMES * 5;
+  const PASS = IDLE_TO_HOLD + 150;
+
+  it("plays first, without a fade out of its own after the menu's", () => {
+    const s = new Slideshow(CREDITS_SLIDES, withFilm);
+    expect(s.film).not.toBeNull();
+    expect(s.shown).toBeNull();
+    run(s, 1 + FADE_STEPS);
+    expect(s.film!.shown).toBe(true);
+    expect(s.fade).toBe(0);
+  });
+
+  it("is not ended by fire or a key, and a key is forgotten after it (0x401BD6)", () => {
+    const s = new Slideshow(CREDITS_SLIDES, withFilm);
+    s.tick(false, false);
+    for (let i = 1; i < FILM_TICKS; i++) expect(s.tick(i < 20, true)).toBe(false);
+    run(s, IDLE_TO_HOLD + 149);
+    expect(s.shown).toBe(CREDITS_SLIDES[0]);
+    expect(s.tick(false, false)).toBe(false);
+    expect(s.shown).toBe(CREDITS_SLIDES[0]);
+  });
+
+  it("tests the position of the module after it, not during it (0x40120E)", () => {
+    const s = new Slideshow(CREDITS_SLIDES, withFilm);
+    run(s, FILM_TICKS - 1, CREDITS_LAST_ORDER);
+    expect(s.tick(false, false, CREDITS_LAST_ORDER)).toBe(true);
+  });
+
+  it("stays on screen while the first picture fades it out", () => {
+    const s = new Slideshow(CREDITS_SLIDES, withFilm);
+    run(s, FILM_TICKS + 1 + FADE_STEPS - 1);
+    expect(s.film).not.toBeNull();
+    expect(s.fade).toBe(FADE_STEPS - 2);
+    run(s, 1);
+    expect(s.film).toBeNull();
+    expect(s.shown).toBe(CREDITS_SLIDES[0]);
+  });
+
+  it("comes back after the last picture, which it fades out by itself (0x4070C5)", () => {
+    const s = new Slideshow(CREDITS_SLIDES, withFilm);
+    run(s, FILM_TICKS + PASS * CREDITS_SLIDES.length);
+    expect(s.film).toBeNull();
+    expect(s.shown).toBe(CREDITS_SLIDES[4]);
+    run(s, 1);
+    expect(s.fade).toBe(0);
+    expect(s.shown).toBe(CREDITS_SLIDES[4]);
+    run(s, FADE_STEPS - 1);
+    expect(s.film).not.toBeNull();
+    expect(s.film!.shown).toBe(false);
+    expect(s.shown).toBeNull();
+    expect(s.fade).toBe(FADE_STEPS - 1);
+    run(s, FILM_TICKS);
+    run(s, IDLE_TO_HOLD);
+    expect(s.shown).toBe(CREDITS_SLIDES[0]);
   });
 });
 
