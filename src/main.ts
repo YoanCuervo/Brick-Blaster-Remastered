@@ -1,13 +1,14 @@
 import { GameAudio } from "./audio/audio";
-import { WORLD_MUSIC } from "./audio/rules";
+import { MENU_MUSIC, WORLD_MUSIC, musicFadeTicks } from "./audio/rules";
 import { TICK_RATE, startLoop } from "./core/loop";
 import { Rng } from "./core/rng";
 import { loadAssets } from "./data/assets";
-import { Difficulty, forDifficulty } from "./data/config";
+import { forDifficulty } from "./data/config";
 import {
+  MENU_FONT,
+  MENU_INDEX_MASK,
   SHEET_FLASH_MASK,
   SHEET_LOW_MASK,
-  WORLDS,
   type World,
   backgroundImage,
   worldImage,
@@ -22,18 +23,23 @@ import { MONSTER_PITCH } from "./game/monsters";
 import { PADDLE_H, clampPaddleX } from "./game/paddle";
 import { FireLatch } from "./input/fire";
 import { KeyState, keyboardDx, keyboardSpeed } from "./input/keyboard";
-import { MouseAccumulator, bindPointerLock } from "./input/mouse";
+import { MouseAccumulator, bindPointerLock, lockPointer } from "./input/mouse";
 import { BRICK_H, BRICK_W, capsuleSprite, drawSprite, spriteAt } from "./render/atlas";
 import { BitmapFont } from "./render/font";
 import { applyFade } from "./render/fade";
 import { IconFlasher } from "./render/flash";
 import { BONUS_ICON_POS, drawHud } from "./render/hud";
+import { MenuRenderer } from "./render/menu";
 import { drawPlayfield } from "./render/playfield";
 import { SheetRecolorer } from "./render/recolor";
-import { Screen } from "./render/screen";
+import { SCREEN_HEIGHT, SCREEN_WIDTH, Screen } from "./render/screen";
+import { type Arrow, Menu, type MenuEvent } from "./ui/menu";
+import { browserStorage, loadSettings, saveSettings } from "./ui/settings";
+import { Transition, quitVolume } from "./ui/transition";
 
-const canvas = document.querySelector<HTMLCanvasElement>("#screen");
-if (!canvas) throw new Error("#screen canvas not found");
+const found = document.querySelector<HTMLCanvasElement>("#screen");
+if (!found) throw new Error("#screen canvas not found");
+const canvas = found;
 const screen = new Screen(canvas);
 const { ctx } = screen;
 
@@ -41,46 +47,190 @@ const assets = await loadAssets();
 const recolorer = new SheetRecolorer(assets.images.get(SHEET_LOW_MASK)!);
 const flasher = new IconFlasher(assets.images.get(SHEET_FLASH_MASK)!);
 
-// Until the menus exist (task 13): medium difficulty, [W] starts a new game in the other world.
-const difficulty = Difficulty.Medium;
-let world: World = "space";
-const newGame = (w: World) =>
-  new Game(assets.config, assets.levels[WORLD_LEVELS[w]], difficulty, new Rng(Date.now()));
-let game = newGame(world);
+const storage = browserStorage();
+const settings = loadSettings(storage);
 const audio = new GameAudio(assets.sounds);
-audio.playMusic(WORLD_MUSIC[world]);
+audio.setMusicVolume(settings.musicVolume);
+audio.playMusic(MENU_MUSIC);
+const menuRenderer = new MenuRenderer(
+  assets.images.get("backgrounds/title")!,
+  assets.images.get("sprites/menu")!,
+  assets.images.get(MENU_INDEX_MASK)!,
+  new BitmapFont(assets.images.get(MENU_FONT)!, "#000"),
+);
 
-const mouse = new MouseAccumulator();
-bindPointerLock(canvas, mouse);
+const newMenu = () => new Menu(assets.config.texts.menus, settings);
+
+type Scene = "menu" | "game" | "transition";
+let scene: Scene = "menu";
+let menu = newMenu();
+let world: World = "space";
+let game!: Game;
+let keySpeed = 0;
+let transition: Transition | null = null;
+let afterTransition = () => {};
+let onTransitionTick = () => {};
+/** The screen being left, frozen while it fades (the original simply stops drawing). */
+const frozen = document.createElement("canvas");
+frozen.width = SCREEN_WIDTH;
+frozen.height = SCREEN_HEIGHT;
+
+const mouse = new MouseAccumulator(settings.mouseSensitivity);
+bindPointerLock(canvas, mouse, () => scene === "game");
 const keys = new KeyState();
-const keySpeed = keyboardSpeed(forDifficulty(assets.config.startSpeed, difficulty));
 const fire = new FireLatch();
 const locked = () => document.pointerLockElement === canvas;
-canvas.addEventListener("mousedown", () => {
-  if (locked()) fire.press();
+const pointMenu = (e: MouseEvent) => {
+  const { x, y } = screen.toLogical(e.clientX, e.clientY);
+  if (scene === "menu") menu.pointAt(x, y);
+};
+canvas.addEventListener("mousedown", (e) => {
+  // A tap can come without any move before it.
+  pointMenu(e);
+  if (locked() || scene === "menu") fire.press();
 });
 window.addEventListener("mouseup", () => fire.release());
+window.addEventListener("mousemove", pointMenu);
+window.addEventListener("blur", () => fire.clear());
 document.addEventListener("pointerlockchange", () => {
   if (!locked()) fire.clear();
 });
 
-let showStats = true;
+function setScene(next: Scene): void {
+  scene = next;
+  canvas.style.cursor = next === "menu" ? "none" : "";
+}
+setScene("menu");
+
+function startTransition(t: Transition, then: () => void, onTick = () => {}): void {
+  frozen.getContext("2d")!.drawImage(canvas, 0, 0);
+  transition = t;
+  afterTransition = then;
+  onTransitionTick = onTick;
+  setScene("transition");
+}
+
+function backToMenu(): void {
+  menu = newMenu();
+  setScene("menu");
+}
+
+/** 0x4011A4: the music changes first, then 0x401D18 fades out and the game fades in. */
+function startGame(event: Extract<MenuEvent, { kind: "play" }>): void {
+  world = event.world;
+  // Still within the activation of the validating click or key.
+  lockPointer(canvas);
+  audio.playMusic(WORLD_MUSIC[world]);
+  const t = new Transition({ musicTicks: musicFadeTicks(settings.musicVolume) });
+  startTransition(t, () => {
+    const levels = assets.levels[WORLD_LEVELS[world]];
+    game = new Game(assets.config, levels, event.difficulty, new Rng(Date.now()));
+    keySpeed = keyboardSpeed(forDifficulty(assets.config.startSpeed, event.difficulty));
+    mouse.reset();
+    setScene("game");
+  });
+}
+
+/** 0x401F95 then 0x4011B4: back to the menu music, and its loop fades the game out. */
+function leaveGame(waitRelease: boolean): void {
+  document.exitPointerLock();
+  const t = new Transition({
+    waitRelease,
+    musicTicks: musicFadeTicks(settings.musicVolume),
+    onMusic: () => audio.playMusic(MENU_MUSIC),
+  });
+  startTransition(t, backToMenu);
+}
+
+/**
+ * 0x4012AA fades out and exits. A browser refuses to close a tab it did not open by script:
+ * the menu then comes back, at the volume it had.
+ */
+function quit(): void {
+  let volume = settings.musicVolume;
+  const t = new Transition();
+  const onTick = () => {
+    volume = quitVolume(volume);
+    audio.setMusicVolume(volume);
+  };
+  startTransition(
+    t,
+    () => {
+      window.close();
+      audio.setMusicVolume(settings.musicVolume);
+      backToMenu();
+    },
+    onTick,
+  );
+}
+
+function menuEvent(event: MenuEvent | null): void {
+  if (event?.kind === "play") startGame(event);
+  if (event?.kind === "quit") quit();
+  if (event?.kind === "settings") {
+    audio.setMusicVolume(settings.musicVolume);
+    mouse.sensitivity = settings.mouseSensitivity;
+    saveSettings(storage, settings);
+  }
+}
+
+let showStats = false;
 const stats = { ticks: 0, frames: 0, tps: 0, fps: 0, since: performance.now() };
 
+const FIRE_KEYS = ["Space", "Enter", "ControlLeft", "ControlRight"];
+const ARROWS: Record<string, Arrow> = {
+  ArrowLeft: "left",
+  ArrowRight: "right",
+  ArrowUp: "up",
+  ArrowDown: "down",
+};
+/** Pressed since the last tick, in the menu. */
+let escapePressed = false;
+/** [ebp] holds the last key until the main loop looks at it (0x401EF9, 0x401F37). */
+let gameKey: string | null = null;
+let anyKeyPressed = false;
+
 window.addEventListener("keydown", (e) => {
+  // A held arrow keeps moving the bars.
+  if (scene === "menu" && ARROWS[e.code]) menu.arrow(ARROWS[e.code]!);
   if (e.repeat) return;
+  anyKeyPressed = true;
   if (e.code === "KeyF") void screen.toggleFullscreen();
   if (e.code === "KeyS") showStats = !showStats;
-  if (e.code === "KeyW") {
-    world = WORLDS[(WORLDS.indexOf(world) + 1) % WORLDS.length]!;
-    game = newGame(world);
-    audio.playMusic(WORLD_MUSIC[world]);
-  }
-  if (e.code === "Space") fire.press();
+  if (FIRE_KEYS.includes(e.code)) fire.press();
+  if (e.code === "Escape" && scene === "menu") escapePressed = true;
+  if ((e.code === "Escape" || e.code === "KeyP") && scene === "game") gameKey = e.code;
 });
 window.addEventListener("keyup", (e) => {
-  if (e.code === "Space") fire.release();
+  if (FIRE_KEYS.includes(e.code)) fire.release();
 });
+
+function updateGame(): void {
+  if (game.paused) {
+    // 0x4020C1: a key or fire ends the pause, the arrows and the pause key included.
+    game.tick({ paddleDx: 0, fire: false });
+    if (anyKeyPressed || fire.take()) game.endPause();
+    gameKey = null;
+    return;
+  }
+  if (gameKey === "Escape" && game.canLeave) {
+    gameKey = null;
+    leaveGame(true);
+    return;
+  }
+  if (gameKey === "KeyP" && game.canPause) {
+    gameKey = null;
+    game.startPause();
+  }
+  const moving = [...game.balls, ...game.monsterSystem.monsters, ...game.shotSystem.shots];
+  prevBalls = new Map(moving.map((b) => [b, { x: b.x, y: b.y }]));
+  const paddleDx =
+    mouse.take() + keyboardDx(keys.isDown("ArrowLeft"), keys.isDown("ArrowRight"), keySpeed);
+  game.tick({ paddleDx, fire: fire.take() });
+  audio.playSounds(game.sounds);
+  // 0x401C87: past the last level, the main loop returns to the menu loop.
+  if (game.finished) leaveGame(true);
+}
 
 // Ball positions before the last tick, for drawing between ticks.
 let prevBalls = new Map<object, { x: number; y: number }>();
@@ -89,25 +239,35 @@ const MAX_LERP = 32;
 
 startLoop({
   update() {
-    const moving = [...game.balls, ...game.monsterSystem.monsters, ...game.shotSystem.shots];
-    prevBalls = new Map(moving.map((b) => [b, { x: b.x, y: b.y }]));
-    const paddleDx =
-      mouse.take() + keyboardDx(keys.isDown("ArrowLeft"), keys.isDown("ArrowRight"), keySpeed);
-    game.tick({ paddleDx, fire: fire.take() });
-    audio.playSounds(game.sounds);
+    switch (scene) {
+      case "menu": {
+        const event = menu.tick(fire.take(), escapePressed);
+        escapePressed = false;
+        audio.playSounds(menu.sounds);
+        menuEvent(event);
+        break;
+      }
+      case "game":
+        updateGame();
+        break;
+      case "transition":
+        onTransitionTick();
+        if (transition!.tick(fire.take())) afterTransition();
+        break;
+    }
+    anyKeyPressed = false;
     stats.ticks++;
   },
   render(alpha) {
-    const background = backgroundImage(world, game.level);
-    const sheet = recolorer.get(
-      assets.images.get(worldImage(world, "sprite_sheet"))!,
-      background,
-      assets.backgroundColors[background]!,
-    );
-    drawPlayfield(ctx, assets.images.get(background)!, sheet);
-    if (!game.bare) drawGame(alpha, sheet, background);
-    applyFade(ctx, game.screenFade);
-    if (!locked()) font().draw(ctx, "clic", 290, 220, false);
+    if (scene === "menu") {
+      menuRenderer.draw(ctx, menu);
+      applyFade(ctx, menu.fade);
+    } else if (scene === "transition") {
+      ctx.drawImage(frozen, 0, 0);
+      applyFade(ctx, transition!.fade);
+    } else {
+      renderGame(alpha);
+    }
 
     stats.frames++;
     const now = performance.now();
@@ -121,13 +281,26 @@ startLoop({
       ctx.fillStyle = "#fff";
       ctx.font = "12px monospace";
       ctx.fillText(
-        `TPS ${stats.tps}/${TICK_RATE}  FPS ${stats.fps}  x${screen.currentScale}  [F] fullscreen  [S] stats  [W] world`,
+        `TPS ${stats.tps}/${TICK_RATE}  FPS ${stats.fps}  x${screen.currentScale}  [F] fullscreen  [S] stats`,
         8,
         476,
       );
     }
   },
 });
+
+function renderGame(alpha: number): void {
+  const background = backgroundImage(world, game.level);
+  const sheet = recolorer.get(
+    assets.images.get(worldImage(world, "sprite_sheet"))!,
+    background,
+    assets.backgroundColors[background]!,
+  );
+  drawPlayfield(ctx, assets.images.get(background)!, sheet);
+  if (!game.bare) drawGame(alpha, sheet, background);
+  applyFade(ctx, game.screenFade);
+  if (!locked()) font().draw(ctx, "clic", 290, 220, false);
+}
 
 function font(): BitmapFont {
   return new BitmapFont(
@@ -168,7 +341,8 @@ function drawGame(alpha: number, sheet: HTMLCanvasElement, background: string): 
 
   const { paddle, paddleAnim } = game;
   // Drawn with the mouse movement of the current tick already applied, to cut visible lag.
-  const pending = game.reversed ? -mouse.peek() : mouse.peek();
+  const peeked = game.paused ? 0 : mouse.peek();
+  const pending = game.reversed ? -peeked : peeked;
   const ahead = paddleAnim ? 0 : clampPaddleX(paddle, paddle.x + pending) - paddle.x;
   for (const b of game.balls) {
     if (b.state === BallState.Dead) continue;

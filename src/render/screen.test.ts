@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { integerScale } from "./screen";
+import { integerScale, logicalPoint } from "./screen";
+
+describe("logicalPoint", () => {
+  it("removes the offset and the scale, rounding down to the pixel", () => {
+    expect(logicalPoint(100, 60, 100, 60, 2)).toEqual({ x: 0, y: 0 });
+    expect(logicalPoint(101, 63, 100, 60, 2)).toEqual({ x: 0, y: 1 });
+    expect(logicalPoint(99, 59, 100, 60, 2)).toEqual({ x: -1, y: -1 });
+  });
+});
 
 describe("integerScale", () => {
   it.each([

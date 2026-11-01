@@ -204,6 +204,18 @@ def parse_cfg(text: str) -> dict:
     return cfg
 
 
+# The menu shows menu.gif and fonte.gif under the palette of blaster.gif (0x40721F), which
+# menu.gif shares except for entry 0, skipped by the blitter (0x406A16). The hovered quadrant
+# pulses by palette entry (0x405671), so the entries are kept in a mask.
+def save_menu_sprites(sprites: Path, title: Path):
+    menu = Image.open(sprites / "menu.png")
+    menu.point(lambda v: v, "L").save(sprites / "menu_index.png")
+    font = Image.open(sprites / "font.png")
+    font.putpalette(Image.open(title).getpalette())
+    font.save(sprites / "menu_font.png", transparency=0)
+    menu.save(sprites / "menu.png", transparency=0)
+
+
 def main():
     original = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_ORIGINAL
     out = Path(sys.argv[2]) if len(sys.argv) > 2 else ROOT / "assets"
@@ -222,6 +234,8 @@ def main():
     report.append("sprites/sprite_sheet_low.png  (index 1..15 mask)")
     save_flash_mask(out / "sprites/sprite_sheet.png", out / "sprites/sprite_sheet_flash.png")
     report.append("sprites/sprite_sheet_flash.png  (index 112..127 mask)")
+    save_menu_sprites(out / "sprites", out / "backgrounds/title.png")
+    report.append("sprites/menu_index.png, menu_font.png  (menu palette entries, menu font)")
     bg_palettes = {}
     for world, pal in WORLD_PALETTES.items():
         vga = (original / pal).read_bytes()
