@@ -216,6 +216,16 @@ def save_menu_sprites(sprites: Path, title: Path):
     menu.save(sprites / "menu.png", transparency=0)
 
 
+# 0x401BD5 fades the palette entries 0xE0..0xFF in first: the text of a credits screen comes
+# before its logo, so the text needs its own image.
+CREDIT_TEXT_FIRST = 0xE0
+
+
+def save_credit_text(src: Path, path: Path):
+    im = Image.open(src)
+    im.point(lambda v: v if v >= CREDIT_TEXT_FIRST else 0).save(path, transparency=0)
+
+
 def main():
     original = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_ORIGINAL
     out = Path(sys.argv[2]) if len(sys.argv) > 2 else ROOT / "assets"
@@ -236,6 +246,9 @@ def main():
     report.append("sprites/sprite_sheet_flash.png  (index 112..127 mask)")
     save_menu_sprites(out / "sprites", out / "backgrounds/title.png")
     report.append("sprites/menu_index.png, menu_font.png  (menu palette entries, menu font)")
+    for i in range(1, 7):
+        save_credit_text(out / f"credits/credit_{i}.png", out / f"credits/credit_{i}_text.png")
+    report.append("credits/credit_*_text.png  (index 0xE0..0xFF)")
     bg_palettes = {}
     for world, pal in WORLD_PALETTES.items():
         vga = (original / pal).read_bytes()

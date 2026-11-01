@@ -14,6 +14,8 @@ export type MenuAction =
   | { kind: "world"; world: World }
   | { kind: "difficulty"; difficulty: Difficulty }
   | { kind: "quit" }
+  | { kind: "scores" }
+  | { kind: "credits" }
   /** Plays the click and stays, like the empty quadrant of the world menu (0x4014A8). */
   | { kind: "none" };
 
@@ -31,7 +33,7 @@ interface MenuDef {
 
 /**
  * Table 0x411CAC and actions 0x4014A3. Without coop and duel, menus 3 (player 2 control)
- * and 7 (joystick) cannot be reached. Demo is deferred; scores and credits come with task 14.
+ * and 7 (joystick) cannot be reached. Demo is deferred, and so are the coop scores.
  */
 export const MENUS: Record<MenuId, MenuDef> = {
   [MenuId.Main]: { sprite: 0x7a82, actions: [go(MenuId.Players), none, go(MenuId.Misc), quit] },
@@ -55,7 +57,10 @@ export const MENUS: Record<MenuId, MenuDef> = {
       go(MenuId.World),
     ],
   },
-  [MenuId.Misc]: { sprite: 0x59382, actions: [none, none, none, go(MenuId.Main)] },
+  [MenuId.Misc]: {
+    sprite: 0x59382,
+    actions: [{ kind: "scores" }, none, { kind: "credits" }, go(MenuId.Main)],
+  },
 };
 
 const LEFT = { x0: 192, x1: 317 };
@@ -119,7 +124,11 @@ export const sensitivityPosition = (sensitivity: number) =>
   Math.round(((sensitivity - MIN_SENSITIVITY) / (MAX_SENSITIVITY - MIN_SENSITIVITY)) * BAR_SPAN);
 
 export type MenuEvent =
-  { kind: "play"; world: World; difficulty: Difficulty } | { kind: "quit" } | { kind: "settings" };
+  | { kind: "play"; world: World; difficulty: Difficulty }
+  | { kind: "quit" }
+  | { kind: "scores" }
+  | { kind: "credits" }
+  | { kind: "settings" };
 
 export type Arrow = "left" | "right" | "up" | "down";
 
@@ -270,8 +279,11 @@ export class Menu {
     switch (action.kind) {
       case "difficulty":
         return { kind: "play", world: this.world, difficulty: action.difficulty };
+      // 0x4010B3: these leave the menu loop too, without waiting for the release.
       case "quit":
-        return { kind: "quit" };
+      case "scores":
+      case "credits":
+        return { kind: action.kind };
       case "world":
         this.world = action.world;
         this.next = MenuId.Difficulty;

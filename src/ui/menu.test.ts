@@ -155,9 +155,7 @@ describe("menu tree (0x4014A3)", () => {
     ["coop", MenuId.Players, [0], 1],
     ["duel", MenuId.Players, [0], 2],
     ["empty world", MenuId.World, [0, 0], 2],
-    ["scores", MenuId.Misc, [2], 0],
     ["coop scores", MenuId.Misc, [2], 1],
-    ["credits", MenuId.Misc, [2], 2],
   ] as const)("clicks and stays on %s", (_, menu, path, quadrant) => {
     const m = ready();
     for (const q of path) choose(m, q);
@@ -167,6 +165,19 @@ describe("menu tree (0x4014A3)", () => {
     expect(m.sounds).toEqual(["optionon"]);
     m.tick(false, false);
     expect(m.menu).toBe(menu);
+  });
+});
+
+describe("miscellaneous menu (0x4010B3)", () => {
+  it.each([
+    ["scores", 0],
+    ["credits", 2],
+  ] as const)("leaves for the %s on the press", (kind, quadrant) => {
+    const m = ready();
+    choose(m, 2);
+    m.pointAt(centers[quadrant]!.x, centers[quadrant]!.y);
+    expect(m.tick(true, false)).toEqual({ kind });
+    expect(m.sounds).toEqual(["optionon"]);
   });
 });
 

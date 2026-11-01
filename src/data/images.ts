@@ -30,6 +30,12 @@ export const MENU_INDEX_MASK = "sprites/menu_index";
 /** fonte.gif under the menu palette. */
 export const MENU_FONT = "sprites/menu_font";
 
+/** Screen N of the credits, in the order of the overlay. */
+export const creditImage = (n: number) => `credits/credit_${n}`;
+/** Its entries 0xE0..0xFF, which 0x401BD5 fades in first. */
+export const creditText = (n: number) => `${creditImage(n)}_text`;
+const CREDIT_IMAGES = 6;
+
 /** Every PNG written by tools/extract/extract_assets.py, without extension. */
 export const IMAGE_NAMES = [
   "backgrounds/title",
@@ -43,7 +49,10 @@ export const IMAGE_NAMES = [
   MENU_INDEX_MASK,
   MENU_FONT,
   "sprites/monsters",
-  ...range("credits/credit", 6),
+  ...Array.from({ length: CREDIT_IMAGES }, (_, i) => [
+    creditImage(i + 1),
+    creditText(i + 1),
+  ]).flat(),
   ...WORLDS.flatMap((world) => WORLD_SPRITES.map((sprite) => worldImage(world, sprite))),
 ];
 

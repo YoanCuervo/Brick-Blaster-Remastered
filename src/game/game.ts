@@ -224,8 +224,10 @@ export class Game {
   bare = false;
   /** Waiting for a key or fire, set by startPause() (0x4020C1). */
   paused = false;
-  /** The game is over for good: 0x401C87 returns to the menu loop. */
+  /** The last level is done: 0x401C82 shows the end screens, then the menu loop comes back. */
   finished = false;
+  /** Game over: 0x408AD9 shows the scores before mode 7. For the caller to reset. */
+  scoresDue = false;
   private pauseStep = false;
   private interval = 0;
   private pause = 0;
@@ -268,6 +270,8 @@ export class Game {
    */
   get screenFade(): number {
     if (this.mode === GameMode.FadeOut || this.mode === GameMode.FadeIn) return this.fade;
+    // 0x408AD9 ends on a fade out, which holds until the new game fades in.
+    if (this.mode === GameMode.GameOverWait) return FADE_STEPS - 1;
     return this.doubled ? NIGHT_FADE : this.fade;
   }
 
@@ -276,12 +280,9 @@ export class Game {
     return this.mode === GameMode.Ready || this.mode === GameMode.Playing;
   }
 
-  /**
-   * Same place for Esc (0x401EF9). The original never reads it in mode 7, which starts a
-   * new game at once: with fire standing in for the scores screen, Esc has to work there.
-   */
+  /** Same place for Esc (0x401EF9): mode 7 jumps over it to 0x401FB4 (0x401E7F). */
   get canLeave(): boolean {
-    return this.canPause || this.mode === GameMode.GameOverWait;
+    return this.canPause;
   }
 
   /** 0x4020A8: the status line says so, then the game runs one more tick and stands still. */
@@ -331,13 +332,13 @@ export class Game {
         this.fadeIn();
         break;
       case GameMode.GameOverWait:
-        if (input.fire) {
+        // 0x401FB4: only a release is awaited, there is no press to give.
+        if (!input.fire) {
           this.sounds.push("restart");
           this.newGame();
         }
         break;
       case GameMode.Finished:
-        if (input.fire) this.finished = true;
         break;
     }
     this.bonusDraw.ticks++;
@@ -686,6 +687,7 @@ export class Game {
   private endLevel(): void {
     if (this.level === this.levelCount) {
       this.mode = GameMode.Finished;
+      this.finished = true;
       return;
     }
     for (const b of this.balls) b.state = BallState.Dead;
@@ -735,6 +737,7 @@ export class Game {
         break;
       case GameMode.GameOver:
         this.mode = GameMode.GameOverWait;
+        this.scoresDue = true;
         break;
       case GameMode.LevelEnd:
         this.mode = GameMode.FadeOut;

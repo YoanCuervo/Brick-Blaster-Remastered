@@ -1,5 +1,12 @@
 import { GameAudio } from "./audio/audio";
-import { MENU_MUSIC, WORLD_MUSIC, musicFadeTicks } from "./audio/rules";
+import {
+  CREDITS_MUSIC,
+  MENU_MUSIC,
+  type MusicName,
+  SCORES_MUSIC,
+  WORLD_MUSIC,
+  musicFadeTicks,
+} from "./audio/rules";
 import { TICK_RATE, startLoop } from "./core/loop";
 import { Rng } from "./core/rng";
 import { loadAssets } from "./data/assets";
@@ -31,10 +38,14 @@ import { IconFlasher } from "./render/flash";
 import { BONUS_ICON_POS, drawHud } from "./render/hud";
 import { MenuRenderer } from "./render/menu";
 import { drawPlayfield } from "./render/playfield";
+import { drawFinal, drawScores, drawSlide } from "./render/screens";
 import { SheetRecolorer } from "./render/recolor";
 import { SCREEN_HEIGHT, SCREEN_WIDTH, Screen } from "./render/screen";
+import { FinalScreen } from "./ui/final";
 import { type Arrow, Menu, type MenuEvent } from "./ui/menu";
+import { ScoresScreen, loadScores, saveScores } from "./ui/scores";
 import { browserStorage, loadSettings, saveSettings } from "./ui/settings";
+import { BOOT_SLIDES, CREDITS_LAST_ORDER, CREDITS_SLIDES, Slideshow } from "./ui/slideshow";
 import { Transition, quitVolume } from "./ui/transition";
 
 const found = document.querySelector<HTMLCanvasElement>("#screen");
@@ -51,7 +62,6 @@ const storage = browserStorage();
 const settings = loadSettings(storage);
 const audio = new GameAudio(assets.sounds);
 audio.setMusicVolume(settings.musicVolume);
-audio.playMusic(MENU_MUSIC);
 const menuRenderer = new MenuRenderer(
   assets.images.get("backgrounds/title")!,
   assets.images.get("sprites/menu")!,
@@ -61,12 +71,21 @@ const menuRenderer = new MenuRenderer(
 
 const newMenu = () => new Menu(assets.config.texts.menus, settings);
 
-type Scene = "menu" | "game" | "transition";
-let scene: Scene = "menu";
+type Scene = "slides" | "menu" | "game" | "scores" | "final" | "transition";
+let scene: Scene = "slides";
 let menu = newMenu();
 let world: World = "space";
 let game!: Game;
 let keySpeed = 0;
+let show = new Slideshow(BOOT_SLIDES);
+let showMusic: MusicName = MENU_MUSIC;
+let afterShow = () => startTransition(new Transition(), backToMenu);
+let scores!: ScoresScreen;
+let scoresBackground = "";
+let afterScores = () => {};
+let final!: FinalScreen;
+/** Only picks the background of a visit from the menu. */
+const screenRng = new Rng(Date.now());
 let transition: Transition | null = null;
 let afterTransition = () => {};
 let onTransitionTick = () => {};
@@ -87,7 +106,7 @@ const pointMenu = (e: MouseEvent) => {
 canvas.addEventListener("mousedown", (e) => {
   // A tap can come without any move before it.
   pointMenu(e);
-  if (locked() || scene === "menu") fire.press();
+  if (locked() || scene !== "game") fire.press();
 });
 window.addEventListener("mouseup", () => fire.release());
 window.addEventListener("mousemove", pointMenu);
@@ -98,9 +117,9 @@ document.addEventListener("pointerlockchange", () => {
 
 function setScene(next: Scene): void {
   scene = next;
-  canvas.style.cursor = next === "menu" ? "none" : "";
+  canvas.style.cursor = next === "game" || next === "transition" ? "" : "none";
 }
-setScene("menu");
+setScene("slides");
 
 function startTransition(t: Transition, then: () => void, onTick = () => {}): void {
   frozen.getContext("2d")!.drawImage(canvas, 0, 0);
@@ -131,15 +150,82 @@ function startGame(event: Extract<MenuEvent, { kind: "play" }>): void {
   });
 }
 
-/** 0x401F95 then 0x4011B4: back to the menu music, and its loop fades the game out. */
-function leaveGame(waitRelease: boolean): void {
+/** The wait of 0x40666A is only there when the module changes (0x4077AF). */
+const musicTicks = (name: MusicName) =>
+  audio.music === name ? 0 : musicFadeTicks(settings.musicVolume);
+
+/** 0x401F95 then 0x4011B4: back to the menu music, and its loop fades the screen out. */
+function returnToMenu(waitRelease: boolean): void {
   document.exitPointerLock();
   const t = new Transition({
     waitRelease,
-    musicTicks: musicFadeTicks(settings.musicVolume),
+    musicTicks: musicTicks(MENU_MUSIC),
     onMusic: () => audio.playMusic(MENU_MUSIC),
   });
   startTransition(t, backToMenu);
+}
+
+/** 0x408BB9, from a dark screen. The Transition after it starts with the wait for the release. */
+function openScores(
+  background: string,
+  entry: { score: number; level: number } | null,
+  leave: () => void,
+): void {
+  const ticks = musicTicks(SCORES_MUSIC);
+  audio.playMusic(SCORES_MUSIC);
+  scores = new ScoresScreen(loadScores(storage), entry, ticks);
+  scoresBackground = background;
+  afterScores = leave;
+  setScene("scores");
+}
+
+const gameEntry = () => ({ score: game.player.score, level: game.level });
+
+/** 0x408AD9: fade out, scores, fade out. The mouse stays locked for the next game (0x401FB4). */
+function showGameOverScores(): void {
+  const music = WORLD_MUSIC[world];
+  const leave = () => {
+    const t = new Transition({
+      waitRelease: true,
+      musicTicks: musicTicks(music),
+      onMusic: () => audio.playMusic(music),
+    });
+    startTransition(t, () => setScene("game"));
+  };
+  startTransition(new Transition(), () =>
+    openScores(backgroundImage(world, game.level), gameEntry(), leave),
+  );
+}
+
+/** 0x408710: module and fade out of 0x407143, whose FLC comes with task 15, then the text. */
+function showEnding(): void {
+  document.exitPointerLock();
+  const t = new Transition({
+    musicTicks: musicTicks(SCORES_MUSIC),
+    onMusic: () => audio.playMusic(SCORES_MUSIC),
+  });
+  startTransition(t, () => {
+    final = new FinalScreen(assets.config.texts.final);
+    setScene("final");
+  });
+}
+
+/** 0x4011FF: the module, then 0x407078, whose intro.flc comes with task 15, then the pictures. */
+function showCredits(): void {
+  const t = new Transition({
+    musicTicks: musicTicks(CREDITS_MUSIC),
+    onMusic: () => audio.playMusic(CREDITS_MUSIC),
+  });
+  startTransition(t, () => {
+    show = new Slideshow(CREDITS_SLIDES, {
+      loop: true,
+      keyExits: true,
+      lastOrder: CREDITS_LAST_ORDER,
+    });
+    showMusic = CREDITS_MUSIC;
+    afterShow = () => returnToMenu(false);
+    setScene("slides");
+  });
 }
 
 /**
@@ -167,6 +253,12 @@ function quit(): void {
 function menuEvent(event: MenuEvent | null): void {
   if (event?.kind === "play") startGame(event);
   if (event?.kind === "quit") quit();
+  if (event?.kind === "credits") showCredits();
+  // 0x408AA1, then 0x4074C5: one of the first 4 backgrounds of the last world (0x404F42 with 3).
+  if (event?.kind === "scores") {
+    const background = backgroundImage(world, screenRng.rand(3) + 1);
+    startTransition(new Transition(), () => openScores(background, null, () => returnToMenu(true)));
+  }
   if (event?.kind === "settings") {
     audio.setMusicVolume(settings.musicVolume);
     mouse.sensitivity = settings.mouseSensitivity;
@@ -193,10 +285,17 @@ let anyKeyPressed = false;
 window.addEventListener("keydown", (e) => {
   // A held arrow keeps moving the bars.
   if (scene === "menu" && ARROWS[e.code]) menu.arrow(ARROWS[e.code]!);
+  const typing = scene === "scores" && scores.editing;
+  // Enter still held from the game must not validate a name nobody has seen.
+  const heldValidation = e.repeat && (e.key === "Enter" || e.key === "Escape");
+  if (typing && !heldValidation && !e.ctrlKey && !e.metaKey) {
+    if (e.key.length === 1) e.preventDefault();
+    scores.key(e.key);
+  }
   if (e.repeat) return;
   anyKeyPressed = true;
-  if (e.code === "KeyF") void screen.toggleFullscreen();
-  if (e.code === "KeyS") showStats = !showStats;
+  if (!typing && e.code === "KeyF") void screen.toggleFullscreen();
+  if (!typing && e.code === "KeyS") showStats = !showStats;
   if (FIRE_KEYS.includes(e.code)) fire.press();
   if (e.code === "Escape" && scene === "menu") escapePressed = true;
   if ((e.code === "Escape" || e.code === "KeyP") && scene === "game") gameKey = e.code;
@@ -215,7 +314,7 @@ function updateGame(): void {
   }
   if (gameKey === "Escape" && game.canLeave) {
     gameKey = null;
-    leaveGame(true);
+    returnToMenu(true);
     return;
   }
   if (gameKey === "KeyP" && game.canPause) {
@@ -228,8 +327,11 @@ function updateGame(): void {
     mouse.take() + keyboardDx(keys.isDown("ArrowLeft"), keys.isDown("ArrowRight"), keySpeed);
   game.tick({ paddleDx, fire: fire.take() });
   audio.playSounds(game.sounds);
-  // 0x401C87: past the last level, the main loop returns to the menu loop.
-  if (game.finished) leaveGame(true);
+  if (game.scoresDue) {
+    game.scoresDue = false;
+    showGameOverScores();
+  }
+  if (game.finished) showEnding();
 }
 
 // Ball positions before the last tick, for drawing between ticks.
@@ -250,6 +352,25 @@ startLoop({
       case "game":
         updateGame();
         break;
+      case "slides": {
+        const over = show.tick(fire.take(), anyKeyPressed, audio.musicOrder);
+        if (show.firstFadedIn) audio.playMusic(showMusic);
+        if (over) afterShow();
+        break;
+      }
+      case "scores":
+        if (scores.tick(fire.take(), anyKeyPressed)) {
+          // 0x408D71: only a validated name reaches the file.
+          if (scores.rank !== null) saveScores(storage, scores.table);
+          afterScores();
+        }
+        break;
+      case "final":
+        if (final.tick(fire.take(), anyKeyPressed)) {
+          // 0x401C87 comes after these scores: the module they bring back is theirs.
+          openScores(backgroundImage(world, game.level), gameEntry(), () => returnToMenu(true));
+        }
+        break;
       case "transition":
         onTransitionTick();
         if (transition!.tick(fire.take())) afterTransition();
@@ -265,6 +386,18 @@ startLoop({
     } else if (scene === "transition") {
       ctx.drawImage(frozen, 0, 0);
       applyFade(ctx, transition!.fade);
+    } else if (scene === "slides") {
+      drawSlide(ctx, show, assets.images);
+    } else if (scene === "scores") {
+      drawScores(
+        ctx,
+        scores,
+        assets.images.get(scoresBackground)!,
+        worldSheet(scoresBackground),
+        font(),
+      );
+    } else if (scene === "final") {
+      drawFinal(ctx, final, font());
     } else {
       renderGame(alpha);
     }
@@ -289,13 +422,17 @@ startLoop({
   },
 });
 
-function renderGame(alpha: number): void {
-  const background = backgroundImage(world, game.level);
-  const sheet = recolorer.get(
+function worldSheet(background: string): HTMLCanvasElement {
+  return recolorer.get(
     assets.images.get(worldImage(world, "sprite_sheet"))!,
     background,
     assets.backgroundColors[background]!,
   );
+}
+
+function renderGame(alpha: number): void {
+  const background = backgroundImage(world, game.level);
+  const sheet = worldSheet(background);
   drawPlayfield(ctx, assets.images.get(background)!, sheet);
   if (!game.bare) drawGame(alpha, sheet, background);
   applyFade(ctx, game.screenFade);
