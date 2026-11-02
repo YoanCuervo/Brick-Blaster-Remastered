@@ -687,6 +687,65 @@ function caught(key: Parameters<typeof bonusByKey>[0], levels?: Level[]): Game {
   return g;
 }
 
+describe("capsules while the paddle leaves (0x4054D2, 0x4031D1)", () => {
+  /** A cleared level: the normal warp object is 92 wide, 9 px left of the paddle. */
+  function leaving() {
+    const g = game([level([]), level()]);
+    g.tick(idle);
+    expect(g.mode).toBe(GameMode.LevelEnd);
+    return g;
+  }
+
+  it("catches in mode 3, with the rectangle of the warp object", () => {
+    const g = leaving();
+    const score = g.player.score;
+    spawnCapsule(g.capsules, bonusByKey("reverse"), g.paddle.x - 9, 414);
+    g.tick(idle);
+    expect(g.bonus.active?.key).toBe("reverse");
+    expect(g.bonus.icon).not.toBeNull();
+    expect(g.sounds).toContain("optionon");
+    expect(g.player.score).toBe(score + 30);
+  });
+
+  it("misses a capsule that does not fit in that rectangle", () => {
+    for (const x of [283 - 10, 283 - 9 + 92 - 25]) {
+      const g = leaving();
+      spawnCapsule(g.capsules, bonusByKey("reverse"), x, 414);
+      g.tick(idle);
+      expect(g.bonus.active).toBeNull();
+    }
+  });
+
+  it("still catches once the paddle is hidden", () => {
+    const g = leaving();
+    while (g.paddleAnim!.visible) g.tick(idle);
+    spawnCapsule(g.capsules, bonusByKey("reverse"), g.paddle.x, 414);
+    g.tick(idle);
+    expect(g.bonus.active?.key).toBe("reverse");
+  });
+
+  it("does not run the caught bonus, and the next round clears it", () => {
+    const g = leaving();
+    spawnCapsule(g.capsules, bonusByKey("large_ship"), g.paddle.x, 414);
+    g.tick(idle);
+    until(g, GameMode.Ready);
+    expect(g.paddle.w).toBe(74);
+    expect(g.bonus.active).toBeNull();
+    expect(g.bonus.icon).toBeNull();
+    expect(g.level).toBe(2);
+  });
+
+  it("does not catch during a paddle explosion, outside mode 3", () => {
+    const g = game();
+    g.tick(fire);
+    dropBall(g);
+    until(g, GameMode.LifeLost);
+    spawnCapsule(g.capsules, bonusByKey("reverse"), g.paddle.x, 414);
+    g.tick(idle);
+    expect(g.bonus.active).toBeNull();
+  });
+});
+
 describe("one-tick bonuses (0x4039E9)", () => {
   it("act once, the icon and the label staying until the message ends", () => {
     for (const key of ["fast_ball", "slow_ball", "iron_ball", "telepod"] as const) {
