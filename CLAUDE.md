@@ -22,16 +22,18 @@ npm run build          # type-check + production build into dist/
 npm test               # vitest (src/**/*.test.ts)
 npm run lint
 npm run format         # prettier (docs *.md are excluded on purpose)
+npm run electron:dev   # build, then run it in Electron (no HMR: use npm run dev to iterate)
+npm run electron:build # local Windows installer in release/ (holds Eclipse assets: never publish it)
 tools/.venv/Scripts/python.exe tools/extract/extract_assets.py   # regenerate assets/ from original/
 ```
 
-Planned (task 16): `npm run electron:dev`, `npm run electron:build` (Windows .exe).
+The installer build writes an uninstaller from an unknown .exe, which Windows Controlled Folder Access silently blocks under `Documents` (`__uninstaller.exe -> no files found`). Send the output elsewhere: `npm run electron:build -- -c.directories.output=C:/Users/cuerv/BrickBlaster-release`.
 
 ## Layout
 
 ```
 src/            game code (core/, game/, render/, audio/, ui/, data/)
-electron/       Electron main process
+electron/       Electron main process (compiled to dist-electron/), serves dist/ over app://
 assets/         asset pack generated from original/ (NOT versioned, served by Vite)
 original/       read-only reference copy of the 1999 game (NOT versioned)
 game/           playable test copy of the original with test cfg/levels (NOT versioned)
@@ -69,6 +71,7 @@ Python tooling runs in `tools/.venv` (capstone, Pillow), never in the system Pyt
 
 - Reading or writing anything outside `C:\Users\cuerv\Documents\Dev\Brick_Blaster2k26`.
 - Modifying `original/` or `tools/blaster_cfg_original.txt`.
+- Publishing the .exe (GitHub release, CI upload): it contains the Eclipse assets.
 - Committing `assets/`, `original/`, `game/`, `tools/blaster_cfg_original.txt`, `tools/.venv/`, `tools/deark/`, `tools/re/out/`, `.env*`.
 - Reading or writing `.env*` files (blocked by permissions).
 - Rebuilding `blaster.cfg` from scratch: it is read positionally and holds every game text (§5.1). Patch `blaster_cfg_original.txt` with `tools/make_test_cfg.py`.

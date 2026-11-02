@@ -3,6 +3,8 @@ original/
 game/
 tools/
 dist/
+dist-electron/
+.cache/
 release/
 # Hand-written docs: keep their layout
 *.md
