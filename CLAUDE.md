@@ -22,6 +22,7 @@ npm run build          # type-check + production build into dist/
 npm test               # vitest (src/**/*.test.ts)
 npm run lint
 npm run format         # prettier (docs *.md are excluded on purpose)
+npx vite --config tools/acceptance/vite.acceptance.config.ts   # dev server on port 5188, levels 39-40 reduced to one brick
 npm run electron:dev   # build, then run it in Electron (no HMR: use npm run dev to iterate)
 npm run electron:build # local Windows installer in release/ (holds Eclipse assets: never publish it)
 tools/.venv/Scripts/python.exe tools/extract/extract_assets.py   # regenerate assets/ from original/
@@ -32,13 +33,14 @@ The installer build writes an uninstaller from an unknown .exe, which Windows Co
 ## Layout
 
 ```
-src/            game code (core/, game/, render/, audio/, ui/, data/)
+src/            game code (core/, game/, input/, render/, audio/, ui/, data/)
 electron/       Electron main process (compiled to dist-electron/), serves dist/ over app://
 assets/         asset pack generated from original/ (NOT versioned, served by Vite)
 original/       read-only reference copy of the 1999 game (NOT versioned)
 game/           playable test copy of the original with test cfg/levels (NOT versioned)
 tools/extract/  DIET decompressor + asset extraction (Python)
 tools/re/       disassembly helpers (capstone), output in tools/re/out/
+tools/acceptance/ short-world dev config, never part of the build
 tools/          make_test_cfg.py, make_test_levels.py, blaster_cfg_original.txt
 docs/           cadrage.md
 ```
