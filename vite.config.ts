@@ -1,4 +1,3 @@
-// @ts-expect-error -- the project has no @types/node, for this one import.
 import { readFileSync } from "node:fs";
 import type { Plugin } from "vite";
 import { defineConfig } from "vitest/config";

@@ -292,6 +292,9 @@ def main():
         (out / dest).parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(original / f, out / dest)
         report.append(dest)
+    # electron-builder refuses an icon under 256 px; the original only holds 64x64.
+    Image.open(original / "blaster.ico").convert("RGBA").resize((256, 256), Image.NEAREST).save(out / "icon/blaster_256.png")
+    report.append("icon/blaster_256.png")
     w, h = save_png((original / "media.gif").read_bytes(), out / "backgrounds/media.png")
     report.append(f"backgrounds/media.png  {w}x{h}")
 

@@ -59,7 +59,7 @@ async function loadFlc(url: string): Promise<FlcFile> {
 export const loadEndFilm = (base = import.meta.env.BASE_URL): Promise<FlcFile> =>
   loadFlc(`${base}video/blaster.flc`);
 
-// BASE_URL keeps paths relative, so the same build also works from file:// in Electron.
+// BASE_URL is "/": Electron serves this same build from the root of its app:// origin.
 export async function loadAssets(base = import.meta.env.BASE_URL): Promise<Assets> {
   const [config, levels, images, palettes, backgroundColors, sounds, intro] = await Promise.all([
     fetchJson(`${base}config.json`).then(parseConfig),

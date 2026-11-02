@@ -1,13 +1,17 @@
 {
   "name": "brick-blaster-remastered",
+  "productName": "Brick Blaster Remastered",
   "version": "0.1.0",
   "private": true,
   "description": "Faithful remake of Brick Blaster (Eclipse, 1999)",
   "type": "module",
+  "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && tsc -p electron --noEmit && vite build",
     "preview": "vite preview",
+    "electron:dev": "npm run build && tsc -p electron && electron .",
+    "electron:build": "npm run build && tsc -p electron && electron-builder --win",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",
@@ -16,6 +20,8 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "electron": "45.2.1",
+    "electron-builder": "26.18.0",
     "eslint": "^10.14.0",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.9.10",
@@ -26,5 +32,22 @@
   },
   "dependencies": {
     "chiptune3": "0.8.9"
+  },
+  "build": {
+    "appId": "com.yoancuervo.brickblaster",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "dist-electron/**",
+      "!**/node_modules/**"
+    ],
+    "npmRebuild": false,
+    "publish": null,
+    "win": {
+      "target": "portable",
+      "icon": "assets/icon/blaster_256.png"
+    }
   }
 }
