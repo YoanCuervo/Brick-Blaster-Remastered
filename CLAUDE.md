@@ -23,9 +23,11 @@ npm test               # vitest (src/**/*.test.ts)
 npm run lint
 npm run format         # prettier (docs *.md are excluded on purpose)
 npm run electron:dev   # build, then run it in Electron (no HMR: use npm run dev to iterate)
-npm run electron:build # local Windows .exe in release/ (holds Eclipse assets: never publish it)
+npm run electron:build # local Windows installer in release/ (holds Eclipse assets: never publish it)
 tools/.venv/Scripts/python.exe tools/extract/extract_assets.py   # regenerate assets/ from original/
 ```
+
+The installer build writes an uninstaller from an unknown .exe, which Windows Controlled Folder Access silently blocks under `Documents` (`__uninstaller.exe -> no files found`). Send the output elsewhere: `npm run electron:build -- -c.directories.output=C:/Users/cuerv/BrickBlaster-release`.
 
 ## Layout
 

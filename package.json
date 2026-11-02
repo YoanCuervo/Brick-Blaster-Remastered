@@ -46,7 +46,7 @@
     "npmRebuild": false,
     "publish": null,
     "win": {
-      "target": "portable",
+      "target": "nsis",
       "icon": "assets/icon/blaster_256.png"
     }
   }
