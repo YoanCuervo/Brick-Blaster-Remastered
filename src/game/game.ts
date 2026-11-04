@@ -114,14 +114,11 @@ export const GameMode = {
   LifeLost: 6,
   /** Paddle explosion after the last life (mode 5). */
   GameOver: 5,
-  /**
-   * 7: 0x401FB4 starts a new game as soon as fire is released, after the scores screen of
-   * 0x408AD9. Until that screen exists (task 14), fire stands in for it.
-   */
+  /** 7: 0x401FB4 starts a new game as soon as fire is released, after the scores of 0x408AD9. */
   GameOverWait: 7,
   /** Paddle leaving the level (0x404C00). */
   LevelEnd: 8,
-  /** Past the last level (0x408710): fire stands in for the congratulations screen (task 14). */
+  /** Past the last level: the caller shows the end screens (0x408710). */
   Finished: 9,
   /** Palette fade to black before a new level (0x4065EF). */
   FadeOut: 10,
@@ -706,8 +703,11 @@ export class Game {
   private waitAnim(): void {
     const pa = this.paddleAnim!;
     this.updateShotsAndMonsters();
-    // 0x402058 keeps the capsules falling; nothing can catch them outside mode 3.
-    updateCapsules(this.capsules, this.paddle, false);
+    // 0x402058 keeps the capsules falling. Mode 3 lasts while the paddle leaves (0x401C54), and
+    // 0x4054D2 reads the object 0x4031D1 has just resized and moved, even once it is hidden.
+    const leaving = this.mode === GameMode.LevelEnd;
+    const catcher = { x: pa.x, w: pa.anim.w };
+    for (const b of updateCapsules(this.capsules, catcher, leaving)) this.capsuleCaught(b);
     stepShotSystem(this.shotSystem);
     stepMonsters(this.monsterSystem);
     if (!pa.done) {

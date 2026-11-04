@@ -16,15 +16,15 @@ Projet personnel, qui alimentera un portfolio. Pas d'échéance.
 ## Périmètre V1
 
 - Partie solo complète, avec toutes les règles décodées de l'original (analyse §4 et §5) :
-  - 6 types de briques (normale, 4 coups, fantôme, indestructible, téléporteur) ;
+  - 5 comportements de briques pour 6 valeurs (normale, 4 coups sous 2 valeurs, fantôme, indestructible, téléporteur) ;
   - rebond sur la raquette à 2 angles, accélération progressive, anti-boucle infinie ;
-  - 24 bonus (tirage exact, un seul actif à la fois, durée 600 ticks) ;
+  - 23 bonus en solo sur les 24 de la table, `collision` ne servant qu'en duel (tirage exact, un seul actif à la fois, durée 600 ticks) ;
   - monstres, score, vies, vie supplémentaire.
-- Les 2 mondes (espace, arcade) et leurs ~100 niveaux, avec leurs fonds.
+- Les 2 mondes (espace, arcade) et leurs 80 niveaux, 40 par monde, avec leurs fonds.
 - Contrôle à la souris (Pointer Lock, sensibilité continue réglable), plus le clavier.
 - Sons, musiques MOD d'origine, 3 difficultés.
 - Menus d'origine (boutons ronds à 4 quadrants), meilleurs scores et réglages conservés localement.
-- Intro animée FLC.
+- Les animations FLC, jouées comme dans l'original : `intro.flc` dans les crédits, `blaster.flc` sur l'écran de fin.
 - Deux livrables : une version navigateur et un **.exe Windows 10+**.
 - Meilleurs scores de la version navigateur : une table par monde et par difficulté, écart assumé avec l'original (analyse, Écrans et meilleurs scores). Le .exe garde la table unique. Un 3e monde, prévu sur le bouton vide du menu Monde, aura ses tables sans autre changement.
 
@@ -49,7 +49,7 @@ On peut finir les niveaux d'un monde, du menu jusqu'à l'écran « félicitation
 |---|---|
 | **TypeScript + Canvas 2D + Vite**, sans framework de jeu ni React | Une boucle de jeu n'a rien à gagner avec React, et un moteur (Phaser…) cacherait la physique décodée qu'on doit reproduire exactement. |
 | Rendu en **640×480 logique**, mis à l'échelle en pixels nets (`imageSmoothingEnabled = false`), plein écran optionnel | C'est la résolution des assets. |
-| **Moteur déterministe** : pas fixe à 50 Hz, hasard à graine | Reproduit le timer d'origine (`timeSetEvent` 20 ms). Rend possibles la démo par replay et, en V2, la vérification des scores côté serveur. |
+| **Moteur déterministe** : pas fixe à 50 Hz, hasard à graine | Choisi d'après le timer d'origine (`timeSetEvent` 20 ms). La recette V1 a montré que l'original avance en fait à 60 ticks par seconde (analyse §4.2) : cadence à décider. Rend possibles la démo par replay et, en V2, la vérification des scores côté serveur. |
 | **chiptune3** (libopenmpt en WebAssembly), intégré au projet et non chargé depuis un CDN | Lit les musiques MOD d'origine, fidèle et léger. Fonctionne hors ligne. |
 | **Décodeur FLC maison** | Format 8 bits simple, sans dépendance, rendu exact. |
 | **localStorage** | Meilleurs scores et réglages, sans backend. |
@@ -68,7 +68,7 @@ Graphismes, sons, musiques et niveaux appartiennent à Eclipse et à leurs auteu
 
 ## Variables d'environnement et secrets
 
-- **V1** : aucun secret. Seulement des réglages de développement facultatifs (`.env.local`, non versionné, documenté par `.env.example`).
+- **V1** : aucun secret. Rien à configurer.
 - Tout ce qui est dans le front (y compris `VITE_*`) est public : **jamais de secret côté front**.
 - **V2** : les secrets (base de données, signature des jetons) vivent uniquement côté backend, dans l'interface de l'hébergeur. La triche se combat en faisant rejouer la partie par le serveur (replay déterministe), pas avec un secret.
 

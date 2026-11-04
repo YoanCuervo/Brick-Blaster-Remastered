@@ -35,7 +35,7 @@ Aucun code source n'est disponible : le remake doit être une **réécriture**, 
 | `blaster.scr` | 960 | Binaire chiffré : octet `i` XOR `(960 − i) & 0xFF` (vérifié, routine `0x408E99`) | Meilleurs scores |
 | `BLASTER.usr`, `blaster..usr` | 2 | 2 octets | État/préférences utilisateur |
 | `sprite0.pal`, `sprite1.pal` | 768 | Palette brute 256 × RVB (3 octets) | Palettes des sprites (`file` les prend à tort pour du Targa) |
-| `blaster.flc` | 29 Mo | FLC 450×180, 8 bits, 417 images, 71 ms/image | Grande animation (intro/démo) |
+| `blaster.flc` | 29 Mo | FLC 450×180, 8 bits, 417 images, 71 ms/image | Animation de l'écran de fin (`0x407143`) |
 | `media.gif` | 8 892 | GIF 640×480 | Écran média |
 | `blaster.ico` | 5 694 | Icône 64×64 | |
 | `VDMSound_2.0.4.msi` | 978 432 | Installeur MSI (2001) | Émulateur Sound Blaster pour jeux DOS sous NT — **inutile** ici (le jeu utilise DirectSound) |
@@ -145,7 +145,7 @@ Durées réelles en jeu (s), à 13 208 Hz (§4.5) : 0.30, 0.56, 1.63, 0.51, 0.64
 - Les fonds dessinent leur image centrale avec les index 0 à 15, et les décors latéraux avec 216..223 (espace) ou 229..243 (arcade). Ces décors prennent donc les couleurs du monde. Dans les GIF arcade, ces index ne contiennent que du rouge de remplissage, jamais affiché.
 - Le fond est `resource\0W_0N.gif`, avec W le chiffre du monde et N = 1 + ((niveau − 1) & 7) : les 8 fonds tournent tous les 8 niveaux.
 - Les murs sont collés sur le fond au chargement (`0x40575F`) : sprite `0x5F743` (42 × 96) 5 fois en x 70, sprite `0x50743` 5 fois en x 528, avec la transparence.
-- Conséquence : les pixels de sprites d'index 1 à 15 prennent les couleurs du **fond courant**. Dans la planche, cela concerne les index 1 et 11 (cadres de repérage, jamais affichés), 15 (35 pixels par mur, donc noirs en jeu) et 3 (219 pixels, sur les lignes y = 92 et y = 1478 : motif tramé de variantes de raquette, pas la raquette de base `0x6900`). Dans `fonte.gif`, l'index 11 est hors des rectangles de glyphe 15 × 22 : jamais affiché. Dans `monster.gif`, l'index 1 n'occupe que les lignes de la grille des cadres : jamais affiché si les cadres sont lus dans les cases (probable, adresses des cadres de monstres pas encore décodées). Le remake recolore donc la seule planche de sprites, une copie par fond (`src/render/recolor.ts`), à partir d'un masque des index 1..15 et des 16 couleurs de chaque fond.
+- Conséquence : les pixels de sprites d'index 1 à 15 prennent les couleurs du **fond courant**. Dans la planche, cela concerne les index 1 et 11 (cadres de repérage, jamais affichés), 15 (35 pixels par mur, donc noirs en jeu) et 3 (219 pixels, sur les lignes y = 92 et y = 1478 : motif tramé de variantes de raquette, pas la raquette de base `0x6900`). Dans `fonte.gif`, l'index 11 est hors des rectangles de glyphe 15 × 22 : jamais affiché. Dans `monster.gif`, l'index 1 n'occupe que les lignes de la grille des cadres : jamais affiché, puisque les cadres sont lus dans les cases (§4.3). Le remake recolore donc la seule planche de sprites, une copie par fond (`src/render/recolor.ts`), à partir d'un masque des index 1..15 et des 16 couleurs de chaque fond.
 
 **Briques** (`0x404DD0`). Sprite de base selon la famille : cassable `0xEDC2`, indestructible `0x4AC9`, téléporteur `0xEE67`, fantôme `0xEE46`. On ajoute `couleur × 0x2A80` (17 lignes par teinte), et chaque impact avance de `0x21` (33 px). Taille 32 × 16. Si `[0x411000] = 4` (mode de jeu au rôle **non identifié**), une brique à plusieurs coups part de `0xEDA1` au lieu de `0xEDC2`.
 
@@ -181,7 +181,7 @@ couleur | type  | état
 - **Couleur** (bits 7-6) : 0..3 → les 4 teintes de la planche (vert, bleu, rose/violet, orange). Purement visuelle (décalage de sprite `couleur × 0x2A80`, routine `0x404DD0`).
 - **Famille** (bits 5-3) et **coups** (bits 2-0). Seules 6 valeurs existent dans les données.
 
-**Vérifié en jeu (niveaux de test, 30/10/2026) et dans le code :**
+**Vérifié dans le code. Les essais en jeu du 30/10/2026 ne valent que pour le niveau 1 de test : les suivants étaient découpés à 312 octets. `tools/make_test_levels.py` les régénère à 390 octets, comparaison à refaire :**
 
 | Valeur basse | Famille | Comportement |
 |---|---|---|
@@ -231,7 +231,10 @@ Pour le remake : reproduire ce comportement tel quel. C'est simple et fidèle.
 | `+0x49`, `+0x51` / `+0x4D`, `+0x55` | bornes x / y (murs) |
 | `+0x5D` | compte à rebours avant la prochaine accélération |
 
-**Cadence.** Timer `timeSetEvent(20 ms, périodique)` (appel en `0x409EC1`), soit **50 Hz**. Ce timer appelle un gestionnaire d'interruption DOS émulé. Que la logique avance d'un pas par tick est **probable** (la vitesse paraît correcte en jeu), mais pas prouvé.
+**Cadence (vérifié dans le code, 02/11/2026).** La logique n'avance **pas** au rythme du timer, mais de l'écran. Le « tick » `0x40653C` appelle le service `0x20` (`0x40B088`), soit `0x40DF87` : `IDirectDraw::WaitForVerticalBlank` (`+0x58`), puis attente active jusqu'à 14 ms depuis le tick précédent (`[0x421614]`, `timeGetTime`). La cadence vaut donc min(rafraîchissement de l'écran, ≈ 71,4 Hz).
+- Le mode d'écran demande **60 Hz** en dur (`SetDisplayMode(640, 480, 8, 0x3C, 0)`, `0x40DAF4`), et ne retombe sur le défaut du pilote que s'il échoue (`0x40DB0C`). La cadence attendue est donc **60 ticks par seconde**, à confirmer au chronomètre sur l'original.
+- Le timer `timeSetEvent(20 ms)` (`0x409EC1`, `0x40A07B`) ne fait tourner que l'entrée DirectInput et le mixage du son. La musique n'en dépend donc pas.
+- **Écart du remake** : il tourne à 50 ticks par seconde (`TICK_RATE`, `src/core/loop.ts`), soit 17 % plus lentement. Toutes les durées « à 50 Hz » de ce document (12 s pour un bonus, 39 s pour le film de fin…) décrivent le remake : à 60 Hz, 600 ticks font 10 s et 1952 ticks font 32,5 s.
 
 **Création de la balle** (`0x40225E`). Taille 9 × 9, sprite `0x1680`. Bornes : x de 112 (`0x70`) à `0x210 − 9` = 519, et y de 0 à `0x1E0 − 9` = 471. `+0x59 = 1` : la balle rebondit sur les briques (le bonus `iron_ball` le met à 0). `+0x5D = Freq_Change_Speed`. Au service, elle est posée au centre de la raquette (`0x404FDC`) : `y = raquette.y − h`, `x = raquette.x + l/2 − w/2`.
 
@@ -287,7 +290,7 @@ L'angle n'est donc **pas continu** : il n'existe que **deux angles** par vitesse
 
 **Score** (`0x40841D`). Chaque événement rapporte `u × 10` points, avec `u = base + bonus de difficulté` (+0 facile, +1 moyen, +2 difficile), doublé si le bonus `night` (« points ×2 ») est actif. Base : **1 par brique**, **3 par monstre**. Une brique vaut donc 10/20/30 points, un monstre 30/40/50. Le score plafonne à 999 990. Détail de `0x40841D` : le bonus de difficulté est ajouté avant le doublement, puis le jeu ajoute 10 points par unité tant que le score n'est pas pile à 999 990.
 
-**Lancement aléatoire** (`0x4024C0`, contexte d'appel à préciser) : `dx = 2..4`, `dy = dx + 1`. Puis, une fois sur deux, `dx -= 1`. Une fois sur deux, on bascule en mode rasant (`dx += 1`, `dy -= 1`, `mode = 1`). Enfin, les signes de `dx` et `dy` sont tirés au hasard.
+**Lancement aléatoire** (`0x4024C0`, appelé par les balles supplémentaires `0x40243B`, §5.2 ; l'autre appel, `0x402381`, est dans une routine `0x402370` qu'aucun `call` direct n'atteint) : `dx = 2..4`, `dy = dx + 1`. Puis, une fois sur deux, `dx -= 1`. Une fois sur deux, on bascule en mode rasant (`dx += 1`, `dy -= 1`, `mode = 1`). Enfin, les signes de `dx` et `dy` sont tirés au hasard.
 
 **Anti-boucle infinie** (`0x4051E3`). La routine est appelée à chaque inversion par `0x40407C` ou `0x40408A` : murs, briques, bord arrière de la raquette. Elle n'agit qu'en partie (`[0x411000] = 3`) et pas sur les monstres.
 
@@ -500,7 +503,7 @@ Le rebond sur la raquette joue `wall` (`0x4046E0`), l'accélération `speedup` (
 - **Une seule voix** : 2 voix sont réservées après celles du module (`0x4077D9`), mais `0x405746` ne prend la seconde que pour un numéro de son < `0x19`, et le chargeur n'en donne que ≥ `0x81` (`0x40D011`, `0x40D07B`). Un nouveau son coupe donc le précédent et repart du début. Dans un même tick, seul le dernier s'entend : `monstoff` × n une seule fois, `boom` puis `death` (`0x404C66`) donne `death`. Le mixage tournant à part, un fragment du premier pourrait passer (improbable).
 - **Numéro 0** : rien n'est joué (`0x40CF41`). C'est le cas de la capsule perdue (§5.2).
 - **Niveau** : indice = volume du son × volume général × 4, octet haut, plafonné à 63 (`0x40C9E2`). La table `0x40C86E` donne à une voix le niveau indice / 64 / ⌈voix / 2⌉, les 2 voix de sons comptant dans le total.
-- **Panoramique** : la voix `i` est tout à droite si `i & 3` vaut 1 ou 2, sinon tout à gauche (`0x40B693`, `0x40C999`). La voix des sons porte le numéro du nombre de voies du module : gauche sous 4 et 8 voies, droite sous 6. L'original lit le format de sortie au lancement (`0x40E3A9`) : la stéréo est donc probable, pas certaine.
+- **Panoramique** : la voix `i` est tout à droite si `i & 3` vaut 1 ou 2, sinon tout à gauche (`0x40B693`, `0x40C999`). La voix des sons porte le numéro du nombre de voies du module : gauche sous 4 et 8 voies, droite sous 6. L'original demande une sortie **stéréo 16 bits à 44 100 Hz** (`SetFormat`, `0x40E2CE` à `0x40E314`), puis relit le format obtenu (`0x40E36D`, `0x40E3A9`) : il ne passe en mono que si la carte le refuse.
 
 **Volumes.** Musique en `0x423E57`, sons en `0x423E58` (échange en `0x40CF86`), de 0 à 64. Valeurs par défaut 32 et 64 (`0x41BB56`), remplacées par les 2 octets du `.usr`. Le curseur du menu (`0x401903`) ne règle que la musique. Les routines `0x406F88` et `0x406FA4` ne sont appelées par personne.
 
@@ -617,7 +620,7 @@ lâcher une capsule au coin haut-gauche de la brique, chute 2 px/tick
 - Elle apparaît en x = 112 + col × 32, y = ligne × 16 (`0x40448E`). Elle tombe de 2 px dès le tick de sa création, car `0x405452` passe après les balles.
 - **Ramassage** (`0x4054D2`, mode 3 seulement) : y entre 416 et 440, et capsule **entièrement** dans la largeur de la raquette (`x ≥ raquette.x` et `x + 26 ≤ raquette.x + largeur`).
 - **Perdue** si `y + 24 + 2 ≥ 480`. Le son vient de l'emplacement `0x41B9FF`, juste après la table, que rien n'écrit : la capsule tombe donc sans bruit (`0x40CF41` ne joue rien pour le numéro 0).
-- Les capsules continuent de tomber pendant les attentes (`0x402058` : explosion, décollage de la raquette), sans pouvoir être ramassées. Toute nouvelle manche les efface (`0x405264`).
+- Les capsules continuent de tomber pendant les attentes (`0x402058` : explosion, décollage de la raquette). L'explosion change le mode : rien n'est ramassé. Le décollage le laisse à 3 (`0x401C54`) : `0x4054D2` ramasse encore, avec le rectangle de l'objet animé que `0x4031D1` vient de poser (normale : x − 9, largeur 92), même une fois caché. Le bonus compte (score, son, icône), mais sa routine ne tourne plus. Toute nouvelle manche les efface (`0x405264`).
 
 **Bonus actif** (`0x4055AE`, à la récupération de la capsule). Le ramassage joue `optionon`, donne **2 unités** de score (20/30/40 points), affiche l'icône et lance le clignotement. Le libellé n'apparaît qu'au tick suivant, avec `0x405DD2`.
 - **Un seul bonus actif à la fois**, dans `[0x411C70]`. Un nouveau bonus remplace le précédent, qui est mémorisé dans `[0x411C74]`.
@@ -709,7 +712,7 @@ tant qu'un des 4 coins touche une indestructible (0x40252D, même test qu'au §4
 | slow_ball | plus lent | ralentit les balles |
 | fast_ball | plus rapide | accélère les balles |
 | iron_ball | balle en métal | traverse les briques |
-| telepod | téléporteur | téléportation de la raquette |
+| telepod | téléporteur | téléportation des balles, pendant un tick (§5.2) |
 | night | points ×2 | double les points |
 | small_ship | petit vaisseau | raquette réduite |
 | large_ship | grand vaisseau | raquette agrandie |
@@ -834,17 +837,16 @@ Résultat dans `assets/` (69 fichiers) :
 | `sounds/` | 17 WAV 8 bits mono, en-tête 8 363 Hz repris du 8SVX mais joués à 13 208 Hz (§4.5). 8SVX signé converti en non signé. Le volume VHDR n'y est pas : il est dans `src/audio/rules.ts` |
 | `music/` | `love`, `starr`, `the_last`, `hunting_in_lacanau`, `rain_in_the_brain` (`.mod`, au format tracker d'origine, sans les 2 doublons) |
 | `video/` | `intro.flc` (décompressé), `blaster.flc` |
-| `levels.json` | `{"lv0": [...], "lv1": [...], "lv2": [...]}` : chaque niveau est une grille 24 × 13 d'octets bruts (0 = vide, encodage §4) |
+| `levels.json` | `{"lv0": [...], "lv1": [...], "lv2": [...]}` : chaque niveau est une grille 30 × 13 d'octets bruts (0 = vide, encodage §4) |
 | `palettes/`, `icon/` | copies |
 
-Restant à faire pour le web :
-- **Musiques MOD** : lues telles quelles avec libopenmpt en WASM (§4.5).
-- **Sprites** : découper `sprite_sheet.png` en atlas. Les cadres orange servent de repères, et le fond violet foncé sert de couleur de transparence (index de palette à identifier).
-- **FLC** : convertir en WebM, ou décoder directement (le format est simple), si l'intro est reprise.
+Le jeu lit les modules tels quels (§4.5), adresse les sprites dans la planche (§3.5) et décode les FLC lui-même (`src/data/flc.ts`).
 
 ---
 
 ## 7. Recommandations pour le remake
+
+> Écrites avant le remake, gardées comme trace. Ce qui a été fait est dans `docs/cadrage.md` : notamment une boucle à 50 Hz sans la physique à 120 Hz proposée ici, et pas de mode 2 joueurs en V1.
 
 ### Stack recommandée
 
@@ -904,14 +906,15 @@ Graphismes, sons, musiques et niveaux appartiennent à Eclipse / leurs auteurs (
 - ~~Signification des 6 types de briques~~ : résolu (§4).
 - ~~Types de balle 6 et 7~~ : résolu, ce sont les monstres et les projectiles (§4.2).
 - ~~Effet exact du garde-fou « monstre bloqué en haut »~~ : résolu, il n'en a aucun (§4.3).
-- Logique cadencée exactement à 50 Hz ? (§4.2)
+- ~~Logique cadencée exactement à 50 Hz ?~~ : résolu, non : 60 ticks par seconde attendus (§4.2). Reste à le mesurer sur l'original, et à décider de la cadence du remake.
 - Le jeu plante dès qu'il perd le plein écran (Alt+Tab, Impr. écran) : comparer le remake à l'original demandera un outil de fenêtrage (DxWnd).
 - La démo plante si le set de niveaux contient des emplacements vides (`0xFF`) parmi ceux qu'elle tire au sort : un set de test doit remplir 40 emplacements.
 - ~~Correspondance entre noms de fichiers `.mod` et titres de modules~~ : résolu, par le répertoire de l'exe (§3.3).
-- Sortie de l'original en stéréo ou non : lue au lancement (§4.5), probable.
+- ~~Sortie de l'original en stéréo ou non~~ : résolu, il la demande (§4.5).
 - ~~Quel set de niveaux correspond à quel monde~~ : résolu, espace = lv0, arcade = lv1 (§4).
 - ~~Rôle de `0x408AD9` et retour au menu~~ : résolu (§4.5, Menus).
 - ~~Contenu de `blaster.scr` une fois déchiffré~~ : résolu (Écrans et meilleurs scores). Les `.usr` restent sans importance pour le remake.
 - Routine d'effet restante : `collision`, qui ne concerne que le duel.
-- Capsules pendant le décollage de fin de niveau : `0x4054D2` les attrape en mode 3, et ce mode dure pendant le décollage. Le remake ne les attrape pas (écart connu, à corriger).
+- ~~Capsules pendant le décollage de fin de niveau~~ : résolu et porté (§5.2).
+- Balle enfermée : à vitesse maximale, une balle en angle raide a |dx| = 14 et ne peut plus passer en rasant (§4.2). Entre deux rangées d'indestructibles, elle peut boucler sans jamais revenir à la raquette, et l'anti-boucle ne l'en sort pas. Observé dans le remake au niveau 9 d'arcade (2 parties automatiques sur 117) : seul Échap en sort. Le portage suit `0x4051E3`, mais le cas n'a pas été reproduit dans l'original.
 - Rôle de l'octet patché à l'offset 28850.
