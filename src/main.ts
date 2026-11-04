@@ -75,15 +75,16 @@ const storage = browserStorage();
 const settings = loadSettings(storage);
 const audio = new GameAudio(assets.sounds);
 audio.setMusicVolume(settings.musicVolume);
+/** Electron serves dist/ over app://. The desktop version stays with the original on these. */
+const desktop = location.protocol === "app:";
 const menuRenderer = new MenuRenderer(
   assets.images.get("backgrounds/title")!,
   assets.images.get("sprites/menu")!,
   assets.images.get(MENU_INDEX_MASK)!,
   new BitmapFont(assets.images.get(MENU_FONT)!, "#000"),
+  !desktop,
 );
 
-/** Electron serves dist/ over app://. The desktop version stays with the original on these. */
-const desktop = location.protocol === "app:";
 const menuTexts = desktop ? assets.config.texts.menus : withLimbesLabel(assets.config.texts.menus);
 const newMenu = () => new Menu(menuTexts, settings, desktop ? ORIGINAL_WORLDS : WORLDS);
 const blackScreen = document.createElement("canvas");

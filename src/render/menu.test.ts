@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PULSE_COUNT } from "../ui/menu";
-import { pulsePixels } from "./menu";
+import { limbesMarkShade, pulsePixels } from "./menu";
 
 describe("pulsePixels (0x405671)", () => {
   it("darkens only the palette entries of the quadrant, by 8 per step", () => {
@@ -19,5 +19,19 @@ describe("pulsePixels (0x405671)", () => {
     const data = new Uint8ClampedArray(4).fill(10);
     pulsePixels(data, Uint8Array.from([0x7c]), 0x7c, 12);
     expect(data[0]).toBe(0);
+  });
+});
+
+describe("limbesMarkShade", () => {
+  it("draws a ring and an L, and leaves the rest alone", () => {
+    expect(limbesMarkShade(0, -31)).toBeLessThan(1);
+    expect(limbesMarkShade(-7, 0)).toBeLessThan(1);
+    expect(limbesMarkShade(8, 14)).toBeLessThan(1);
+    expect(limbesMarkShade(8, -10)).toBe(1);
+    expect(limbesMarkShade(0, -36)).toBe(1);
+  });
+
+  it("outlines the letter darker than it fills it", () => {
+    expect(limbesMarkShade(-11, 0)).toBeLessThan(limbesMarkShade(-7, 0));
   });
 });

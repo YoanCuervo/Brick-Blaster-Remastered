@@ -8,7 +8,7 @@ import {
   MOUSE_BAR_X,
   MUSIC_BAR_X,
   type Menu,
-  type MenuId,
+  MenuId,
   PULSE_COUNT,
   PULSE_FIRST,
   TITLE_POS,
@@ -49,6 +49,38 @@ export function pulsePixels(
   }
 }
 
+/** Where the F of the same quadrant sits on its button, so the L matches the S and the A. */
+const LIMBES_MARK = { x: 269, y: 324, radius: 33 } as const;
+const MARK_LINE = 0.72;
+const MARK_FILL = 0.88;
+
+const inLetterL = (dx: number, dy: number) =>
+  dx >= -11 && dy >= -18 && dy <= 18 && (dx <= -2 || (dy >= 9 && dx <= 13));
+
+/** Share of light kept at an offset from the centre of the mark: an L in its ring. */
+export function limbesMarkShade(dx: number, dy: number): number {
+  const distance = Math.hypot(dx, dy);
+  if (distance <= LIMBES_MARK.radius && distance > LIMBES_MARK.radius - 3) return MARK_LINE;
+  if (!inLetterL(dx, dy)) return 1;
+  const edge = [-2, 2].some((d) => !inLetterL(dx + d, dy) || !inLetterL(dx, dy + d));
+  return edge ? MARK_LINE : MARK_FILL;
+}
+
+/**
+ * Not in the original, whose pink quadrant is blank: the sheet is left alone and the mark is
+ * darkened on top, so the quadrant's palette entries, and its pulse, stay the same.
+ */
+function drawLimbesMark(ctx: CanvasRenderingContext2D): void {
+  const { x, y, radius } = LIMBES_MARK;
+  const size = radius * 2 + 1;
+  const image = ctx.getImageData(x - radius, y - radius, size, size);
+  for (let i = 0; i < size * size; i++) {
+    const shade = limbesMarkShade((i % size) - radius, Math.floor(i / size) - radius);
+    for (let c = 0; c < 3; c++) image.data[i * 4 + c] = image.data[i * 4 + c]! * shade;
+  }
+  ctx.putImageData(image, x - radius, y - radius);
+}
+
 function newLayer(): CanvasRenderingContext2D {
   const c = document.createElement("canvas");
   c.width = SCREEN_WIDTH;
@@ -71,6 +103,7 @@ export class MenuRenderer {
     private readonly sheet: CanvasImageSource,
     private readonly indexMask: CanvasImageSource,
     private readonly font: BitmapFont,
+    private readonly limbesMark: boolean,
   ) {}
 
   draw(ctx: CanvasRenderingContext2D, menu: Menu): void {
@@ -101,6 +134,7 @@ export class MenuRenderer {
       const color = newLayer();
       color.drawImage(this.title, 0, 0);
       this.drawSprites(color, this.sheet, id);
+      if (this.limbesMark && id === MenuId.World) drawLimbesMark(color);
       const frameX = MOUSE_BAR_X - BAR_FRAME_OFFSET;
       drawSprite(color, this.sheet, BAR_FRAME, frameX, BAR_Y - BAR_FRAME_OFFSET);
       // The pulsing entries of title.gif lie under the button, but for 20 stray pixels.
