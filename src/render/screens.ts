@@ -3,9 +3,10 @@ import { FADE_STEPS, applyFade } from "./fade";
 import { drawSprite, spriteAt } from "./atlas";
 import type { BitmapFont } from "./font";
 import { GLYPH_H, GLYPH_W } from "./font";
+import { PADDLE_X_MIN, PLAY_RIGHT } from "../game/paddle";
 import { drawPlayfield } from "./playfield";
 import { FINAL_POS, type FinalScreen } from "../ui/final";
-import { SCORES_POS, type ScoresScreen } from "../ui/scores";
+import { SCORES_POS, TABLE_TITLE_Y, type ScoresScreen } from "../ui/scores";
 import type { Slideshow } from "../ui/slideshow";
 import type { Images } from "../data/images";
 import type { FlcDecoder } from "../data/flc";
@@ -69,6 +70,10 @@ export class FilmRenderer {
   }
 }
 
+/** The panels beside the walls are too narrow for this word on one line. */
+const TABLES_HINT = "fleches".split("").join("\n");
+const TABLES_HINT_POS = { x: 598, y: 135 } as const;
+
 /** 0x408523: the rows over the bare background, transparent like the text of 0x408654. */
 export function drawScores(
   ctx: CanvasRenderingContext2D,
@@ -78,7 +83,13 @@ export function drawScores(
   font: BitmapFont,
 ): void {
   drawPlayfield(ctx, background, sheet);
-  font.draw(ctx, screen.rows.join("\n"), SCORES_POS.x, SCORES_POS.y, false);
+  font.draw(ctx, screen.rows.join("\n"), SCORES_POS.x, screen.rowsY, false);
+  const { title } = screen;
+  if (title) {
+    const x = (PADDLE_X_MIN + PLAY_RIGHT - title.length * GLYPH_W) >> 1;
+    font.draw(ctx, title, x, TABLE_TITLE_Y, false);
+  }
+  if (screen.switchable) font.draw(ctx, TABLES_HINT, TABLES_HINT_POS.x, TABLES_HINT_POS.y, false);
   const { cursor } = screen;
   if (cursor) {
     drawSprite(ctx, sheet, spriteAt(cursor.address, GLYPH_W, GLYPH_H), cursor.x, cursor.y);
