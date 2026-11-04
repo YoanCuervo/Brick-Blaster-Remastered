@@ -13,10 +13,14 @@ import { loadAssets, loadEndFilm } from "./data/assets";
 import { Difficulty, forDifficulty } from "./data/config";
 import type { FlcFile } from "./data/flc";
 import {
+  BLACK_BACKGROUND,
   MENU_FONT,
   MENU_INDEX_MASK,
+  ORIGINAL_WORLDS,
   SHEET_FLASH_MASK,
   SHEET_LOW_MASK,
+  WORLDS,
+  WORLD_SKIN,
   type World,
   backgroundImage,
   worldImage,
@@ -44,7 +48,7 @@ import { SheetRecolorer } from "./render/recolor";
 import { SCREEN_HEIGHT, SCREEN_WIDTH, Screen } from "./render/screen";
 import { ENDING_STEPS, Film } from "./ui/film";
 import { FinalScreen } from "./ui/final";
-import { type Arrow, Menu, type MenuEvent } from "./ui/menu";
+import { type Arrow, Menu, type MenuEvent, withLimbesLabel } from "./ui/menu";
 import {
   type ScoreTableId,
   ScoresScreen,
@@ -78,15 +82,22 @@ const menuRenderer = new MenuRenderer(
   new BitmapFont(assets.images.get(MENU_FONT)!, "#000"),
 );
 
-const newMenu = () => new Menu(assets.config.texts.menus, settings);
+/** Electron serves dist/ over app://. The desktop version stays with the original on these. */
+const desktop = location.protocol === "app:";
+const menuTexts = desktop ? assets.config.texts.menus : withLimbesLabel(assets.config.texts.menus);
+const newMenu = () => new Menu(menuTexts, settings, desktop ? ORIGINAL_WORLDS : WORLDS);
+const blackScreen = document.createElement("canvas");
+blackScreen.width = SCREEN_WIDTH;
+blackScreen.height = SCREEN_HEIGHT;
+black(blackScreen.getContext("2d")!);
+const backgroundOf = (name: string): CanvasImageSource =>
+  name === BLACK_BACKGROUND ? blackScreen : assets.images.get(name)!;
 
 type Scene = "slides" | "menu" | "game" | "scores" | "film" | "final" | "transition";
 let scene: Scene = "slides";
 let menu = newMenu();
 let world: World = "space";
 let difficulty: Difficulty = Difficulty.Easy;
-/** Electron serves dist/ over app://. The desktop version keeps the single table of the original. */
-const singleScoreTable = location.protocol === "app:";
 let game!: Game;
 let keySpeed = 0;
 let show = new Slideshow(BOOT_SLIDES);
@@ -168,7 +179,7 @@ function startGame(event: Extract<MenuEvent, { kind: "play" }>): void {
 }
 
 /** The wait of 0x40666A is only there when the module changes (0x4077AF). */
-const musicTicks = (name: MusicName) =>
+const musicTicks = (name: MusicName | null) =>
   audio.music === name ? 0 : musicFadeTicks(settings.musicVolume);
 
 /** 0x401F95 then 0x4011B4: back to the menu music, and its loop fades the screen out. */
@@ -191,8 +202,8 @@ function openScores(
   const ticks = musicTicks(SCORES_MUSIC);
   audio.playMusic(SCORES_MUSIC);
   const load = (table: ScoreTableId | null) => loadScores(storage, scoresKey(table));
-  const id = singleScoreTable ? null : { world, difficulty };
-  const title = (table: ScoreTableId) => tableTitle(table, assets.config.texts.menus);
+  const id = desktop ? null : { world, difficulty };
+  const title = (table: ScoreTableId) => tableTitle(table, menuTexts);
   scores = new ScoresScreen(load(id), entry, ticks, id && { id, load, title });
   scoresBackground = background;
   afterScores = leave;
@@ -448,13 +459,7 @@ startLoop({
       if (endFilm) films.draw(ctx, endFilm, endFilm.fade);
       else black(ctx);
     } else if (scene === "scores") {
-      drawScores(
-        ctx,
-        scores,
-        assets.images.get(scoresBackground)!,
-        worldSheet(scoresBackground),
-        font(),
-      );
+      drawScores(ctx, scores, backgroundOf(scoresBackground), worldSheet(scoresBackground), font());
     } else if (scene === "final") {
       drawFinal(ctx, final, font());
     } else {
@@ -492,7 +497,7 @@ function worldSheet(background: string): HTMLCanvasElement {
 function renderGame(alpha: number): void {
   const background = backgroundImage(world, game.level);
   const sheet = worldSheet(background);
-  drawPlayfield(ctx, assets.images.get(background)!, sheet);
+  drawPlayfield(ctx, backgroundOf(background), sheet);
   if (!game.bare) drawGame(alpha, sheet, background);
   applyFade(ctx, game.screenFade);
   if (!locked()) font().draw(ctx, "clic", 290, 220, false);
@@ -501,7 +506,7 @@ function renderGame(alpha: number): void {
 function font(): BitmapFont {
   return new BitmapFont(
     assets.images.get(worldImage(world, "font"))!,
-    paletteColor(assets.palettes[world], 0),
+    paletteColor(assets.palettes[WORLD_SKIN[world]], 0),
   );
 }
 

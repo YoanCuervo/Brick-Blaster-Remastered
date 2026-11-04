@@ -1,22 +1,41 @@
 const range = (prefix: string, count: number) =>
   Array.from({ length: count }, (_, i) => `${prefix}_${i + 1}`);
 
-/** World order of the world menu: space loads sprite0.pal, arcade sprite1.pal (0x40172A). */
-export const WORLDS = ["space", "arcade"] as const;
+/** World order of the world menu. Limbes takes the empty quadrant and is not in the original. */
+export const WORLDS = ["space", "arcade", "limbes"] as const;
 export type World = (typeof WORLDS)[number];
+
+/** Worlds the asset pack holds: space loads sprite0.pal, arcade sprite1.pal (0x40172A). */
+export const ORIGINAL_WORLDS = ["space", "arcade"] as const;
+export type OriginalWorld = (typeof ORIGINAL_WORLDS)[number];
+
+/** Limbes has no assets of its own yet: it borrows the sprites and the palette of space. */
+export const WORLD_SKIN: Record<World, OriginalWorld> = {
+  space: "space",
+  arcade: "arcade",
+  limbes: "space",
+};
 
 /** In-game sprites, re-paletted per world with index 0 transparent (extract_assets.py). */
 export const WORLD_SPRITES = ["sprite_sheet", "font", "monsters"] as const;
 export type WorldSprite = (typeof WORLD_SPRITES)[number];
 
-export const worldImage = (world: World, sprite: WorldSprite) => `sprites/${world}/${sprite}`;
+export const worldImage = (world: World, sprite: WorldSprite) =>
+  `sprites/${WORLD_SKIN[world]}/${sprite}`;
 
 /** Backgrounds per world: resource/0W_0N.gif (W = world digit). */
 export const WORLD_BACKGROUNDS = 8;
 
+/** Black screen of Limbes: no image behind this name, only recolouring data (data/assets.ts). */
+export const BLACK_BACKGROUND = "backgrounds/black";
+/** Colours 0..15 of the screen palette under the black background (§3.5). */
+export const BLACK_BACKGROUND_COLORS = "backgrounds/space_1";
+
 /** 0x407430: background N = 1 + ((level − 1) & 7), so they cycle every 8 levels. */
 export const backgroundImage = (world: World, level: number) =>
-  `backgrounds/${world}_${((level - 1) & (WORLD_BACKGROUNDS - 1)) + 1}`;
+  world === "limbes"
+    ? BLACK_BACKGROUND
+    : `backgrounds/${world}_${((level - 1) & (WORLD_BACKGROUNDS - 1)) + 1}`;
 
 /** Indices 1..15 of the sprite sheet, recoloured per background (§3.5, render/recolor.ts). */
 export const SHEET_LOW_MASK = "sprites/sprite_sheet_low";
@@ -40,7 +59,7 @@ const CREDIT_IMAGES = 6;
 export const IMAGE_NAMES = [
   "backgrounds/title",
   "backgrounds/media",
-  ...WORLDS.flatMap((world) => range(`backgrounds/${world}`, WORLD_BACKGROUNDS)),
+  ...ORIGINAL_WORLDS.flatMap((world) => range(`backgrounds/${world}`, WORLD_BACKGROUNDS)),
   "sprites/sprite_sheet",
   SHEET_LOW_MASK,
   SHEET_FLASH_MASK,
@@ -53,7 +72,7 @@ export const IMAGE_NAMES = [
     creditImage(i + 1),
     creditText(i + 1),
   ]).flat(),
-  ...WORLDS.flatMap((world) => WORLD_SPRITES.map((sprite) => worldImage(world, sprite))),
+  ...ORIGINAL_WORLDS.flatMap((world) => WORLD_SPRITES.map((sprite) => worldImage(world, sprite))),
 ];
 
 export type Images = ReadonlyMap<string, HTMLImageElement>;

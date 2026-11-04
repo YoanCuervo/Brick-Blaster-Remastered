@@ -11,6 +11,7 @@ import {
   parseConfig,
 } from "../data/config";
 import { LEVEL_COLS, LEVEL_ROWS, type Level, WORLD_LEVELS, parseLevels } from "../data/levels";
+import { LIMBES_LEVELS } from "../data/limbesLevels";
 import { BallState } from "./ball";
 import { Game, GameMode } from "./game";
 
@@ -131,6 +132,18 @@ describe("a whole game", () => {
   });
 });
 
+describe("the levels of Limbes", () => {
+  for (const difficulty of DIFFICULTIES) {
+    it(`difficulty ${difficulty}: 50 levels, no stuck level`, () => {
+      for (let seed = 1999; seed < 1999 + SEEDS; seed++) {
+        const run = play(testConfig, LIMBES_LEVELS, difficulty, seed);
+        if (SEEDS > 1) console.log("limbes", difficulty, seed, JSON.stringify(run));
+        expect(run.finished, `stopped at level ${run.level}`).toBe(true);
+      }
+    }, 600_000);
+  }
+});
+
 // The asset pack is never versioned: these run only where it has been extracted.
 const packed = existsSync("assets/levels.json") && existsSync("assets/config.json");
 
@@ -142,7 +155,7 @@ describe.skipIf(!packed)("the original levels", () => {
   for (const world of ["space", "arcade"] as const) {
     for (const difficulty of DIFFICULTIES) {
       it(`${world}, difficulty ${difficulty}: 40 levels, no stuck level`, () => {
-        const levels = sets![WORLD_LEVELS[world]];
+        const levels = sets![WORLD_LEVELS[world] as "lv0" | "lv1"];
         expect(levels).toHaveLength(40);
         for (let seed = 1999; seed < 1999 + SEEDS; seed++) {
           const run = play(config, levels, difficulty, seed);

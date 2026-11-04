@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Difficulty } from "../data/config";
+import type { World } from "../data/images";
 import { FADE_STEPS } from "../render/fade";
 import {
   MENUS,
@@ -15,6 +16,7 @@ import {
   quadrantAt,
   sensitivityAt,
   sensitivityPosition,
+  withLimbesLabel,
 } from "./menu";
 
 const texts = Array.from({ length: 7 }, (_, m) =>
@@ -36,6 +38,40 @@ function choose(m: Menu, quadrant: number) {
   m.tick(false, false);
   return event;
 }
+
+describe("the world Limbes", () => {
+  const worldMenu = (worlds?: readonly World[]) => {
+    const m = new Menu(texts, { musicVolume: 32, mouseSensitivity: 0.5 }, worlds);
+    for (let i = 0; i < FADE_STEPS + 1; i++) m.tick(false, false);
+    choose(m, 0);
+    choose(m, 0);
+    expect(m.menu).toBe(MenuId.World);
+    return m;
+  };
+
+  it("takes the pink quadrant and leads to the difficulties", () => {
+    const m = worldMenu();
+    choose(m, 2);
+    expect(m.menu).toBe(MenuId.Difficulty);
+    expect(choose(m, 0)).toEqual({ kind: "play", world: "limbes", difficulty: Difficulty.Easy });
+  });
+
+  it("stays an empty quadrant where it is not offered, as in the desktop version", () => {
+    const m = worldMenu(["space", "arcade"]);
+    m.pointAt(centers[2]!.x, centers[2]!.y);
+    expect(m.tick(true, false)).toBeNull();
+    expect(m.sounds).toEqual(["optionon"]);
+    m.tick(false, false);
+    expect(m.menu).toBe(MenuId.World);
+  });
+
+  it("gets its label without touching the other texts", () => {
+    const named = withLimbesLabel(texts);
+    expect(named[MenuId.World - 1]![2]).toEqual(["        limbes        ", "title 4"]);
+    expect(named[MenuId.World - 1]![1]).toBe(texts[MenuId.World - 1]![1]);
+    expect(named[0]).toBe(texts[0]);
+  });
+});
 
 describe("hit zones (0x401832)", () => {
   it("has x1 inside and y1 outside", () => {
@@ -154,7 +190,6 @@ describe("menu tree (0x4014A3)", () => {
     ["demo", MenuId.Main, [], 1],
     ["coop", MenuId.Players, [0], 1],
     ["duel", MenuId.Players, [0], 2],
-    ["empty world", MenuId.World, [0, 0], 2],
     ["coop scores", MenuId.Misc, [2], 1],
   ] as const)("clicks and stays on %s", (_, menu, path, quadrant) => {
     const m = ready();
