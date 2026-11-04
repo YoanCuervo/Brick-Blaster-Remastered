@@ -39,7 +39,13 @@ interface Run {
  * Follows the lowest falling ball and picks a new part of the paddle for each descent, like a
  * player does: always the same one can settle into a loop the anti-loop never sees (§4.2).
  */
-function play(config: GameConfig, levels: readonly Level[], difficulty: Difficulty, seed: number): Run {
+function play(
+  config: GameConfig,
+  levels: readonly Level[],
+  difficulty: Difficulty,
+  seed: number,
+  quietTicks?: number,
+): Run {
   const game = new Game(config, levels, difficulty, new Rng(seed));
   const player = new Rng(seed ^ 0x5a5a5a);
   const run: Run = { finished: false, level: 1, gameOvers: 0, stalls: 0, longestLevel: 0, score: 0 };
@@ -51,7 +57,9 @@ function play(config: GameConfig, levels: readonly Level[], difficulty: Difficul
   let bricks = -1;
   let lastBreak = 0;
   let stalled = false;
-  while (!game.finished) {
+  const stallTicks = quietTicks ?? STALL_TICKS;
+  const only = quietTicks === undefined ? null : config.startLevel;
+  while (!game.finished && (only === null || game.level === only)) {
     if (game.level !== level) {
       level = game.level;
       levelTicks = 0;
@@ -71,7 +79,7 @@ function play(config: GameConfig, levels: readonly Level[], difficulty: Difficul
       lastBreak = tick;
       stalled = false;
     }
-    if (!stalled && tick - lastBreak > STALL_TICKS) {
+    if (!stalled && tick - lastBreak > stallTicks) {
       stalled = true;
       run.stalls++;
     }
@@ -142,6 +150,31 @@ describe("the levels of Limbes", () => {
       }
     }, 600_000);
   }
+});
+
+/**
+ * A level where the ball settles into a circuit away from the last bricks: at high speed its two
+ * angles are about the same, so the paddle hardly changes the course (§4.2). Limbes is held to
+ * this, not the original: its worst level, the 14th of arcade, would fail.
+ */
+describe("the levels of Limbes, one by one", () => {
+  const QUIET_TICKS = 3000;
+  const RUNS = 6;
+  const MAX_STALLS = 1;
+  it("rarely leave the ball with nothing to break for a minute", () => {
+    const stallsOf = (i: number) => {
+      let stalls = 0;
+      for (let seed = 1001; seed <= 1000 + RUNS; seed++) {
+        const config = { ...testConfig, startLevel: i + 1 };
+        stalls += play(config, LIMBES_LEVELS, Difficulty.Medium, seed, QUIET_TICKS).stalls;
+      }
+      return stalls;
+    };
+    const tooMany = LIMBES_LEVELS.map((_, i) => ({ level: i + 1, stalls: stallsOf(i) })).filter(
+      (r) => r.stalls > MAX_STALLS,
+    );
+    expect(tooMany).toEqual([]);
+  }, 600_000);
 });
 
 // The asset pack is never versioned: these run only where it has been extracted.
