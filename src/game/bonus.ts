@@ -108,7 +108,7 @@ export function spawnCapsule(capsules: Capsule[], bonus: BonusDef, x: number, y:
 }
 
 /** 0x4054E7: the capsule must fit entirely within the paddle's width. */
-export function isCaught(c: Capsule, paddle: Paddle): boolean {
+export function isCaught(c: Capsule, paddle: Pick<Paddle, "x" | "w">): boolean {
   return c.x >= paddle.x && c.x + CAPSULE_W <= paddle.x + paddle.w;
 }
 
@@ -117,7 +117,11 @@ export function isCaught(c: Capsule, paddle: Paddle): boolean {
  * Returns the bonuses caught this tick. A missed capsule goes silently: the sound slot
  * 0x41B9FF is never loaded (probable).
  */
-export function updateCapsules(capsules: Capsule[], paddle: Paddle, canCatch: boolean): BonusDef[] {
+export function updateCapsules(
+  capsules: Capsule[],
+  paddle: Pick<Paddle, "x" | "w">,
+  canCatch: boolean,
+): BonusDef[] {
   const caught: BonusDef[] = [];
   for (const c of capsules) {
     if (c.state !== CapsuleState.Falling) continue;
