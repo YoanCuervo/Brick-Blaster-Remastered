@@ -26,6 +26,7 @@ Projet personnel, qui alimentera un portfolio. Pas d'échéance.
 - Menus d'origine (boutons ronds à 4 quadrants), meilleurs scores et réglages conservés localement.
 - Intro animée FLC.
 - Deux livrables : une version navigateur et un **.exe Windows 10+**.
+- Meilleurs scores de la version navigateur : une table par monde et par difficulté, écart assumé avec l'original (analyse, Écrans et meilleurs scores). Le .exe garde la table unique. Un 3e monde, prévu sur le bouton vide du menu Monde, aura ses tables sans autre changement.
 
 ## Exclusions V1
 

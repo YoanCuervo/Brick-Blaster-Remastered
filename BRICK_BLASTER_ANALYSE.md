@@ -805,6 +805,8 @@ tant qu'un des 4 coins touche une indestructible (0x40252D, même test qu'au §4
 - Chaque image attend le relâchement du tir. L'original ne le fait que pour les touches, mais Espace et Entrée comptent ici comme tir.
 - À la fin du jeu, l'original affiche les scores en pleine palette juste avant leur fondu d'entrée. Le remake commence au noir.
 - La table est gardée dans `localStorage` (`brick-blaster.scores`), et part de celle de l'exe : `blaster.scr` contient les pseudos d'autres joueurs.
+- **Écart assumé, version navigateur seulement** : une table de 15 entrées par monde et par difficulté, sous `brick-blaster.scores.<monde>.<easy|medium|hard>`, car la difficulté augmente les points de chaque événement (`0x40841D`). Le .exe, reconnu à son origine `app://`, garde la table unique de l'original. Sur le web, l'ancienne clé n'est ni lue ni effacée : ses entrées ne disent ni le monde ni la difficulté.
+- Sur le web, un titre « monde : difficulté » (libellés des menus 4 et 5 de `blaster.cfg`) occupe le haut de l'écran : les lignes descendent de 8 px, en gardant 15 lignes espacées de 30 px. Hors saisie d'un nom, ←/→ change de monde et ↑/↓ de difficulté, sans quitter l'écran ; toute autre touche ou le tir quitte, comme l'original. L'écran s'ouvre sur la table de la partie, ou sur le dernier monde et la dernière difficulté joués (espace, facile après un rechargement). Le mot « fleches », seul texte hors `blaster.cfg`, est écrit à la verticale : les panneaux à côté des murs font 70 px de large.
 
 Textes en jeu : « pret ? », « game over », « joue encore », « éditeur de niveaux », « pause », « demo », « test ». Écran final solo : « félicitations ! vous êtes vraiment un as !! ». Écran final duel : « vainqueur joueur ??? ».
 
