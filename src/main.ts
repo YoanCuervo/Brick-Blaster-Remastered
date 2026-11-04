@@ -10,7 +10,7 @@ import {
 import { TICK_RATE, startLoop } from "./core/loop";
 import { Rng } from "./core/rng";
 import { loadAssets, loadEndFilm } from "./data/assets";
-import { forDifficulty } from "./data/config";
+import { Difficulty, forDifficulty } from "./data/config";
 import type { FlcFile } from "./data/flc";
 import {
   MENU_FONT,
@@ -45,7 +45,14 @@ import { SCREEN_HEIGHT, SCREEN_WIDTH, Screen } from "./render/screen";
 import { ENDING_STEPS, Film } from "./ui/film";
 import { FinalScreen } from "./ui/final";
 import { type Arrow, Menu, type MenuEvent } from "./ui/menu";
-import { ScoresScreen, loadScores, saveScores } from "./ui/scores";
+import {
+  type ScoreTableId,
+  ScoresScreen,
+  loadScores,
+  saveScores,
+  scoresKey,
+  tableTitle,
+} from "./ui/scores";
 import { browserStorage, loadSettings, saveSettings } from "./ui/settings";
 import { BOOT_SLIDES, CREDITS_LAST_ORDER, CREDITS_SLIDES, Slideshow } from "./ui/slideshow";
 import { Transition, quitVolume } from "./ui/transition";
@@ -77,6 +84,9 @@ type Scene = "slides" | "menu" | "game" | "scores" | "film" | "final" | "transit
 let scene: Scene = "slides";
 let menu = newMenu();
 let world: World = "space";
+let difficulty: Difficulty = Difficulty.Easy;
+/** Electron serves dist/ over app://. The desktop version keeps the single table of the original. */
+const singleScoreTable = location.protocol === "app:";
 let game!: Game;
 let keySpeed = 0;
 let show = new Slideshow(BOOT_SLIDES);
@@ -143,6 +153,7 @@ function backToMenu(): void {
 /** 0x4011A4: the music changes first, then 0x401D18 fades out and the game fades in. */
 function startGame(event: Extract<MenuEvent, { kind: "play" }>): void {
   world = event.world;
+  difficulty = event.difficulty;
   // Still within the activation of the validating click or key.
   lockPointer(canvas);
   audio.playMusic(WORLD_MUSIC[world]);
@@ -179,7 +190,10 @@ function openScores(
 ): void {
   const ticks = musicTicks(SCORES_MUSIC);
   audio.playMusic(SCORES_MUSIC);
-  scores = new ScoresScreen(loadScores(storage), entry, ticks);
+  const load = (table: ScoreTableId | null) => loadScores(storage, scoresKey(table));
+  const id = singleScoreTable ? null : { world, difficulty };
+  const title = (table: ScoreTableId) => tableTitle(table, assets.config.texts.menus);
+  scores = new ScoresScreen(load(id), entry, ticks, id && { id, load, title });
   scoresBackground = background;
   afterScores = leave;
   setScene("scores");
@@ -328,6 +342,10 @@ window.addEventListener("keydown", (e) => {
     scores.key(e.key);
   }
   if (e.repeat) return;
+  if (scene === "scores" && scores.switchable && ARROWS[e.code]) {
+    scores.arrow(ARROWS[e.code]!);
+    return;
+  }
   anyKeyPressed = true;
   if (!typing && e.code === "KeyF") void screen.toggleFullscreen();
   if (!typing && e.code === "KeyS") showStats = !showStats;
@@ -396,7 +414,7 @@ startLoop({
       case "scores":
         if (scores.tick(fire.take(), anyKeyPressed)) {
           // 0x408D71: only a validated name reaches the file.
-          if (scores.rank !== null) saveScores(storage, scores.table);
+          if (scores.rank !== null) saveScores(storage, scores.table, scoresKey(scores.tableId));
           afterScores();
         }
         break;

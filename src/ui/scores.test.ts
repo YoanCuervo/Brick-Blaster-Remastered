@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { Difficulty, type MenuText } from "../data/config";
+import type { World } from "../data/images";
 import { FADE_STEPS } from "../render/fade";
 import {
   NAME_LENGTH,
@@ -6,6 +8,7 @@ import {
   SCORES_KEY,
   SCORES_POS,
   SCORE_ROWS,
+  type ScoreTableId,
   ScoresScreen,
   defaultScores,
   insertScore,
@@ -13,6 +16,9 @@ import {
   nameChar,
   saveScores,
   scoreRows,
+  scoresKey,
+  stepTable,
+  tableTitle,
 } from "./scores";
 
 const fakeStore = (saved: string | null = null) => {
@@ -211,5 +217,140 @@ describe("scores screen (0x408BB9)", () => {
     expect(s.cursor).not.toBeNull();
     s.key("a");
     expect(s.cursor).toBeNull();
+  });
+});
+
+const SPACE_EASY: ScoreTableId = { world: "space", difficulty: Difficulty.Easy };
+const ARCADE_HARD: ScoreTableId = { world: "arcade", difficulty: Difficulty.Hard };
+
+describe("tables per world and difficulty (browser only)", () => {
+  it("gives each world and difficulty its own key", () => {
+    expect(scoresKey(SPACE_EASY)).toBe("brick-blaster.scores.space.easy");
+    expect(scoresKey({ world: "space", difficulty: Difficulty.Medium })).toBe(
+      "brick-blaster.scores.space.medium",
+    );
+    expect(scoresKey(ARCADE_HARD)).toBe("brick-blaster.scores.arcade.hard");
+  });
+
+  it("keeps the desktop table on the key of the single table", () => {
+    expect(scoresKey(null)).toBe(SCORES_KEY);
+  });
+
+  it("keeps one table apart from the others and from the single table", () => {
+    const store = fakeStore(JSON.stringify(tableOf(900)));
+    const table = defaultScores();
+    insertScore(table, 500, 3);
+    saveScores(store, table, scoresKey(SPACE_EASY));
+    expect(loadScores(store, scoresKey(SPACE_EASY))).toEqual(table);
+    expect(loadScores(store, scoresKey(ARCADE_HARD))).toEqual(defaultScores());
+    expect(loadScores(store)[0]!.value).toBe(900);
+  });
+
+  it("moves through the worlds with left and right, and wraps", () => {
+    expect(stepTable(SPACE_EASY, "right").world).toBe("arcade");
+    expect(stepTable(SPACE_EASY, "left").world).toBe("arcade");
+    expect(stepTable(ARCADE_HARD, "right")).toEqual({ ...ARCADE_HARD, world: "space" });
+  });
+
+  it("moves through the difficulties with up and down, and wraps", () => {
+    expect(stepTable(SPACE_EASY, "down").difficulty).toBe(Difficulty.Medium);
+    expect(stepTable(SPACE_EASY, "up").difficulty).toBe(Difficulty.Hard);
+    expect(stepTable(ARCADE_HARD, "down")).toEqual({ ...ARCADE_HARD, difficulty: Difficulty.Easy });
+  });
+
+  it("takes a third world without any other change", () => {
+    const third = "third" as World;
+    const worlds: readonly World[] = ["space", "arcade", third];
+    const id = stepTable({ ...SPACE_EASY, world: "arcade" }, "right", worlds);
+    expect(id.world).toBe(third);
+    expect(stepTable(id, "right", worlds).world).toBe("space");
+    expect(scoresKey(id)).toBe("brick-blaster.scores.third.easy");
+  });
+
+  it("titles a table with the menu texts of blaster.cfg", () => {
+    const text = (label: string): MenuText => [label, ""];
+    const menus = [
+      [],
+      [],
+      [],
+      [text("   espace  "), text("  arcade  ")],
+      [text(" facile "), text(" moyen "), text(" difficile ")],
+    ];
+    expect(tableTitle(SPACE_EASY, menus)).toBe("espace : facile");
+    expect(tableTitle(ARCADE_HARD, menus)).toBe("arcade : difficile");
+  });
+});
+
+describe("scores screen with tables", () => {
+  const visit = (entry: { score: number; level: number } | null = null) => {
+    const saved = new Map<string, ReturnType<typeof tableOf>>([
+      [scoresKey(ARCADE_HARD), tableOf(700)],
+    ]);
+    const load = (id: ScoreTableId | null) => saved.get(scoresKey(id)) ?? defaultScores();
+    const title = (id: ScoreTableId) => `${id.world} ${id.difficulty}`;
+    return new ScoresScreen(load(SPACE_EASY), entry, 0, { id: SPACE_EASY, load, title });
+  };
+
+  it("changes table and title with the arrows", () => {
+    const s = visit();
+    fadeIn(s);
+    expect(s.title).toBe("space 0");
+    s.arrow("right");
+    s.arrow("up");
+    expect(s.tableId).toEqual(ARCADE_HARD);
+    expect(s.title).toBe("arcade 2");
+    expect(s.table[0]!.value).toBe(700);
+    s.arrow("left");
+    expect(s.table).toEqual(defaultScores());
+  });
+
+  it("does not end the screen on an arrow, but on fire or another key", () => {
+    const s = visit();
+    fadeIn(s);
+    s.arrow("down");
+    expect(s.tick(false, false)).toBe(false);
+    expect(s.tick(true, false)).toBe(true);
+    const k = visit();
+    fadeIn(k);
+    expect(k.tick(false, true)).toBe(true);
+  });
+
+  it("stays on the table of the game while a name is entered", () => {
+    const s = visit({ score: 500, level: 3 });
+    fadeIn(s);
+    expect(s.switchable).toBe(false);
+    s.arrow("right");
+    expect(s.tableId).toEqual(SPACE_EASY);
+    expect(s.table[s.rank!]!.value).toBe(500);
+  });
+
+  it("can change table after a score below the table", () => {
+    const s = visit({ score: 0, level: 1 });
+    expect(s.rank).toBeNull();
+    expect(s.switchable).toBe(true);
+  });
+
+  it("moves the rows and the cursor down under the title", () => {
+    const s = visit({ score: 500, level: 3 });
+    fadeIn(s);
+    s.key("a");
+    for (let i = 0; i < 10; i++) s.tick(false, false);
+    expect(s.rowsY).toBe(30);
+    expect(s.cursor!.y).toBe(30 + s.rank! * ROW_HEIGHT);
+    expect(30 + 14 * ROW_HEIGHT + 22).toBeLessThanOrEqual(480);
+  });
+});
+
+describe("scores screen of the desktop version", () => {
+  it("keeps the single table: no title, no switch, rows where they were", () => {
+    const table = tableOf(800);
+    const s = new ScoresScreen(table, null, 0);
+    fadeIn(s);
+    expect(s.title).toBeNull();
+    expect(s.tableId).toBeNull();
+    expect(s.switchable).toBe(false);
+    expect(s.rowsY).toBe(SCORES_POS.y);
+    s.arrow("right");
+    expect(s.table).toBe(table);
   });
 });

@@ -1,6 +1,9 @@
 // Best scores: the table of the .scr file, the name entry and the screen, port of 0x408BB9.
+import { Difficulty, type MenuText } from "../data/config";
+import { WORLDS, type World } from "../data/images";
 import { FADE_STEPS } from "../render/fade";
 import { levelText, scoreText } from "../render/hud";
+import type { Arrow } from "./menu";
 import type { Store } from "./settings";
 
 /** The .scr file holds 2 tables of 15 entries, solo at 0x41C462. Coop is out of scope. */
@@ -21,6 +24,64 @@ export interface ScoreEntry {
 
 export const SCORES_POS = { x: 0x78, y: 0x16 } as const;
 export const ROW_HEIGHT = 0x1e;
+
+/**
+ * Departure from the original, browser only: one table per world and difficulty, because the
+ * difficulty raises the points of every event (0x40841D). 0x408DDD knows a single table.
+ */
+export interface ScoreTableId {
+  world: World;
+  difficulty: Difficulty;
+}
+
+/** The 15 rows fill the screen: they move down just enough for the title above them. */
+const TABLE_ROWS_Y = 0x1e;
+export const TABLE_TITLE_Y = 2;
+
+const DIFFICULTY_NAMES = {
+  [Difficulty.Easy]: "easy",
+  [Difficulty.Medium]: "medium",
+  [Difficulty.Hard]: "hard",
+};
+const DIFFICULTIES = [Difficulty.Easy, Difficulty.Medium, Difficulty.Hard] as const;
+/** Menus 4 and 5 of blaster.cfg hold the names of the worlds and of the difficulties. */
+const WORLD_MENU = 3;
+const DIFFICULTY_MENU = 4;
+
+/** The single table of the desktop version has no id and stays under the first key. */
+export const scoresKey = (id: ScoreTableId | null) =>
+  id ? `${SCORES_KEY}.${id.world}.${DIFFICULTY_NAMES[id.difficulty]}` : SCORES_KEY;
+
+export function tableTitle(id: ScoreTableId, menus: readonly (readonly MenuText[])[]): string {
+  const world = menus[WORLD_MENU]![WORLDS.indexOf(id.world)]![0].trim();
+  return `${world} : ${menus[DIFFICULTY_MENU]![id.difficulty]![0].trim()}`;
+}
+
+/** Left and right change the world, up and down the difficulty. Both wrap around. */
+export function stepTable(
+  id: ScoreTableId,
+  arrow: Arrow,
+  worlds: readonly World[] = WORLDS,
+): ScoreTableId {
+  const step = (length: number, at: number, by: number) => (at + by + length) % length;
+  if (arrow === "left" || arrow === "right") {
+    const at = step(worlds.length, worlds.indexOf(id.world), arrow === "left" ? -1 : 1);
+    return { ...id, world: worlds[at]! };
+  }
+  const at = step(
+    DIFFICULTIES.length,
+    DIFFICULTIES.indexOf(id.difficulty),
+    arrow === "up" ? -1 : 1,
+  );
+  return { ...id, difficulty: DIFFICULTIES[at]! };
+}
+
+/** What the screen needs to change table, on the browser version. */
+export interface ScoreTables {
+  id: ScoreTableId;
+  load(id: ScoreTableId): ScoreEntry[];
+  title(id: ScoreTableId): string;
+}
 /** 0x408C41: the name column, 12 characters into the row. */
 const NAME_X = 0x12c;
 const CURSOR_W = 0xf;
@@ -74,9 +135,9 @@ const isEntry = (e: unknown): e is ScoreEntry => {
 };
 
 /** 0x408DDD reads the file at each visit. Anything unusable leaves the table of the exe. */
-export function loadScores(store: Store | null): ScoreEntry[] {
+export function loadScores(store: Store | null, key = SCORES_KEY): ScoreEntry[] {
   try {
-    const saved: unknown = JSON.parse(store?.getItem(SCORES_KEY) ?? "null");
+    const saved: unknown = JSON.parse(store?.getItem(key) ?? "null");
     if (Array.isArray(saved) && saved.length === SCORE_ROWS && saved.every(isEntry)) return saved;
   } catch {
     // Same as no file.
@@ -84,9 +145,13 @@ export function loadScores(store: Store | null): ScoreEntry[] {
   return defaultScores();
 }
 
-export function saveScores(store: Store | null, table: readonly ScoreEntry[]): void {
+export function saveScores(
+  store: Store | null,
+  table: readonly ScoreEntry[],
+  key = SCORES_KEY,
+): void {
   try {
-    store?.setItem(SCORES_KEY, JSON.stringify(table));
+    store?.setItem(key, JSON.stringify(table));
   } catch {
     // Full or blocked storage only costs the table of the next visit.
   }
@@ -117,11 +182,13 @@ export class ScoresScreen {
    * @param table the table, which gets the new entry
    * @param entry the score to insert, null when coming from the menu (0x408AA1)
    * @param musicTicks how long the change of module holds the screen back (0x40666A)
+   * @param tables the tables to go through, null for the single table of the desktop version
    */
   constructor(
-    readonly table: ScoreEntry[],
+    public table: ScoreEntry[],
     entry: { score: number; level: number } | null,
     private musicTicks: number,
+    private readonly tables: ScoreTables | null = null,
   ) {
     this.rank = entry && insertScore(table, entry.score, entry.level);
     this.phase = musicTicks > 0 ? Phase.Music : Phase.FadeIn;
@@ -135,13 +202,38 @@ export class ScoresScreen {
     return this.phase === Phase.Entry;
   }
 
+  /** A new entry stays on the table of its game. */
+  get switchable(): boolean {
+    return this.tables !== null && this.rank === null;
+  }
+
+  get tableId(): ScoreTableId | null {
+    return this.tables?.id ?? null;
+  }
+
+  get title(): string | null {
+    return this.tables && this.tables.title(this.tables.id);
+  }
+
+  get rowsY(): number {
+    return this.tables ? TABLE_ROWS_Y : SCORES_POS.y;
+  }
+
+  /** An arrow on the browser version, which then does not count as the key that ends the screen. */
+  arrow(arrow: Arrow): void {
+    if (!this.switchable) return;
+    const tables = this.tables!;
+    tables.id = stepTable(tables.id, arrow);
+    this.table = tables.load(tables.id);
+  }
+
   /** Sprite and position of the cursor, drawn over the name column. */
   get cursor(): { address: number; x: number; y: number } | null {
     if (this.frame === null || this.rank === null || !this.editing) return null;
     return {
       address: CURSOR_SPRITE + this.frame * CURSOR_W,
       x: NAME_X + this.length * CURSOR_W,
-      y: SCORES_POS.y + this.rank * ROW_HEIGHT,
+      y: this.rowsY + this.rank * ROW_HEIGHT,
     };
   }
 
