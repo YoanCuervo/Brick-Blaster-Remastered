@@ -36,11 +36,13 @@ The installer build writes an uninstaller from an unknown .exe, which Windows Co
 src/            game code (core/, game/, input/, render/, audio/, ui/, data/)
 electron/       Electron main process (compiled to dist-electron/), serves dist/ over app://
 assets/         asset pack generated from original/ (NOT versioned, served by Vite)
+src/assets/     free backgrounds and music of the browser version (versioned, credits in CREDITS.md)
 original/       read-only reference copy of the 1999 game (NOT versioned)
 game/           playable test copy of the original with test cfg/levels (NOT versioned)
 tools/extract/  DIET decompressor + asset extraction (Python)
 tools/re/       disassembly helpers (capstone), output in tools/re/out/
 tools/acceptance/ short-world dev config, never part of the build
+tools/limbes/   generates src/assets/backgrounds from the photos
 tools/          make_test_cfg.py, make_test_levels.py, blaster_cfg_original.txt
 docs/           cadrage.md
 ```

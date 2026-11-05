@@ -13,7 +13,6 @@ import { loadAssets, loadEndFilm } from "./data/assets";
 import { Difficulty, forDifficulty } from "./data/config";
 import type { FlcFile } from "./data/flc";
 import {
-  BLACK_BACKGROUND,
   MENU_FONT,
   MENU_INDEX_MASK,
   ORIGINAL_WORLDS,
@@ -44,7 +43,14 @@ import { IconFlasher } from "./render/flash";
 import { BONUS_ICON_POS, drawHud } from "./render/hud";
 import { MenuRenderer } from "./render/menu";
 import { drawPlayfield } from "./render/playfield";
-import { FilmRenderer, black, drawFinal, drawScores, drawSlide } from "./render/screens";
+import {
+  FilmRenderer,
+  black,
+  drawFinal,
+  drawNotice,
+  drawScores,
+  drawSlide,
+} from "./render/screens";
 import { SheetRecolorer } from "./render/recolor";
 import { SCREEN_HEIGHT, SCREEN_WIDTH, Screen } from "./render/screen";
 import { ENDING_STEPS, Film } from "./ui/film";
@@ -59,6 +65,7 @@ import {
   tableTitle,
 } from "./ui/scores";
 import { browserStorage, loadSettings, saveSettings } from "./ui/settings";
+import { Notice } from "./ui/notice";
 import { BOOT_SLIDES, CREDITS_LAST_ORDER, CREDITS_SLIDES, Slideshow } from "./ui/slideshow";
 import { Transition, quitVolume } from "./ui/transition";
 
@@ -88,14 +95,10 @@ const menuRenderer = new MenuRenderer(
 
 const menuTexts = desktop ? assets.config.texts.menus : withLimbesLabel(assets.config.texts.menus);
 const newMenu = () => new Menu(menuTexts, settings, desktop ? ORIGINAL_WORLDS : WORLDS);
-const blackScreen = document.createElement("canvas");
-blackScreen.width = SCREEN_WIDTH;
-blackScreen.height = SCREEN_HEIGHT;
-black(blackScreen.getContext("2d")!);
-const backgroundOf = (name: string): CanvasImageSource =>
-  name === BLACK_BACKGROUND ? blackScreen : assets.images.get(name)!;
+const backgroundOf = (name: string): CanvasImageSource => assets.images.get(name)!;
+const backgroundAt = (w: World, level: number) => backgroundImage(w, level, !desktop);
 
-type Scene = "slides" | "menu" | "game" | "scores" | "film" | "final" | "transition";
+type Scene = "slides" | "menu" | "game" | "scores" | "film" | "final" | "transition" | "notice";
 let scene: Scene = "slides";
 let menu = newMenu();
 let world: World = "space";
@@ -108,6 +111,8 @@ let afterShow = () => startTransition(new Transition(), backToMenu);
 let scores!: ScoresScreen;
 let scoresBackground = "";
 let afterScores = () => {};
+let notice = new Notice();
+let afterNotice = () => {};
 let final!: FinalScreen;
 const films = new FilmRenderer();
 /** The end film: undefined while it loads, null if it cannot be played. */
@@ -158,6 +163,12 @@ function startTransition(t: Transition, then: () => void, onTick = () => {}): vo
   setScene("transition");
 }
 
+function showNotice(then: () => void): void {
+  notice = new Notice();
+  afterNotice = then;
+  setScene("notice");
+}
+
 function backToMenu(): void {
   menu = newMenu();
   setScene("menu");
@@ -178,7 +189,9 @@ function startGame(event: Extract<MenuEvent, { kind: "play" }>): void {
     game = new Game(rules, levels, event.difficulty, new Rng(Date.now()), lifePoints);
     keySpeed = keyboardSpeed(forDifficulty(assets.config.startSpeed, event.difficulty));
     mouse.reset();
-    setScene("game");
+    // The licence of the photos asks for their credits to reach every player.
+    if (world === "space" && !desktop) showNotice(() => setScene("game"));
+    else setScene("game");
   });
 }
 
@@ -228,7 +241,7 @@ function showGameOverScores(): void {
     startTransition(t, () => setScene("game"));
   };
   startTransition(new Transition(), () =>
-    openScores(backgroundImage(world, game.level), gameEntry(), leave),
+    openScores(backgroundAt(world, game.level), gameEntry(), leave),
   );
 }
 
@@ -288,7 +301,8 @@ function showCredits(): void {
     });
     showMusic = CREDITS_MUSIC;
     afterShow = () => returnToMenu(false);
-    setScene("slides");
+    if (desktop) setScene("slides");
+    else showNotice(() => setScene("slides"));
   });
 }
 
@@ -320,7 +334,7 @@ function menuEvent(event: MenuEvent | null): void {
   if (event?.kind === "credits") showCredits();
   // 0x408AA1, then 0x4074C5: one of the first 4 backgrounds of the last world (0x404F42 with 3).
   if (event?.kind === "scores") {
-    const background = backgroundImage(world, screenRng.rand(3) + 1);
+    const background = backgroundAt(world, screenRng.rand(3) + 1);
     startTransition(new Transition(), () => openScores(background, null, () => returnToMenu(true)));
   }
   if (event?.kind === "settings") {
@@ -439,8 +453,11 @@ startLoop({
       case "final":
         if (final.tick(fire.take(), anyKeyPressed)) {
           // 0x401C87 comes after these scores: the module they bring back is theirs.
-          openScores(backgroundImage(world, game.level), gameEntry(), () => returnToMenu(true));
+          openScores(backgroundAt(world, game.level), gameEntry(), () => returnToMenu(true));
         }
+        break;
+      case "notice":
+        if (notice.tick(fire.take(), anyKeyPressed)) afterNotice();
         break;
       case "transition":
         onTransitionTick();
@@ -464,6 +481,8 @@ startLoop({
       else black(ctx);
     } else if (scene === "scores") {
       drawScores(ctx, scores, backgroundOf(scoresBackground), worldSheet(scoresBackground), font());
+    } else if (scene === "notice") {
+      drawNotice(ctx);
     } else if (scene === "final") {
       drawFinal(ctx, final, font());
     } else {
@@ -499,7 +518,7 @@ function worldSheet(background: string): HTMLCanvasElement {
 }
 
 function renderGame(alpha: number): void {
-  const background = backgroundImage(world, game.level);
+  const background = backgroundAt(world, game.level);
   const sheet = worldSheet(background);
   drawPlayfield(ctx, backgroundOf(background), sheet);
   if (!game.bare) drawGame(alpha, sheet, background);

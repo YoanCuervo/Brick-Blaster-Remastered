@@ -9,7 +9,7 @@ export type World = (typeof WORLDS)[number];
 export const ORIGINAL_WORLDS = ["space", "arcade"] as const;
 export type OriginalWorld = (typeof ORIGINAL_WORLDS)[number];
 
-/** Limbes has no assets of its own yet: it borrows the sprites and the palette of space. */
+/** Limbes has no sprites of its own: it borrows those of space, and their palette. */
 export const WORLD_SKIN: Record<World, OriginalWorld> = {
   space: "space",
   arcade: "arcade",
@@ -26,16 +26,23 @@ export const worldImage = (world: World, sprite: WorldSprite) =>
 /** Backgrounds per world: resource/0W_0N.gif (W = world digit). */
 export const WORLD_BACKGROUNDS = 8;
 
-/** Black screen of Limbes: no image behind this name, only recolouring data (data/assets.ts). */
-export const BLACK_BACKGROUND = "backgrounds/black";
-/** Colours 0..15 of the screen palette under the black background (§3.5). */
-export const BLACK_BACKGROUND_COLORS = "backgrounds/space_1";
+/** Not in the original: versioned in src/assets, made by tools/limbes/make_backgrounds.py. */
+export const LIMBES_BACKGROUNDS = range("backgrounds/limbes", WORLD_BACKGROUNDS);
+/** Not in the original: what space shows in the browser version. Sources in CREDITS.md. */
+export const SPACE_PHOTOS = range("backgrounds/space_photo", WORLD_BACKGROUNDS);
+/** These have no palette of their own: colours 0..15 of the screen stay those of this one (§3.5). */
+export const FREE_BACKGROUND_COLORS = "backgrounds/space_1";
 
-/** 0x407430: background N = 1 + ((level − 1) & 7), so they cycle every 8 levels. */
-export const backgroundImage = (world: World, level: number) =>
-  world === "limbes"
-    ? BLACK_BACKGROUND
-    : `backgrounds/${world}_${((level - 1) & (WORLD_BACKGROUNDS - 1)) + 1}`;
+/**
+ * 0x407430: background N = 1 + ((level − 1) & 7), so they cycle every 8 levels.
+ * @param web the browser version shows photos in space; the desktop version keeps the original
+ */
+export function backgroundImage(world: World, level: number, web = false): string {
+  const slot = (level - 1) & (WORLD_BACKGROUNDS - 1);
+  if (world === "limbes") return LIMBES_BACKGROUNDS[slot]!;
+  if (world === "space" && web) return SPACE_PHOTOS[slot]!;
+  return `backgrounds/${world}_${slot + 1}`;
+}
 
 /** Indices 1..15 of the sprite sheet, recoloured per background (§3.5, render/recolor.ts). */
 export const SHEET_LOW_MASK = "sprites/sprite_sheet_low";
