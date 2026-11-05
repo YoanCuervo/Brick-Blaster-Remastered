@@ -88,10 +88,10 @@ describe("music rules", () => {
     expect(worldMusic("limbes", 5)).toBe("stars_4ch");
     expect(worldMusic("limbes", 6)).toBe("dog39");
     expect(worldMusic("limbes", 11)).toBe("8bit_castle");
-    expect(worldMusic("limbes", 16)).toBe("at_the_top");
-    expect(worldMusic("limbes", 21)).toBe("stars_4ch");
-    expect(worldMusic("limbes", 50)).toBe("dog39");
-    expect(new Set(LIMBES_MUSIC).size).toBe(4);
+    expect(worldMusic("limbes", 16)).toBe("stars_4ch");
+    expect(worldMusic("limbes", 21)).toBe("dog39");
+    expect(worldMusic("limbes", 50)).toBe("stars_4ch");
+    expect(new Set(LIMBES_MUSIC).size).toBe(3);
   });
 
   it("knows the voice count of each module signature", () => {
@@ -104,7 +104,6 @@ describe("music rules", () => {
       "8bit_castle": 4,
       dog39: 4,
       stars_4ch: 4,
-      at_the_top: 4,
     });
   });
 
