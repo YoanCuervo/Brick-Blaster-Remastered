@@ -43,6 +43,36 @@ const touchesTeleporter = (grid: Level, region: Set<number>) =>
       ].some(([nr, nc]) => region.has(nr! * LEVEL_COLS + nc!)),
   );
 
+type Shape = readonly (readonly boolean[])[];
+
+/** Filled cells without the empty rows above and below: a figure moved up or down stays itself. */
+function shapeOf(grid: Level): Shape {
+  const rows = grid.map((row) => row.map((brick) => kindOf(brick) !== 0));
+  const filled = rows.flatMap((row, r) => (row.some(Boolean) ? [r] : []));
+  return rows.slice(filled[0], filled[filled.length - 1]! + 1);
+}
+
+/** Shared cells over all filled cells, at the best height, mirrored or not. */
+function resemblance(a: Shape, b: Shape): number {
+  let best = 0;
+  for (const other of [b, b.map((row) => [...row].reverse())]) {
+    for (let shift = -other.length; shift <= a.length; shift++) {
+      let shared = 0;
+      let total = 0;
+      for (let r = Math.min(0, shift); r < Math.max(a.length, shift + other.length); r++) {
+        for (let c = 0; c < LEVEL_COLS; c++) {
+          const x = a[r]?.[c] ?? false;
+          const y = other[r - shift]?.[c] ?? false;
+          if (x && y) shared++;
+          if (x || y) total++;
+        }
+      }
+      best = Math.max(best, shared / total);
+    }
+  }
+  return best;
+}
+
 const landingCells = (): (readonly [number, number])[] => {
   const out: (readonly [number, number])[] = [];
   for (let r = LANDING.rows[0]; r <= LANDING.rows[1]; r++) {
@@ -115,7 +145,38 @@ describe("the levels of Limbes", () => {
     expect(new Set(shapes).size).toBe(LIMBES_LEVELS.length);
   });
 
-  // The asset pack is never versioned: this runs only where it has been extracted.
+  it("do not repeat a figure", () => {
+    const shapes = LIMBES_LEVELS.map(shapeOf);
+    const close: string[] = [];
+    shapes.forEach((a, i) => {
+      for (let j = i + 1; j < shapes.length; j++) {
+        const r = resemblance(a, shapes[j]!);
+        if (r >= 0.7) close.push(`${i + 1}-${j + 1}: ${r.toFixed(2)}`);
+      }
+    });
+    expect(close).toEqual([]);
+  });
+
+  // The asset pack is never versioned: these run only where it has been extracted.
+  it.skipIf(!existsSync("assets/levels.json"))(
+    "do not repeat a figure of the original",
+    () => {
+      const pack = parseLevels(JSON.parse(readFileSync("assets/levels.json", "utf8")));
+      const originals = [...pack.lv0, ...pack.lv1, ...pack.lv2].filter((grid) =>
+        grid.some((row) => row.some((brick) => kindOf(brick) !== 0)),
+      );
+      const close: string[] = [];
+      LIMBES_LEVELS.forEach((grid, i) => {
+        originals.forEach((original, j) => {
+          const r = resemblance(shapeOf(grid), shapeOf(original));
+          if (r >= 0.85) close.push(`${i + 1} and original ${j + 1}: ${r.toFixed(2)}`);
+        });
+      });
+      expect(close).toEqual([]);
+    },
+    60_000,
+  );
+
   it.skipIf(!existsSync("assets/levels.json"))("copy no level of the original", () => {
     const pack = parseLevels(JSON.parse(readFileSync("assets/levels.json", "utf8")));
     const originals = [...pack.lv0, ...pack.lv1, ...pack.lv2];
