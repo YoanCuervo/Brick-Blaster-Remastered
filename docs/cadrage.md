@@ -29,7 +29,7 @@ Projet personnel, qui alimentera un portfolio. Pas d'échéance.
 - Meilleurs scores de la version navigateur : une table par monde et par difficulté, écart assumé avec l'original (analyse, Écrans et meilleurs scores). Le .exe garde la table unique. Le 3e monde, « Limbes », occupe le bouton vide du menu Monde et a ses tables sans autre changement.
 - Fin de partie de la version navigateur, tous mondes : 1000 points par vie restante après le dernier niveau, écart assumé avec l'original. Le .exe ne les compte pas.
 - Vitesses de la version navigateur, tous mondes : départ 3/4/5 au lieu de 2/3/4, paliers 3/3/4 au lieu de 2/3/3, accélération tous les 1000 ticks en difficile au lieu de 1500. Écart assumé avec l'original, le jeu étant trop simple. Le .exe garde `blaster.cfg`.
-- 3e monde « Limbes », version navigateur uniquement : 50 niveaux originaux, versionnés dans `src/data/limbesLevels.ts`. Ses 8 fonds sont des orbitales de l'hydrogène calculées par `tools/limbes/make_backgrounds.py`, 3 musiques MOD qui changent tous les 5 niveaux, écart assumé avec l'original (sources et licences dans `CREDITS.md`), ses sprites et sa palette ceux du monde espace, avec les couleurs du joueur 2 de l'original pour la raquette, la balle, les vies et les capsules (écart assumé, affichage seul, adresses en analyse §3.5). Le L du bouton rose est dessiné par le code, sans image ajoutée. Le .exe garde le bouton vide.
+- 3e monde « Limbes », version navigateur uniquement : 50 niveaux originaux, versionnés dans `src/data/limbesLevels.ts`. Ses 8 fonds sont des orbitales de l'hydrogène calculées par `tools/limbes/make_backgrounds.py`, 3 musiques MOD qui changent tous les 5 niveaux, écart assumé avec l'original (sources et licences dans `CREDITS.md`), ses sprites et sa palette ceux du monde espace. Le L du bouton rose est dessiné par le code, sans image ajoutée. Le .exe garde le bouton vide.
 
 ## Exclusions V1
 
@@ -38,6 +38,7 @@ Projet personnel, qui alimentera un portfolio. Pas d'échéance.
 | Mode 2 joueurs (coop et duel) | Abandonné en V1. Remplacé en V2 par la section en ligne et un mode multijoueur. |
 | Éditeur de niveaux | Plus tard, éventuellement |
 | Mode démo | **Dette technique.** Piste retenue : une vidéo ou un replay, jamais une IA. |
+| Choix du skin par le joueur (version navigateur) | **Dette technique.** Couleurs du joueur 1 ou du joueur 2 de l'original, affichage seul. La table existe (`src/render/skin.ts`, analyse §3.5), mais aucun réglage ni menu ne la propose. |
 | Classement en ligne, backend, authentification | V2 |
 | Version mobile et tactile | Exclue |
 | Autres langues que le français | Exclues |
@@ -90,6 +91,6 @@ Ces conclusions aident au cadrage. Elles ne remplacent pas l'avis d'un juriste.
 - Classement en ligne : backend sur Render ou Vercel, authentification.
 - Front hébergé sur GitHub Pages.
 - Mode démo (vidéo ou replay).
-- Mode multijoueur : le joueur 2 y reprendra les couleurs de Limbes, celles du joueur 2 de l'original (`src/render/skin.ts`). Rien n'est codé pour l'instant.
+- Mode multijoueur : le joueur 2 y reprendra ses couleurs de l'original (`src/render/skin.ts`). Rien n'est codé pour l'instant.
 - Éditeur de niveaux.
 - Passage éventuel du .exe à Tauri, si un livrable léger devient utile.

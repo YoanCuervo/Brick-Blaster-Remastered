@@ -53,7 +53,7 @@ import {
 } from "./render/screens";
 import { SheetRecolorer } from "./render/recolor";
 import { SCREEN_HEIGHT, SCREEN_WIDTH, Screen } from "./render/screen";
-import { skinnedCapsule, skinnedFrame, worldPlayerSkin } from "./render/skin";
+import { ACTIVE_SKIN, skinnedCapsule, skinnedFrame } from "./render/skin";
 import { ENDING_STEPS, Film } from "./ui/film";
 import { FinalScreen } from "./ui/final";
 import { type Arrow, Menu, type MenuEvent, withLimbesLabel } from "./ui/menu";
@@ -549,7 +549,7 @@ function drawMoving(
 }
 
 function drawGame(alpha: number, sheet: HTMLCanvasElement, background: string): void {
-  const skin = worldPlayerSkin(world);
+  const skin = ACTIVE_SKIN;
   for (let i = 0; i < GRID_CELLS; i++) {
     const address = cellSprite(game.grid, i);
     if (address === null) continue;

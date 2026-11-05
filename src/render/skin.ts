@@ -1,6 +1,5 @@
 // Player 2 colours of the sprite sheet, display only: the game state stays on player 1
 // addresses because the rules compare them (game.ts, PaddleSprite).
-import type { World } from "../data/images";
 import { ARRIVAL, PaddleSprite, explosionOf, warpOf } from "../game/animation";
 import {
   BALL_SPRITE,
@@ -13,10 +12,8 @@ import { LIFE_ICONS } from "./atlas";
 
 export type PlayerSkin = "player1" | "player2";
 
-/** Limbes wears the player 2 colours, a deliberate difference (docs/cadrage.md). */
-export function worldPlayerSkin(world: World): PlayerSkin {
-  return world === "limbes" ? "player2" : "player1";
-}
+/** Every world plays in the player 1 colours; the player's choice is a known debt (docs/cadrage.md). */
+export const ACTIVE_SKIN: PlayerSkin = "player1";
 
 /** The player 2 ball is the sprite right of the player 1 one (0x4038E4, 0x403998). */
 const BALL_DX = 9;
