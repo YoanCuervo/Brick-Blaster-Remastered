@@ -81,6 +81,26 @@ const landingCells = (): (readonly [number, number])[] => {
   return out;
 };
 
+const FOUR_HITS = 0x24;
+/** Longest level allowed, in hits to break everything. */
+const MAX_HITS = 200;
+
+function count(grid: Level) {
+  const of = (kind: number) => cells(grid).filter((cell) => cell.kind === kind).length;
+  const four = of(FOUR_HITS);
+  const breakable = BREAKABLE.reduce((sum, kind) => sum + of(kind), 0);
+  return {
+    four,
+    breakable,
+    walls: of(WALL),
+    teleporters: of(TELEPORTER),
+    hits: breakable + 3 * four,
+  };
+}
+
+const mean = (pick: (c: ReturnType<typeof count>) => number) =>
+  LIMBES_LEVELS.reduce((sum, grid) => sum + pick(count(grid)), 0) / LIMBES_LEVELS.length;
+
 describe("the levels of Limbes", () => {
   it("are 50 grids the level parser accepts", () => {
     expect(LIMBES_LEVELS).toHaveLength(50);
@@ -110,6 +130,25 @@ describe("the levels of Limbes", () => {
       const left = cells(grid).filter((cell) => BREAKABLE.includes(cell.kind));
       expect(left.length, `level ${i + 1}`).toBeGreaterThan(0);
     });
+  });
+
+  it("have a teleporter when most of their bricks take 4 hits", () => {
+    LIMBES_LEVELS.forEach((grid, i) => {
+      const { four, breakable, teleporters } = count(grid);
+      if (four * 2 > breakable) expect(teleporters, `level ${i + 1}`).toBeGreaterThan(0);
+    });
+  });
+
+  it("never take more than 200 hits to break", () => {
+    LIMBES_LEVELS.forEach((grid, i) => {
+      expect(count(grid).hits, `level ${i + 1}`).toBeLessThanOrEqual(MAX_HITS);
+    });
+  });
+
+  it("stay near the averages of arcade: few 4-hit bricks, many walls", () => {
+    expect(mean((c) => c.four)).toBeLessThanOrEqual(16);
+    expect(mean((c) => c.walls)).toBeGreaterThanOrEqual(13);
+    expect(mean((c) => c.hits)).toBeLessThanOrEqual(125);
   });
 
   it("let the ball reach every breakable brick, from the paddle or through a teleporter", () => {
