@@ -52,6 +52,7 @@ export const MUSIC_CHANNELS = {
   the_last: 4,
   hunting_in_lacanau: 6,
   rain_in_the_brain: 8,
+  "8bit_castle": 4,
 } as const;
 export type MusicName = keyof typeof MUSIC_CHANNELS;
 
@@ -59,10 +60,10 @@ export const MENU_MUSIC: MusicName = "love"; // 0x401058, 0x4011B4
 export const CREDITS_MUSIC: MusicName = "starr"; // 0x4011FF
 export const SCORES_MUSIC: MusicName = "rain_in_the_brain"; // 0x408BB9, 0x408B1A
 /** Set by the world menu (0x401712, 0x40173B), started with the game (0x4011A4). */
-export const WORLD_MUSIC: Record<World, MusicName | null> = {
+export const WORLD_MUSIC: Record<World, MusicName> = {
   space: "the_last",
   arcade: "hunting_in_lacanau",
-  limbes: null,
+  limbes: "8bit_castle",
 };
 
 /** Mixer voices reserved for the sounds (0x4077D9), after those of the module. */

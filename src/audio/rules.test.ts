@@ -69,7 +69,7 @@ describe("music rules", () => {
   it("gives each world its own module, and the menu another", () => {
     expect(WORLD_MUSIC.space).toBe("the_last");
     expect(WORLD_MUSIC.arcade).toBe("hunting_in_lacanau");
-    expect(WORLD_MUSIC.limbes).toBeNull();
+    expect(WORLD_MUSIC.limbes).toBe("8bit_castle");
     expect(MENU_MUSIC).toBe("love");
   });
 
@@ -80,6 +80,7 @@ describe("music rules", () => {
       the_last: 4,
       hunting_in_lacanau: 6,
       rain_in_the_brain: 8,
+      "8bit_castle": 4,
     });
   });
 

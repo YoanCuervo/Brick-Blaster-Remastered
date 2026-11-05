@@ -1,7 +1,9 @@
+import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
-  BLACK_BACKGROUND,
-  BLACK_BACKGROUND_COLORS,
+  FREE_BACKGROUND_COLORS,
+  LIMBES_BACKGROUNDS,
+  SPACE_PHOTOS,
   IMAGE_NAMES,
   WORLD_SPRITES,
   backgroundImage,
@@ -23,12 +25,24 @@ describe("backgroundImage (0x407430)", () => {
     }
   });
 
-  it("stays black through the 50 levels of Limbes, which has no background", () => {
-    for (let level = 1; level <= 50; level++) {
-      expect(backgroundImage("limbes", level)).toBe(BLACK_BACKGROUND);
+  it("gives Limbes its own 8 backgrounds, through all its levels", () => {
+    expect(backgroundImage("limbes", 1)).toBe("backgrounds/limbes_1");
+    expect(backgroundImage("limbes", 8)).toBe("backgrounds/limbes_8");
+    expect(backgroundImage("limbes", 50)).toBe("backgrounds/limbes_2");
+  });
+
+  it("shows photos in space in the browser version only", () => {
+    expect(backgroundImage("space", 3, true)).toBe("backgrounds/space_photo_3");
+    expect(backgroundImage("space", 9, true)).toBe("backgrounds/space_photo_1");
+    expect(backgroundImage("space", 3, false)).toBe("backgrounds/space_3");
+    expect(backgroundImage("arcade", 3, true)).toBe("backgrounds/arcade_3");
+  });
+
+  it("finds the new backgrounds versioned, and the colours they borrow in the pack", () => {
+    for (const name of [...LIMBES_BACKGROUNDS, ...SPACE_PHOTOS]) {
+      expect(existsSync(`src/assets/${name}.png`), name).toBe(true);
     }
-    expect(IMAGE_NAMES).not.toContain(BLACK_BACKGROUND);
-    expect(IMAGE_NAMES).toContain(BLACK_BACKGROUND_COLORS);
+    expect(IMAGE_NAMES).toContain(FREE_BACKGROUND_COLORS);
   });
 });
 

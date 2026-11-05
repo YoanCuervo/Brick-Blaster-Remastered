@@ -1,3 +1,4 @@
+import castleUrl from "../assets/music/8bit_castle.mod?url";
 import { TICK_MS } from "../core/loop";
 import {
   DEFAULT_MUSIC_VOLUME,
@@ -16,6 +17,9 @@ const PLAY_RETRY_MS = 200;
  * Plays the modules through the worklet files of chiptune3, served by the Vite plugin. Its own
  * player class is left out: it locates the worklet with a URL that does not survive bundling.
  */
+/** Unlike the pack, these are versioned: Vite bundles them. */
+const FREE_MUSIC: Partial<Record<MusicName, string>> = { "8bit_castle": castleUrl };
+
 export class Music {
   private readonly gain: GainNode;
   private readonly node: Promise<AudioWorkletNode>;
@@ -49,12 +53,11 @@ export class Music {
   }
 
   /** Asking for the current module changes nothing: it goes on playing (0x4077AF). */
-  play(name: MusicName | null): void {
+  play(name: MusicName): void {
     if (name === this.wanted) return;
     this.wanted = name;
     const ticket = ++this.ticket;
-    const change = name === null ? this.stop(ticket) : this.switchTo(name, ticket);
-    change.catch((e: unknown) => {
+    this.switchTo(name, ticket).catch((e: unknown) => {
       console.error("music unavailable:", e);
     });
   }
@@ -86,21 +89,13 @@ export class Music {
   private load(name: MusicName): Promise<ArrayBuffer> {
     let file = this.files.get(name);
     if (!file) {
-      file = fetch(`${this.base}music/${name}.mod`).then((res) => {
+      file = fetch(FREE_MUSIC[name] ?? `${this.base}music/${name}.mod`).then((res) => {
         if (!res.ok) throw new Error(`failed to load ${name}: HTTP ${res.status}`);
         return res.arrayBuffer();
       });
       this.files.set(name, file);
     }
     return file;
-  }
-
-  /** Silence, for a world without music. The sounds keep the level of the last module. */
-  private async stop(ticket: number): Promise<void> {
-    const [node] = await Promise.all([this.node, this.fadeOut()]);
-    if (ticket !== this.ticket) return;
-    node.port.postMessage({ cmd: "stop" });
-    this.playing = null;
   }
 
   private async switchTo(name: MusicName, ticket: number): Promise<void> {

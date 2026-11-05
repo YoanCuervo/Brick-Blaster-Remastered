@@ -3,12 +3,12 @@ import type { SoundName } from "../game/game";
 import { type GameConfig, parseConfig } from "./config";
 import { type FlcFile, parseFlc } from "./flc";
 import {
-  BLACK_BACKGROUND,
-  BLACK_BACKGROUND_COLORS,
+  FREE_BACKGROUND_COLORS,
   IMAGE_NAMES,
   type Images,
   ORIGINAL_WORLDS,
   type OriginalWorld,
+  loadImage,
   loadImages,
 } from "./images";
 import { type WorldLevelSets, parseLevels } from "./levels";
@@ -32,6 +32,18 @@ export interface Assets {
   /** Played by the credits. blaster.flc, 29 MB, waits for loadEndFilm(). */
   intro: FlcFile;
 }
+
+/** Unlike the pack, these are versioned: Vite bundles them, and their URLs are not derived. */
+const FREE_BACKGROUNDS = Object.entries(
+  import.meta.glob<string>("../assets/backgrounds/*.png", {
+    eager: true,
+    query: "?url",
+    import: "default",
+  }),
+).map(([file, url]) => [`backgrounds/${file.split("/").pop()!.replace(".png", "")}`, url] as const);
+
+const loadFreeBackgrounds = () =>
+  Promise.all(FREE_BACKGROUNDS.map(async ([name, url]) => [name, await loadImage(url)] as const));
 
 async function fetchOk(url: string): Promise<Response> {
   const res = await fetch(url);
@@ -73,27 +85,31 @@ export const loadEndFilm = (base = import.meta.env.BASE_URL): Promise<FlcFile> =
 
 // BASE_URL is "/": Electron serves this same build from the root of its app:// origin.
 export async function loadAssets(base = import.meta.env.BASE_URL): Promise<Assets> {
-  const [config, levels, images, palettes, backgroundColors, sounds, intro] = await Promise.all([
-    fetchJson(`${base}config.json`).then(parseConfig),
-    fetchJson(`${base}levels.json`).then(parseLevels),
-    loadImages(base, IMAGE_NAMES),
-    loadPalettes(base),
-    fetchJson(`${base}backgrounds/palettes.json`).then((json) =>
-      Object.fromEntries(
-        Object.entries(parseBackgroundPalettes(json)).map(([name, colors]) => [
-          `backgrounds/${name}`,
-          colors,
-        ]),
+  const [config, levels, packImages, freeImages, palettes, backgroundColors, sounds, intro] =
+    await Promise.all([
+      fetchJson(`${base}config.json`).then(parseConfig),
+      fetchJson(`${base}levels.json`).then(parseLevels),
+      loadImages(base, IMAGE_NAMES),
+      loadFreeBackgrounds(),
+      loadPalettes(base),
+      fetchJson(`${base}backgrounds/palettes.json`).then((json) =>
+        Object.fromEntries(
+          Object.entries(parseBackgroundPalettes(json)).map(([name, colors]) => [
+            `backgrounds/${name}`,
+            colors,
+          ]),
+        ),
       ),
-    ),
-    loadSounds(base),
-    loadFlc(`${base}video/intro.flc`),
-  ]);
-  backgroundColors[BLACK_BACKGROUND] = backgroundColors[BLACK_BACKGROUND_COLORS]!;
+      loadSounds(base),
+      loadFlc(`${base}video/intro.flc`),
+    ]);
+  for (const [name] of freeImages) {
+    backgroundColors[name] = backgroundColors[FREE_BACKGROUND_COLORS]!;
+  }
   return {
     config,
     levels: { ...levels, limbes: LIMBES_LEVELS },
-    images,
+    images: new Map([...packImages, ...freeImages]),
     palettes,
     backgroundColors,
     sounds,

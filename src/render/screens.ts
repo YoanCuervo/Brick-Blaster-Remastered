@@ -6,6 +6,7 @@ import { GLYPH_H, GLYPH_W } from "./font";
 import { PADDLE_X_MIN, PLAY_RIGHT } from "../game/paddle";
 import { drawPlayfield } from "./playfield";
 import { FINAL_POS, type FinalScreen } from "../ui/final";
+import { NOTICE_BLOCKS } from "../ui/notice";
 import { SCORES_POS, TABLE_TITLE_Y, type ScoresScreen } from "../ui/scores";
 import type { Slideshow } from "../ui/slideshow";
 import type { Images } from "../data/images";
@@ -16,6 +17,39 @@ import { SCREEN_HEIGHT, SCREEN_WIDTH } from "./screen";
 export function black(ctx: CanvasRenderingContext2D): void {
   ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+}
+
+const NOTICE_MARGIN = 24;
+const NOTICE_LINE = 14;
+
+/** The bitmap font has no accents or parentheses, and these credits must keep their wording. */
+export function drawNotice(ctx: CanvasRenderingContext2D): void {
+  black(ctx);
+  ctx.font = "12px monospace";
+  ctx.textBaseline = "top";
+  const width = ctx.canvas.width - 2 * NOTICE_MARGIN;
+  let y = NOTICE_MARGIN;
+  const write = (text: string, color: string) => {
+    ctx.fillStyle = color;
+    let line = "";
+    for (const word of text.split(" ")) {
+      const longer = line ? `${line} ${word}` : word;
+      if (line && ctx.measureText(longer).width > width) {
+        ctx.fillText(line, NOTICE_MARGIN, y);
+        y += NOTICE_LINE;
+        line = word;
+      } else {
+        line = longer;
+      }
+    }
+    ctx.fillText(line, NOTICE_MARGIN, y);
+    y += NOTICE_LINE;
+  };
+  for (const block of NOTICE_BLOCKS) {
+    write(block.title, "#c8a0e0");
+    for (const text of block.lines) write(text, "#e0e0e0");
+    y += NOTICE_LINE / 2;
+  }
 }
 
 /** 0x409861: centred on the screen. */
