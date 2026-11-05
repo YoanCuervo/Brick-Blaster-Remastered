@@ -176,6 +176,28 @@ describe("the levels of Limbes, one by one", () => {
     );
     expect(tooMany).toEqual([]);
   }, 600_000);
+
+  /**
+   * Not the original: a level of Limbes must not drag on for its last bricks. Without bonuses, so
+   * that only the layout counts. With this player, the median level takes about 4 600 ticks in
+   * space, 5 900 in arcade and 6 300 in Limbes; the slowest of arcade, 20 000.
+   */
+  it("end in under 10 000 ticks, in the median of a few games without bonuses", () => {
+    const MAX_TICKS = 10_000;
+    const quiet = { ...web, nbsLife: 99, timeBetweenOption: [1e9, 1e9, 1e9] as Triplet };
+    const median = (i: number) => {
+      const ticks = [];
+      for (let seed = 1001; seed <= 1000 + RUNS; seed++) {
+        const config = { ...quiet, startLevel: i + 1 };
+        ticks.push(play(config, LIMBES_LEVELS, Difficulty.Medium, seed, STALL_TICKS).longestLevel);
+      }
+      return ticks.sort((a, b) => a - b)[RUNS >> 1]!;
+    };
+    const tooLong = LIMBES_LEVELS.map((_, i) => ({ level: i + 1, ticks: median(i) })).filter(
+      (r) => r.ticks > MAX_TICKS,
+    );
+    expect(tooLong).toEqual([]);
+  }, 600_000);
 });
 
 // The asset pack is never versioned: these run only where it has been extracted.

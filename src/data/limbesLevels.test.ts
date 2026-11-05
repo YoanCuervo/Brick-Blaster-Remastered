@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { LEVEL_COLS, LEVEL_ROWS, type Level, parseLevels } from "./levels";
+import { reachChances } from "../game/reach";
 import { LIMBES_LEVELS } from "./limbesLevels";
 
 const kindOf = (brick: number) => brick & 0x3f;
@@ -84,6 +85,12 @@ const landingCells = (): (readonly [number, number])[] => {
 const FOUR_HITS = 0x24;
 /** Longest level allowed, in hits to break everything. */
 const MAX_HITS = 200;
+/**
+ * Most paddle passes a brick may need once it is the last one: hits over the chance of getting
+ * there. The hardest brick of a level needs about 15 in the median level of the original, and 29
+ * in Limbes before this cap; 8 of the 80 original levels have one over 25.
+ */
+const MAX_PASSES = 25;
 
 function count(grid: Level) {
   const of = (kind: number) => cells(grid).filter((cell) => cell.kind === kind).length;
@@ -164,6 +171,20 @@ describe("the levels of Limbes", () => {
       }
     });
   });
+
+  it("let the ball get to the last brick in at most 25 paddle passes", () => {
+    const slow: string[] = [];
+    LIMBES_LEVELS.forEach((grid, i) => {
+      const chances = reachChances(grid);
+      for (const { r, c, kind } of cells(grid)) {
+        if (!BREAKABLE.includes(kind)) continue;
+        const passes = (kind === FOUR_HITS ? 4 : 1) / chances[r * LEVEL_COLS + c]!;
+        if (passes > MAX_PASSES)
+          slow.push(`level ${i + 1}, row ${r}, col ${c}: ${passes.toFixed(0)}`);
+      }
+    });
+    expect(slow).toEqual([]);
+  }, 120_000);
 
   it("never lock the ball in: a closed room has a teleporter out", () => {
     LIMBES_LEVELS.forEach((grid, i) => {
