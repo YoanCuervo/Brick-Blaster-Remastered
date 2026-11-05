@@ -73,7 +73,7 @@ export const LIMBES_MUSIC = [
   "dog39",
   "8bit_castle",
 ] as const satisfies readonly MusicName[];
-export const LIMBES_MUSIC_LEVELS = 5;
+export const LIMBES_MUSIC_LEVELS = 3;
 
 export function worldMusic(world: World, level: number): MusicName {
   if (world !== "limbes") return WORLD_MUSIC[world];
