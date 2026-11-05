@@ -82,15 +82,15 @@ describe("music rules", () => {
     }
   });
 
-  it("changes the module of Limbes every 5 levels, through its 50 levels", () => {
-    expect(LIMBES_MUSIC_LEVELS).toBe(5);
+  it("changes the module of Limbes every 3 levels, through its 50 levels", () => {
+    expect(LIMBES_MUSIC_LEVELS).toBe(3);
     expect(worldMusic("limbes", 1)).toBe("stars_4ch");
-    expect(worldMusic("limbes", 5)).toBe("stars_4ch");
-    expect(worldMusic("limbes", 6)).toBe("dog39");
-    expect(worldMusic("limbes", 11)).toBe("8bit_castle");
-    expect(worldMusic("limbes", 16)).toBe("stars_4ch");
-    expect(worldMusic("limbes", 21)).toBe("dog39");
-    expect(worldMusic("limbes", 50)).toBe("stars_4ch");
+    expect(worldMusic("limbes", 3)).toBe("stars_4ch");
+    expect(worldMusic("limbes", 4)).toBe("dog39");
+    expect(worldMusic("limbes", 7)).toBe("8bit_castle");
+    expect(worldMusic("limbes", 10)).toBe("stars_4ch");
+    expect(worldMusic("limbes", 13)).toBe("dog39");
+    expect(worldMusic("limbes", 50)).toBe("dog39");
     expect(new Set(LIMBES_MUSIC).size).toBe(3);
   });
 

@@ -8,7 +8,7 @@ Everything here ships with the browser version and is versioned in `src/assets/`
 
 ## Music of Limbes
 
-The modules are unchanged. The game changes module every 5 levels.
+The modules are unchanged. The game changes module every 3 levels.
 
 | File | Module | Author | Licence |
 |---|---|---|---|
