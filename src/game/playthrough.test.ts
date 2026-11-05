@@ -13,7 +13,7 @@ import {
 import { LEVEL_COLS, LEVEL_ROWS, type Level, WORLD_LEVELS, parseLevels } from "../data/levels";
 import { LIMBES_LEVELS } from "../data/limbesLevels";
 import { BallState } from "./ball";
-import { Game, GameMode } from "./game";
+import { Game, GameMode, webConfig } from "./game";
 
 /** Several hours of play for one level: beyond it, the level is considered stuck. */
 const LEVEL_TICK_LIMIT = 500_000;
@@ -144,7 +144,7 @@ describe("the levels of Limbes", () => {
   for (const difficulty of DIFFICULTIES) {
     it(`difficulty ${difficulty}: 50 levels, no stuck level`, () => {
       for (let seed = 1999; seed < 1999 + SEEDS; seed++) {
-        const run = play(testConfig, LIMBES_LEVELS, difficulty, seed);
+        const run = play(webConfig(testConfig, difficulty), LIMBES_LEVELS, difficulty, seed);
         if (SEEDS > 1) console.log("limbes", difficulty, seed, JSON.stringify(run));
         expect(run.finished, `stopped at level ${run.level}`).toBe(true);
       }
@@ -161,11 +161,12 @@ describe("the levels of Limbes, one by one", () => {
   const QUIET_TICKS = 3000;
   const RUNS = 6;
   const MAX_STALLS = 1;
+  const web = webConfig(testConfig, Difficulty.Medium);
   it("rarely leave the ball with nothing to break for a minute", () => {
     const stallsOf = (i: number) => {
       let stalls = 0;
       for (let seed = 1001; seed <= 1000 + RUNS; seed++) {
-        const config = { ...testConfig, startLevel: i + 1 };
+        const config = { ...web, startLevel: i + 1 };
         stalls += play(config, LIMBES_LEVELS, Difficulty.Medium, seed, QUIET_TICKS).stalls;
       }
       return stalls;

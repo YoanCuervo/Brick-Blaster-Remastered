@@ -30,7 +30,7 @@ import { paletteColor } from "./data/palette";
 import { type Ball, BallState } from "./game/ball";
 import { CAPSULE_DY, CapsuleState } from "./game/bonus";
 import { GRID_CELLS, cellSprite } from "./game/bricks";
-import { Game } from "./game/game";
+import { Game, webConfig } from "./game/game";
 import { SPARE_LIFE_POINTS } from "./game/score";
 import { MONSTER_PITCH } from "./game/monsters";
 import { PADDLE_H, clampPaddleX } from "./game/paddle";
@@ -174,7 +174,8 @@ function startGame(event: Extract<MenuEvent, { kind: "play" }>): void {
   startTransition(t, () => {
     const levels = assets.levels[WORLD_LEVELS[world]];
     const lifePoints = desktop ? 0 : SPARE_LIFE_POINTS;
-    game = new Game(assets.config, levels, event.difficulty, new Rng(Date.now()), lifePoints);
+    const rules = desktop ? assets.config : webConfig(assets.config, event.difficulty);
+    game = new Game(rules, levels, event.difficulty, new Rng(Date.now()), lifePoints);
     keySpeed = keyboardSpeed(forDifficulty(assets.config.startSpeed, event.difficulty));
     mouse.reset();
     setScene("game");

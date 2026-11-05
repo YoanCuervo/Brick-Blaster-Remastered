@@ -1,6 +1,6 @@
 // One-player game flow: rounds, lives, level end, game over (§4.5).
 import type { Rng } from "../core/rng";
-import { type BonusKey, type Difficulty, type GameConfig, forDifficulty } from "../data/config";
+import { type BonusKey, Difficulty, type GameConfig, forDifficulty } from "../data/config";
 import { LEVEL_COLS, type Level } from "../data/levels";
 import {
   ANIM_END_LEFT,
@@ -163,6 +163,23 @@ export const LEVEL_END_PAUSE = 4;
 /** Speed-up interval of a level (0x404DB4). */
 export function speedInterval(freqChangeSpeed: number, level: number): number {
   return freqChangeSpeed - 0x11 * (level - 1);
+}
+
+/** Hard speeds up every 1000 ticks in the browser version, the others as blaster.cfg says. */
+const WEB_HARD_FREQ_CHANGE_SPEED = 1000;
+
+/**
+ * Not in the original: the browser version is faster, each difficulty taking the speed of the one
+ * above, and hard a new one. The desktop version keeps blaster.cfg.
+ */
+export function webConfig(config: GameConfig, difficulty: Difficulty): GameConfig {
+  return {
+    ...config,
+    startSpeed: [3, 4, 6],
+    nbsChangeSpeedLevel: [3, 3, 4],
+    freqChangeSpeed:
+      difficulty === Difficulty.Hard ? WEB_HARD_FREQ_CHANGE_SPEED : config.freqChangeSpeed,
+  };
 }
 
 /** Serve speed (0x40513F): faster every levelCount / Nbs_Change_Speed_Level levels. */
