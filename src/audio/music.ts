@@ -8,6 +8,7 @@ import {
   type MusicName,
   musicFadeTicks,
   musicGain,
+  musicTrim,
 } from "./rules";
 
 /** Filter 1 is no interpolation, like the mixer 0x40CA50. Separation 200 pans voices fully (0x40B693). */
@@ -35,6 +36,7 @@ export class Music {
   private ticket = 0;
   private volume = DEFAULT_MUSIC_VOLUME;
   private channels = 0;
+  private trim = 1;
   private playing: MusicName | null = null;
   private position: number | null = null;
 
@@ -73,7 +75,7 @@ export class Music {
     if (!this.started) return;
     const { gain } = this.gain;
     gain.cancelScheduledValues(this.ctx.currentTime);
-    gain.setValueAtTime(musicGain(this.channels, volume), this.ctx.currentTime);
+    gain.setValueAtTime(musicGain(this.channels, volume) * this.trim, this.ctx.currentTime);
   }
 
   private async createNode(): Promise<AudioWorkletNode> {
@@ -110,10 +112,12 @@ export class Music {
     await this.running();
     if (ticket !== this.ticket) return;
     const channels = MUSIC_CHANNELS[name];
-    await this.start(node, file, ticket, musicGain(channels, this.volume));
+    const trim = musicTrim(name);
+    await this.start(node, file, ticket, musicGain(channels, this.volume) * trim);
     if (ticket === this.ticket) {
       this.started = true;
       this.channels = channels;
+      this.trim = trim;
       this.playing = name;
       this.position = null;
       this.onStart(channels);
