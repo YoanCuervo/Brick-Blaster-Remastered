@@ -49,16 +49,19 @@ export function pulsePixels(
   }
 }
 
-/** Where the F of the same quadrant sits on its button; the sizes are those of the S and the A. */
-const LIMBES_MARK = { x: 269, y: 324, radius: 34 } as const;
+/** The S mirrored across the button: its ring is 50 left of the centre lines and 49 above. */
+const LIMBES_MARK = { x: 269, y: 319, radius: 33.5 } as const;
 const MARK_RING = 5;
 const MARK_STROKE = 3;
 const MARK_SHADE = 0.72;
 
-/** Solid L whose foot ends in a slant, like the legs of the A. */
+/**
+ * Solid L whose foot ends in a slant, like the legs of the A. The S and the A sit high in their
+ * rings, 28 above the centre and 21 below; the L goes right of theirs to balance its empty corner.
+ */
 const inLetterL = (dx: number, dy: number) => {
-  if (dx < -18 || dy < -24 || dy > 24) return false;
-  return dx <= -3 || (dy >= 11 && dx <= 12 + ((dy - 11) * 6) / 13);
+  if (dx < -14 || dy < -28 || dy > 21) return false;
+  return dx <= 2 || (dy >= 8 && dx <= 16 + ((dy - 8) * 6) / 13);
 };
 
 /** Share of light kept at an offset from the centre of the mark: only outlines are darkened. */
@@ -78,7 +81,8 @@ export function limbesMarkShade(dx: number, dy: number): number {
  * darkened on top, so the quadrant's palette entries, and its pulse, stay the same.
  */
 function drawLimbesMark(ctx: CanvasRenderingContext2D): void {
-  const { x, y, radius } = LIMBES_MARK;
+  const { x, y } = LIMBES_MARK;
+  const radius = Math.ceil(LIMBES_MARK.radius);
   const size = radius * 2 + 1;
   const image = ctx.getImageData(x - radius, y - radius, size, size);
   for (let i = 0; i < size * size; i++) {
