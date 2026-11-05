@@ -13,7 +13,6 @@ export const NOTICE_BLOCKS: readonly NoticeBlock[] = [
       '"8-bit Castle" de JAM, domaine public',
       '"dog39" de Songerson, CC BY 4.0, modarchive.org/module.php?189675',
       '"Stars (4ch. version)" de cs127, CC BY 4.0, modarchive.org/module.php?201917',
-      '"at the top" de Zilly Mike, CC BY 4.0, modarchive.org/module.php?169999',
     ],
   },
   { title: "Licence", lines: ["CC BY 4.0 : creativecommons.org/licenses/by/4.0"] },

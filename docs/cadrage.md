@@ -29,7 +29,7 @@ Projet personnel, qui alimentera un portfolio. Pas d'échéance.
 - Meilleurs scores de la version navigateur : une table par monde et par difficulté, écart assumé avec l'original (analyse, Écrans et meilleurs scores). Le .exe garde la table unique. Le 3e monde, « Limbes », occupe le bouton vide du menu Monde et a ses tables sans autre changement.
 - Fin de partie de la version navigateur, tous mondes : 1000 points par vie restante après le dernier niveau, écart assumé avec l'original. Le .exe ne les compte pas.
 - Vitesses de la version navigateur, tous mondes : départ 3/4/5 au lieu de 2/3/4, paliers 3/3/4 au lieu de 2/3/3, accélération tous les 1000 ticks en difficile au lieu de 1500. Écart assumé avec l'original, le jeu étant trop simple. Le .exe garde `blaster.cfg`.
-- 3e monde « Limbes », version navigateur uniquement : 50 niveaux originaux, versionnés dans `src/data/limbesLevels.ts`. Ses 8 fonds sont des orbitales de l'hydrogène calculées par `tools/limbes/make_backgrounds.py`, 4 musiques MOD qui changent tous les 5 niveaux, écart assumé avec l'original (sources et licences dans `CREDITS.md`), ses sprites et sa palette ceux du monde espace. Le L du bouton rose est dessiné par le code, sans image ajoutée. Le .exe garde le bouton vide.
+- 3e monde « Limbes », version navigateur uniquement : 50 niveaux originaux, versionnés dans `src/data/limbesLevels.ts`. Ses 8 fonds sont des orbitales de l'hydrogène calculées par `tools/limbes/make_backgrounds.py`, 3 musiques MOD qui changent tous les 5 niveaux, écart assumé avec l'original (sources et licences dans `CREDITS.md`), ses sprites et sa palette ceux du monde espace. Le L du bouton rose est dessiné par le code, sans image ajoutée. Le .exe garde le bouton vide.
 
 ## Exclusions V1
 

@@ -55,7 +55,6 @@ export const MUSIC_CHANNELS = {
   "8bit_castle": 4,
   dog39: 4,
   stars_4ch: 4,
-  at_the_top: 4,
 } as const;
 export type MusicName = keyof typeof MUSIC_CHANNELS;
 
@@ -73,7 +72,6 @@ export const LIMBES_MUSIC = [
   "stars_4ch",
   "dog39",
   "8bit_castle",
-  "at_the_top",
 ] as const satisfies readonly MusicName[];
 export const LIMBES_MUSIC_LEVELS = 5;
 
