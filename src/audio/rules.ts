@@ -97,6 +97,25 @@ export function musicGain(moduleChannels: number, musicVolume: number): number {
   return (musicVolume / MAX_VOLUME) * voiceGain(moduleChannels) * (moduleChannels / 2);
 }
 
+/** Level of the Space module, which the Limbes modules are brought to. */
+export const MUSIC_TARGET_DB = -14.39;
+/**
+ * Not in the original: the Limbes modules come from other authors and are mixed much louder
+ * or quieter than the Space one. RMS of their stereo output, rendered for 150 s by libopenmpt
+ * with the settings of music.ts, before any game gain.
+ */
+export const LIMBES_MUSIC_RMS_DB: Readonly<Partial<Record<MusicName, number>>> = {
+  stars_4ch: -16.91,
+  dog39: -11.57,
+  "8bit_castle": -10.1,
+};
+
+/** Extra gain of a module: 1 for those of the original. */
+export function musicTrim(name: MusicName): number {
+  const rms = LIMBES_MUSIC_RMS_DB[name];
+  return rms === undefined ? 1 : 10 ** ((MUSIC_TARGET_DB - rms) / 20);
+}
+
 /** Gain of a sound under a module, 0x40C9E2: the volume product stops at 63/64. */
 export function soundGain(name: SoundName, moduleChannels: number, soundVolume: number): number {
   const own = HALF_VOLUME_SOUNDS.includes(name) ? MAX_VOLUME / 2 : MAX_VOLUME;
