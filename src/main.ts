@@ -53,6 +53,7 @@ import {
 } from "./render/screens";
 import { SheetRecolorer } from "./render/recolor";
 import { SCREEN_HEIGHT, SCREEN_WIDTH, Screen } from "./render/screen";
+import { skinnedCapsule, skinnedFrame, worldPlayerSkin } from "./render/skin";
 import { ENDING_STEPS, Film } from "./ui/film";
 import { FinalScreen } from "./ui/final";
 import { type Arrow, Menu, type MenuEvent, withLimbesLabel } from "./ui/menu";
@@ -533,15 +534,22 @@ function font(): BitmapFont {
 }
 
 /** A moving ball, shot or monster, interpolated between ticks. */
-function drawMoving(b: Ball, alpha: number, sheet: CanvasImageSource, pitch?: number): void {
+function drawMoving(
+  b: Ball,
+  frame: number,
+  alpha: number,
+  sheet: CanvasImageSource,
+  pitch?: number,
+): void {
   const p = prevBalls.get(b);
   const near = p && Math.abs(b.x - p.x) <= MAX_LERP && Math.abs(b.y - p.y) <= MAX_LERP;
   const x = near ? Math.round(p.x + (b.x - p.x) * alpha) : b.x;
   const y = near ? Math.round(p.y + (b.y - p.y) * alpha) : b.y;
-  drawSprite(ctx, sheet, spriteAt(b.anim.frame, b.w, b.h, pitch), x, y);
+  drawSprite(ctx, sheet, spriteAt(frame, b.w, b.h, pitch), x, y);
 }
 
 function drawGame(alpha: number, sheet: HTMLCanvasElement, background: string): void {
+  const skin = worldPlayerSkin(world);
   for (let i = 0; i < GRID_CELLS; i++) {
     const address = cellSprite(game.grid, i);
     if (address === null) continue;
@@ -559,7 +567,7 @@ function drawGame(alpha: number, sheet: HTMLCanvasElement, background: string): 
   for (const c of game.capsules) {
     if (c.state !== CapsuleState.Falling) continue;
     const y = Math.round(c.y - CAPSULE_DY * (1 - alpha));
-    drawSprite(ctx, sheet, capsuleSprite(c.bonus!.code), c.x, y);
+    drawSprite(ctx, sheet, capsuleSprite(skinnedCapsule(c.bonus!.code, skin)), c.x, y);
   }
 
   const { paddle, paddleAnim } = game;
@@ -569,24 +577,26 @@ function drawGame(alpha: number, sheet: HTMLCanvasElement, background: string): 
   const ahead = paddleAnim ? 0 : clampPaddleX(paddle, paddle.x + pending) - paddle.x;
   for (const b of game.balls) {
     if (b.state === BallState.Dead) continue;
+    const frame = skinnedFrame(b.anim, skin);
     // A ball waiting on the paddle follows it; a moving one is interpolated.
     if (b.stuckOffset !== null && game.magnet.on) {
-      drawSprite(ctx, sheet, spriteAt(b.anim.frame, b.w, b.h), b.x + ahead, b.y);
+      drawSprite(ctx, sheet, spriteAt(frame, b.w, b.h), b.x + ahead, b.y);
       continue;
     }
-    drawMoving(b, alpha, sheet);
+    drawMoving(b, frame, alpha, sheet);
   }
 
   if (paddleAnim) {
     const { anim } = paddleAnim;
     if (paddleAnim.visible) {
-      drawSprite(ctx, sheet, spriteAt(anim.frame, anim.w, anim.h), paddleAnim.x, paddleAnim.y);
+      const frame = skinnedFrame(anim, skin);
+      drawSprite(ctx, sheet, spriteAt(frame, anim.w, anim.h), paddleAnim.x, paddleAnim.y);
     }
   } else {
     drawSprite(
       ctx,
       sheet,
-      spriteAt(paddle.anim.frame, paddle.w, PADDLE_H),
+      spriteAt(skinnedFrame(paddle.anim, skin), paddle.w, PADDLE_H),
       paddle.x + ahead,
       paddle.y,
     );
@@ -604,19 +614,25 @@ function drawGame(alpha: number, sheet: HTMLCanvasElement, background: string): 
     if (m.state === BallState.Lost) {
       drawSprite(ctx, monsterSheet, spriteAt(m.anim.frame, m.w, m.h, MONSTER_PITCH), m.x, m.y);
     } else {
-      drawMoving(m, alpha, monsterSheet, MONSTER_PITCH);
+      drawMoving(m, m.anim.frame, alpha, monsterSheet, MONSTER_PITCH);
     }
   }
   for (const s of shots) {
-    if (s.state !== BallState.Dead) drawMoving(s, alpha, sheet);
+    if (s.state !== BallState.Dead) drawMoving(s, s.anim.frame, alpha, sheet);
   }
 
-  drawHud(ctx, sheet, font(), {
-    score: game.player.score,
-    level: game.level,
-    lives: game.livesShown,
-    message: game.message,
-  });
+  drawHud(
+    ctx,
+    sheet,
+    font(),
+    {
+      score: game.player.score,
+      level: game.level,
+      lives: game.livesShown,
+      message: game.message,
+    },
+    skin,
+  );
   if (game.bonus.icon !== null) {
     const { x, y } = BONUS_ICON_POS;
     flasher.draw(ctx, sheet, background, game.bonus.icon, game.flash.shown, x, y);
