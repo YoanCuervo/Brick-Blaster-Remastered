@@ -70,9 +70,9 @@ export const WORLD_MUSIC: Record<OriginalWorld, MusicName> = {
 
 /** Not in the original, whose game music never changes with the level. */
 export const LIMBES_MUSIC = [
-  "8bit_castle",
-  "dog39",
   "stars_4ch",
+  "dog39",
+  "8bit_castle",
   "at_the_top",
 ] as const satisfies readonly MusicName[];
 export const LIMBES_MUSIC_LEVELS = 5;
