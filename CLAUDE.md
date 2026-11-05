@@ -42,7 +42,7 @@ game/           playable test copy of the original with test cfg/levels (NOT ver
 tools/extract/  DIET decompressor + asset extraction (Python)
 tools/re/       disassembly helpers (capstone), output in tools/re/out/
 tools/acceptance/ short-world dev config, never part of the build
-tools/limbes/   generates src/assets/backgrounds from the photos
+tools/limbes/   generates the Limbes backgrounds in src/assets/backgrounds
 tools/          make_test_cfg.py, make_test_levels.py, blaster_cfg_original.txt
 docs/           cadrage.md
 ```

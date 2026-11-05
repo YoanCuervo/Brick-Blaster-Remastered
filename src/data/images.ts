@@ -28,19 +28,13 @@ export const WORLD_BACKGROUNDS = 8;
 
 /** Not in the original: versioned in src/assets, made by tools/limbes/make_backgrounds.py. */
 export const LIMBES_BACKGROUNDS = range("backgrounds/limbes", WORLD_BACKGROUNDS);
-/** Not in the original: what space shows in the browser version. Sources in CREDITS.md. */
-export const SPACE_PHOTOS = range("backgrounds/space_photo", WORLD_BACKGROUNDS);
-/** These have no palette of their own: colours 0..15 of the screen stay those of this one (§3.5). */
+/** They have no palette of their own: colours 0..15 of the screen stay those of this one (§3.5). */
 export const FREE_BACKGROUND_COLORS = "backgrounds/space_1";
 
-/**
- * 0x407430: background N = 1 + ((level − 1) & 7), so they cycle every 8 levels.
- * @param web the browser version shows photos in space; the desktop version keeps the original
- */
-export function backgroundImage(world: World, level: number, web = false): string {
+/** 0x407430: background N = 1 + ((level − 1) & 7), so they cycle every 8 levels. */
+export function backgroundImage(world: World, level: number): string {
   const slot = (level - 1) & (WORLD_BACKGROUNDS - 1);
   if (world === "limbes") return LIMBES_BACKGROUNDS[slot]!;
-  if (world === "space" && web) return SPACE_PHOTOS[slot]!;
   return `backgrounds/${world}_${slot + 1}`;
 }
 

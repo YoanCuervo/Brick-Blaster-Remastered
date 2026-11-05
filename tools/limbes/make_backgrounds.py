@@ -1,18 +1,15 @@
-"""Backgrounds of the browser version: hydrogen orbitals for Limbes, photos for space.
+"""Backgrounds of Limbes: hydrogen orbitals, black outside the play area.
 
-usage: tools/.venv/Scripts/python.exe tools/limbes/make_backgrounds.py <photos folder>
-
-The photos are not versioned, only what comes out of here. Sources and credits: CREDITS.md.
+usage: tools/.venv/Scripts/python.exe tools/limbes/make_backgrounds.py
 """
 import math
-import sys
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageEnhance, ImageFilter
+from PIL import Image
 
 WIDTH, HEIGHT = 640, 480
-# Middle of the play area, above the paddle.
-CENTRE = (320, 200)
+# PADDLE_X_MIN and PLAY_RIGHT of src/game/paddle.ts.
+PLAY_LEFT, PLAY_RIGHT = 112, 528
 OUT = Path(__file__).resolve().parents[2] / "src" / "assets" / "backgrounds"
 
 
@@ -64,32 +61,9 @@ def orbital(n, l, m, scale, stops, brightness):
                 break
     image = Image.new("RGB", (WIDTH, HEIGHT))
     image.putdata(pixels)
+    image.paste((0, 0, 0), (0, 0, PLAY_LEFT, HEIGHT))
+    image.paste((0, 0, 0), (PLAY_RIGHT, 0, WIDTH, HEIGHT))
     return image
-
-
-def photo(source, zoom, brightness, edge=None, floor=0, keep=0.9):
-    """A photo shrunk around the middle of the play area, on black.
-
-    zoom 1 covers the screen. A floor lifts the grey of a sky that should be black.
-    """
-    image = Image.open(source).convert("RGB")
-    ratio = min(image.width / WIDTH, image.height / HEIGHT) / zoom
-    size = round(image.width / ratio), round(image.height / ratio)
-    small = image.resize(size, Image.LANCZOS)
-    if floor:
-        small = small.point(lambda v: max(0, v - floor) * 255 // (255 - floor))
-    small = ImageEnhance.Brightness(small).enhance(brightness)
-    screen = Image.new("RGB", (WIDTH, HEIGHT))
-    corner = round(CENTRE[0] - size[0] / 2), round(CENTRE[1] - size[1] / 2)
-    if edge is None:
-        screen.paste(small, corner)
-        return screen
-    mask = Image.new("L", size, 0)
-    dx, dy = size[0] * (1 - keep) / 2, size[1] * (1 - keep) / 2
-    ImageDraw.Draw(mask).ellipse((dx, dy, size[0] - dx, size[1] - dy), fill=255)
-    blur = min(size) * (0.02 if edge == "sharp" else 0.08)
-    screen.paste(small, corner, mask.filter(ImageFilter.GaussianBlur(blur)))
-    return screen
 
 
 # n, l, m, scale, colours, brightness. Slots 4 and 8 are the brightest: ghost bricks need them dimmer.
@@ -104,31 +78,15 @@ ORBITALS = [
     (6, 4, 0, 0.15, colour_ramp((240, 185, 150), (135, 70, 70), (46, 16, 40)), 0.55),
 ]
 
-# File, then the arguments of photo(), in the order of the levels.
-PHOTOS = [
-    ("heic0611b.jpg", 1.0, 0.6),
-    ("heic2312a.jpg", 0.5, 0.65),
-    ("heic0506a.jpg", 0.62, 0.6, "soft", 12, 0.92),
-    ("opo0534a.jpg", 0.34, 0.65, "sharp", 0, 0.86),
-    ("opo0328a.jpg", 0.68, 0.65, "soft", 14, 0.86),
-    ("earth.jpg", 0.47, 0.6),
-    ("eso1907a.jpg", 0.85, 0.75, "soft", 12, 0.8),
-    ("moon.jpg", 0.4, 0.55),
-]
-
-
 def save(image, name):
     indexed = image.quantize(256, method=Image.MEDIANCUT, dither=Image.FLOYDSTEINBERG)
     indexed.save(OUT / f"{name}.png", optimize=True)
 
 
 def main():
-    sources = Path(sys.argv[1])
     OUT.mkdir(parents=True, exist_ok=True)
     for i, (n, l, m, scale, stops, brightness) in enumerate(ORBITALS, 1):
         save(orbital(n, l, m, scale, stops, brightness), f"limbes_{i}")
-    for i, (name, *args) in enumerate(PHOTOS, 1):
-        save(photo(sources / name, *args), f"space_photo_{i}")
 
 
 if __name__ == "__main__":

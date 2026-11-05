@@ -22,7 +22,7 @@ export function black(ctx: CanvasRenderingContext2D): void {
 const NOTICE_MARGIN = 24;
 const NOTICE_LINE = 14;
 
-/** The bitmap font has no accents or parentheses, and these credits must keep their wording. */
+/** The bitmap font has no accents. */
 export function drawNotice(ctx: CanvasRenderingContext2D): void {
   black(ctx);
   ctx.font = "12px monospace";
