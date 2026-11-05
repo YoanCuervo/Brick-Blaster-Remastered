@@ -49,21 +49,28 @@ export function pulsePixels(
   }
 }
 
-/** Where the F of the same quadrant sits on its button, so the L matches the S and the A. */
-const LIMBES_MARK = { x: 269, y: 324, radius: 33 } as const;
-const MARK_LINE = 0.72;
-const MARK_FILL = 0.88;
+/** Where the F of the same quadrant sits on its button; the sizes are those of the S and the A. */
+const LIMBES_MARK = { x: 269, y: 324, radius: 34 } as const;
+const MARK_RING = 5;
+const MARK_STROKE = 3;
+const MARK_SHADE = 0.72;
 
-const inLetterL = (dx: number, dy: number) =>
-  dx >= -11 && dy >= -18 && dy <= 18 && (dx <= -2 || (dy >= 9 && dx <= 13));
+/** Solid L whose foot ends in a slant, like the legs of the A. */
+const inLetterL = (dx: number, dy: number) => {
+  if (dx < -18 || dy < -24 || dy > 24) return false;
+  return dx <= -3 || (dy >= 11 && dx <= 12 + ((dy - 11) * 6) / 13);
+};
 
-/** Share of light kept at an offset from the centre of the mark: an L in its ring. */
+/** Share of light kept at an offset from the centre of the mark: only outlines are darkened. */
 export function limbesMarkShade(dx: number, dy: number): number {
   const distance = Math.hypot(dx, dy);
-  if (distance <= LIMBES_MARK.radius && distance > LIMBES_MARK.radius - 3) return MARK_LINE;
+  if (distance <= LIMBES_MARK.radius && distance > LIMBES_MARK.radius - MARK_RING)
+    return MARK_SHADE;
   if (!inLetterL(dx, dy)) return 1;
-  const edge = [-2, 2].some((d) => !inLetterL(dx + d, dy) || !inLetterL(dx, dy + d));
-  return edge ? MARK_LINE : MARK_FILL;
+  const edge = [-MARK_STROKE, MARK_STROKE].some(
+    (d) => !inLetterL(dx + d, dy) || !inLetterL(dx, dy + d),
+  );
+  return edge ? MARK_SHADE : 1;
 }
 
 /**
