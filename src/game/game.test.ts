@@ -100,9 +100,9 @@ function until(g: Game, mode: GameMode, input = idle, max = 1000): number {
 describe("webConfig", () => {
   it("moves each difficulty up and gives hard a new speed", () => {
     const web = webConfig(config(), Difficulty.Easy);
-    expect(web.startSpeed).toEqual([3, 4, 6]);
+    expect(web.startSpeed).toEqual([3, 4, 5]);
     expect(web.nbsChangeSpeedLevel).toEqual([3, 3, 4]);
-    expect(serveSpeed(6, 4, 50, 50)).toEqual({ dx: 10, dy: -11 });
+    expect(serveSpeed(5, 4, 50, 50)).toEqual({ dx: 9, dy: -10 });
   });
 
   it("speeds up sooner on hard only", () => {

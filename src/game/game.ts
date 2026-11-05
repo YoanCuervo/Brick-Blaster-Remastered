@@ -175,7 +175,7 @@ const WEB_HARD_FREQ_CHANGE_SPEED = 1000;
 export function webConfig(config: GameConfig, difficulty: Difficulty): GameConfig {
   return {
     ...config,
-    startSpeed: [3, 4, 6],
+    startSpeed: [3, 4, 5],
     nbsChangeSpeedLevel: [3, 3, 4],
     freqChangeSpeed:
       difficulty === Difficulty.Hard ? WEB_HARD_FREQ_CHANGE_SPEED : config.freqChangeSpeed,

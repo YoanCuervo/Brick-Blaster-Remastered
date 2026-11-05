@@ -445,7 +445,7 @@ dy = −(dx + 1)                                                // toujours vers
 
 Avec 40 niveaux en moyen (3, 3) : dx = 3 jusqu'au niveau 12, 4 à partir du 13, 5 à partir du 26, 6 à partir du 39.
 
-**Écart du remake, version navigateur** : `Start_Speed` vaut (3, 4, 6), `Nbs_Change_Speed_Level` (3, 3, 4), et `Freq_Change_Speed` 1000 en difficile. L'original et le .exe gardent `blaster.cfg`.
+**Écart du remake, version navigateur** : `Start_Speed` vaut (3, 4, 5), `Nbs_Change_Speed_Level` (3, 3, 4), et `Freq_Change_Speed` 1000 en difficile. L'original et le .exe gardent `blaster.cfg`.
 
 Une balle collée suit la raquette (`x = raquette.x + décalage`, `y = raquette.y − 9`). Elle part dès que le bouton de souris est tenu (`0x403E02`, `0x407065`). Comme `0x405093` passe avant `0x403913` dans la boucle, un clic sert la balle et elle part dans le même tick. Tant qu'elle est collée en « montant », son compteur d'accélération tourne déjà.
 
