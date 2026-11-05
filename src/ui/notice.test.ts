@@ -13,8 +13,11 @@ describe("Notice", () => {
     expect(new Notice().tick(false, true)).toBe(true);
   });
 
-  it("credits the music of Limbes", () => {
+  it("credits the four modules of Limbes and their licence", () => {
     const text = NOTICE_BLOCKS.flatMap((block) => block.lines).join("\n");
-    expect(text).toContain("JAM");
+    for (const author of ["JAM", "Songerson", "cs127", "Zilly Mike"]) {
+      expect(text).toContain(author);
+    }
+    expect(text).toContain("creativecommons.org/licenses/by/4.0");
   });
 });

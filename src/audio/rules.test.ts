@@ -6,7 +6,10 @@ import {
   MUSIC_CHANNELS,
   SOUND_NAMES,
   SOUND_RATE,
+  LIMBES_MUSIC,
+  LIMBES_MUSIC_LEVELS,
   WORLD_MUSIC,
+  worldMusic,
   holdResample,
   musicFadeTicks,
   musicGain,
@@ -69,8 +72,26 @@ describe("music rules", () => {
   it("gives each world its own module, and the menu another", () => {
     expect(WORLD_MUSIC.space).toBe("the_last");
     expect(WORLD_MUSIC.arcade).toBe("hunting_in_lacanau");
-    expect(WORLD_MUSIC.limbes).toBe("8bit_castle");
     expect(MENU_MUSIC).toBe("love");
+  });
+
+  it("keeps one module per world in the original worlds, whatever the level", () => {
+    for (const level of [1, 6, 40]) {
+      expect(worldMusic("space", level)).toBe("the_last");
+      expect(worldMusic("arcade", level)).toBe("hunting_in_lacanau");
+    }
+  });
+
+  it("changes the module of Limbes every 5 levels, through its 50 levels", () => {
+    expect(LIMBES_MUSIC_LEVELS).toBe(5);
+    expect(worldMusic("limbes", 1)).toBe("8bit_castle");
+    expect(worldMusic("limbes", 5)).toBe("8bit_castle");
+    expect(worldMusic("limbes", 6)).toBe("dog39");
+    expect(worldMusic("limbes", 11)).toBe("stars_4ch");
+    expect(worldMusic("limbes", 16)).toBe("at_the_top");
+    expect(worldMusic("limbes", 21)).toBe("8bit_castle");
+    expect(worldMusic("limbes", 50)).toBe("dog39");
+    expect(new Set(LIMBES_MUSIC).size).toBe(4);
   });
 
   it("knows the voice count of each module signature", () => {
@@ -81,6 +102,9 @@ describe("music rules", () => {
       hunting_in_lacanau: 6,
       rain_in_the_brain: 8,
       "8bit_castle": 4,
+      dog39: 4,
+      stars_4ch: 4,
+      at_the_top: 4,
     });
   });
 
