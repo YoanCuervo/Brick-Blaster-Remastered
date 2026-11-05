@@ -11,9 +11,15 @@ export type Level = readonly (readonly number[])[];
 export const LEVEL_FILES = ["lv0", "lv1", "lv2"] as const;
 export type LevelFile = (typeof LEVEL_FILES)[number];
 export type LevelSet = Record<LevelFile, readonly Level[]>;
+/** The pack, plus the levels of Limbes, which ship with the code (data/limbesLevels.ts). */
+export type WorldLevelSets = LevelSet & { limbes: readonly Level[] };
 
 /** The world digit picks the level resource (0x407BEB): lv2 is never loaded. */
-export const WORLD_LEVELS: Record<World, LevelFile> = { space: "lv0", arcade: "lv1" };
+export const WORLD_LEVELS: Record<World, keyof WorldLevelSets> = {
+  space: "lv0",
+  arcade: "lv1",
+  limbes: "limbes",
+};
 
 function level(value: unknown, path: string): Level {
   return list(value, path, LEVEL_ROWS, (row, p) =>

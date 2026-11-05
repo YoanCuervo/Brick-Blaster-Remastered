@@ -332,6 +332,7 @@ Niveau 1                       Niveau 2 (bas)
 - `lv1` : 40 niveaux. **Monde « arcade »** (vérifié). Le menu propose 2 mondes, « espace » et « arcade », plus un 3ᵉ emplacement vide.
 - `lv2` : 40 niveaux, version **antérieure** de lv1 (9 niveaux diffèrent : 1-4, 7-9, 16, 19 ; daté du 26/04/1999 contre 10/05/1999 pour lv1). Le jeu ne le charge jamais.
 - La config limite `Start_Level` à 1–40.
+- **Écart du remake, version navigateur uniquement** : un 3ᵉ monde, « limbes », occupe l'emplacement vide, avec 50 niveaux nouveaux (`src/data/limbesLevels.ts`) sans équivalent dans l'original. Sans asset propre pour l'instant : écran noir, aucune musique, sprites et palette d'espace, couleurs 0 à 15 de `space_1`. Le nombre de niveaux étant lu des données (`0x404E96`), les paliers de vitesse tombent aux niveaux 16, 32 et 48 (12, 24, 36 et 48 en difficile) et le compteur d'accélération descend à 667 au niveau 50 (167 en difficile).
 
 ---
 
@@ -444,9 +445,13 @@ dy = −(dx + 1)                                                // toujours vers
 
 Avec 40 niveaux en moyen (3, 3) : dx = 3 jusqu'au niveau 12, 4 à partir du 13, 5 à partir du 26, 6 à partir du 39.
 
+**Écart du remake, version navigateur** : `Start_Speed` vaut (3, 4, 5), `Nbs_Change_Speed_Level` (3, 3, 4), et `Freq_Change_Speed` 1000 en difficile. L'original et le .exe gardent `blaster.cfg`.
+
 Une balle collée suit la raquette (`x = raquette.x + décalage`, `y = raquette.y − 9`). Elle part dès que le bouton de souris est tenu (`0x403E02`, `0x407065`). Comme `0x405093` passe avant `0x403913` dans la boucle, un clic sert la balle et elle part dans le même tick. Tant qu'elle est collée en « montant », son compteur d'accélération tourne déjà.
 
 **Ordre de la boucle principale** (`0x401DFB`), pour la partie décodée : routine du bonus actif (`0x405DD2`), minuteur du bonus (`0x405E1A`), vie supplémentaire (`0x40600B`), raquette, attente du service (`0x405093`), balles (`0x403913`), capsules (`0x405452`), animations des objets (`0x4066BA`), vie perdue (`0x404A38`), fin de niveau (`0x4045B2`), animations de la grille, attente du tick (`0x40653C`), clignotement de l'icône (`0x405671`).
+
+**Écart du remake, version navigateur** : après le dernier niveau, chaque vie en réserve rapporte 1000 points, dans la limite de 999 990. L'original et le .exe n'ont pas ce bonus.
 
 **Vie supplémentaire** (`0x40600B`, en mode 3 seulement, une fois par tick). Si `score ≥ seuil`, le seuil augmente de `Extra_Life` et le joueur gagne **8 unités** de points (80/90/100). Le message « vie en plus » s'affiche. Puis `0x405FB1` joue `newlife`, ajoute une vie (plafond : 19 en réserve) et **efface le bonus actif**.
 

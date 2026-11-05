@@ -49,10 +49,12 @@ export class Music {
   }
 
   /** Asking for the current module changes nothing: it goes on playing (0x4077AF). */
-  play(name: MusicName): void {
+  play(name: MusicName | null): void {
     if (name === this.wanted) return;
     this.wanted = name;
-    this.switchTo(name, ++this.ticket).catch((e: unknown) => {
+    const ticket = ++this.ticket;
+    const change = name === null ? this.stop(ticket) : this.switchTo(name, ticket);
+    change.catch((e: unknown) => {
       console.error("music unavailable:", e);
     });
   }
@@ -91,6 +93,14 @@ export class Music {
       this.files.set(name, file);
     }
     return file;
+  }
+
+  /** Silence, for a world without music. The sounds keep the level of the last module. */
+  private async stop(ticket: number): Promise<void> {
+    const [node] = await Promise.all([this.node, this.fadeOut()]);
+    if (ticket !== this.ticket) return;
+    node.port.postMessage({ cmd: "stop" });
+    this.playing = null;
   }
 
   private async switchTo(name: MusicName, ticket: number): Promise<void> {

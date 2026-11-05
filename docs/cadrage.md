@@ -20,13 +20,16 @@ Projet personnel, qui alimentera un portfolio. Pas d'échéance.
   - rebond sur la raquette à 2 angles, accélération progressive, anti-boucle infinie ;
   - 23 bonus en solo sur les 24 de la table, `collision` ne servant qu'en duel (tirage exact, un seul actif à la fois, durée 600 ticks) ;
   - monstres, score, vies, vie supplémentaire.
-- Les 2 mondes (espace, arcade) et leurs 80 niveaux, 40 par monde, avec leurs fonds.
+- Les 2 mondes d'origine (espace, arcade) et leurs 80 niveaux, 40 par monde, avec leurs fonds.
 - Contrôle à la souris (Pointer Lock, sensibilité continue réglable), plus le clavier.
 - Sons, musiques MOD d'origine, 3 difficultés.
 - Menus d'origine (boutons ronds à 4 quadrants), meilleurs scores et réglages conservés localement.
 - Les animations FLC, jouées comme dans l'original : `intro.flc` dans les crédits, `blaster.flc` sur l'écran de fin.
 - Deux livrables : une version navigateur et un **.exe Windows 10+**.
-- Meilleurs scores de la version navigateur : une table par monde et par difficulté, écart assumé avec l'original (analyse, Écrans et meilleurs scores). Le .exe garde la table unique. Le 3e monde, « Limbes », prévu sur le bouton vide du menu Monde, aura ses tables sans autre changement. Il reste à créer.
+- Meilleurs scores de la version navigateur : une table par monde et par difficulté, écart assumé avec l'original (analyse, Écrans et meilleurs scores). Le .exe garde la table unique. Le 3e monde, « Limbes », occupe le bouton vide du menu Monde et a ses tables sans autre changement.
+- Fin de partie de la version navigateur, tous mondes : 1000 points par vie restante après le dernier niveau, écart assumé avec l'original. Le .exe ne les compte pas.
+- Vitesses de la version navigateur, tous mondes : départ 3/4/5 au lieu de 2/3/4, paliers 3/3/4 au lieu de 2/3/3, accélération tous les 1000 ticks en difficile au lieu de 1500. Écart assumé avec l'original, le jeu étant trop simple. Le .exe garde `blaster.cfg`.
+- 3e monde « Limbes », version navigateur uniquement : 50 niveaux originaux, versionnés dans `src/data/limbesLevels.ts`. Pas encore d'assets propres : fond noir, aucune musique, sprites et palette du monde espace, en attendant les siens. Le L du bouton rose est dessiné par le code, sans image ajoutée. Le .exe garde le bouton vide.
 
 ## Exclusions V1
 

@@ -69,6 +69,7 @@ describe("music rules", () => {
   it("gives each world its own module, and the menu another", () => {
     expect(WORLD_MUSIC.space).toBe("the_last");
     expect(WORLD_MUSIC.arcade).toBe("hunting_in_lacanau");
+    expect(WORLD_MUSIC.limbes).toBeNull();
     expect(MENU_MUSIC).toBe("love");
   });
 

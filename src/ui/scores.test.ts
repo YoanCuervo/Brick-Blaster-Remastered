@@ -248,8 +248,9 @@ describe("tables per world and difficulty (browser only)", () => {
 
   it("moves through the worlds with left and right, and wraps", () => {
     expect(stepTable(SPACE_EASY, "right").world).toBe("arcade");
-    expect(stepTable(SPACE_EASY, "left").world).toBe("arcade");
-    expect(stepTable(ARCADE_HARD, "right")).toEqual({ ...ARCADE_HARD, world: "space" });
+    expect(stepTable(SPACE_EASY, "left").world).toBe("limbes");
+    expect(stepTable(ARCADE_HARD, "right")).toEqual({ ...ARCADE_HARD, world: "limbes" });
+    expect(stepTable({ ...ARCADE_HARD, world: "limbes" }, "right").world).toBe("space");
   });
 
   it("moves through the difficulties with up and down, and wraps", () => {

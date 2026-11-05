@@ -11,7 +11,7 @@ import { LEVEL_COLS, LEVEL_ROWS, type Level } from "../data/levels";
 import { BALL_SPRITE, BallState } from "./ball";
 import { BONUS_TICKS, CapsuleState, bonusByKey, spawnCapsule } from "./bonus";
 import { FADE_STEPS } from "../render/fade";
-import { Game, GameMode, NIGHT_FADE, serveSpeed, speedInterval } from "./game";
+import { Game, GameMode, NIGHT_FADE, serveSpeed, speedInterval, webConfig } from "./game";
 import { spawnMonster, monsterSprite } from "./monsters";
 import { updateCannons } from "./shots";
 
@@ -96,6 +96,28 @@ function until(g: Game, mode: GameMode, input = idle, max = 1000): number {
   }
   return n;
 }
+
+describe("webConfig", () => {
+  it("moves each difficulty up and gives hard a new speed", () => {
+    const web = webConfig(config(), Difficulty.Easy);
+    expect(web.startSpeed).toEqual([3, 4, 5]);
+    expect(web.nbsChangeSpeedLevel).toEqual([3, 3, 4]);
+    expect(serveSpeed(5, 4, 50, 50)).toEqual({ dx: 9, dy: -10 });
+  });
+
+  it("speeds up sooner on hard only", () => {
+    expect(webConfig(config(), Difficulty.Easy).freqChangeSpeed).toBe(1500);
+    expect(webConfig(config(), Difficulty.Medium).freqChangeSpeed).toBe(1500);
+    expect(webConfig(config(), Difficulty.Hard).freqChangeSpeed).toBe(1000);
+  });
+
+  it("leaves the config it was given alone", () => {
+    const given = config();
+    webConfig(given, Difficulty.Hard);
+    expect(given.startSpeed).toEqual([2, 3, 4]);
+    expect(given.freqChangeSpeed).toBe(1500);
+  });
+});
 
 describe("level speeds", () => {
   it("serves faster every levelCount / Nbs_Change_Speed_Level levels (0x40513F)", () => {
@@ -222,6 +244,17 @@ describe("level end (0x4045B2, 0x401C54)", () => {
     g.tick(idle);
     expect(g.mode).toBe(GameMode.Finished);
     expect(g.paddleAnim).toBeNull();
+  });
+
+  it("pays the spare lives past the last level only when asked to", () => {
+    const finish = (points?: number) => {
+      const g = new Game(config(), [level([])], Difficulty.Medium, new Rng(1), points);
+      ticks(g, READY_TICKS + 1);
+      expect(g.mode).toBe(GameMode.Finished);
+      return g.player.score;
+    };
+    expect(finish()).toBe(0);
+    expect(finish(1000)).toBe(2000);
   });
 
   it("signals the end screens and does nothing more (0x401C82)", () => {

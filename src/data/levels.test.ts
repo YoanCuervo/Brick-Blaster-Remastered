@@ -47,6 +47,6 @@ describe("parseLevels", () => {
 
 describe("WORLD_LEVELS (0x407BEB)", () => {
   it("loads lv0 for space and lv1 for arcade", () => {
-    expect(WORLD_LEVELS).toEqual({ space: "lv0", arcade: "lv1" });
+    expect(WORLD_LEVELS).toEqual({ space: "lv0", arcade: "lv1", limbes: "limbes" });
   });
 });

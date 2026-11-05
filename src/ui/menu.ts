@@ -1,6 +1,6 @@
 import type { MenuText } from "../data/config";
 import { Difficulty } from "../data/config";
-import type { World } from "../data/images";
+import { WORLDS, type World } from "../data/images";
 import { type IconFlash, createIconFlash, stepIconFlash } from "../game/bonus";
 import type { SoundName } from "../game/game";
 import { FADE_STEPS } from "../render/fade";
@@ -43,7 +43,7 @@ export const MENUS: Record<MenuId, MenuDef> = {
     actions: [
       { kind: "world", world: "space" },
       { kind: "world", world: "arcade" },
-      none,
+      { kind: "world", world: "limbes" },
       // 0x401640: "back" lands on menu 3, skipped when there is no player 2.
       go(MenuId.Players),
     ],
@@ -123,6 +123,20 @@ export const sensitivityAt = (position: number) =>
 export const sensitivityPosition = (sensitivity: number) =>
   Math.round(((sensitivity - MIN_SENSITIVITY) / (MAX_SENSITIVITY - MIN_SENSITIVITY)) * BAR_SPAN);
 
+const LIMBES_QUADRANT = 2;
+const LIMBES_LABEL = "        limbes        ";
+
+/** blaster.cfg stays untouched: menu_text_4c, blank there, only gets its name in memory. */
+export function withLimbesLabel(
+  texts: readonly (readonly MenuText[])[],
+): readonly (readonly MenuText[])[] {
+  return texts.map((items, m) =>
+    m === MenuId.World - 1
+      ? items.map((item, q) => (q === LIMBES_QUADRANT ? ([LIMBES_LABEL, item[1]] as const) : item))
+      : items,
+  );
+}
+
 export type MenuEvent =
   | { kind: "play"; world: World; difficulty: Difficulty }
   | { kind: "quit" }
@@ -162,6 +176,7 @@ export class Menu {
   constructor(
     private readonly texts: readonly (readonly MenuText[])[],
     readonly settings: Settings,
+    private readonly worlds: readonly World[] = WORLDS,
   ) {}
 
   /** Palette step of the hovered quadrant: 0x405671, as for the bonus icon. */
@@ -285,6 +300,8 @@ export class Menu {
       case "credits":
         return { kind: action.kind };
       case "world":
+        // A world left out stays an empty quadrant: the click plays and nothing else (0x4014A8).
+        if (!this.worlds.includes(action.world)) break;
         this.world = action.world;
         this.next = MenuId.Difficulty;
         break;

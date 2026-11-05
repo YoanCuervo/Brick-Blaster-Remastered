@@ -27,7 +27,7 @@ export class GameAudio {
     });
   }
 
-  playMusic(name: MusicName): void {
+  playMusic(name: MusicName | null): void {
     this.music_.play(name);
   }
 

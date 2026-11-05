@@ -2,8 +2,17 @@ import { SOUND_NAMES } from "../audio/rules";
 import type { SoundName } from "../game/game";
 import { type GameConfig, parseConfig } from "./config";
 import { type FlcFile, parseFlc } from "./flc";
-import { IMAGE_NAMES, type Images, WORLDS, type World, loadImages } from "./images";
-import { type LevelSet, parseLevels } from "./levels";
+import {
+  BLACK_BACKGROUND,
+  BLACK_BACKGROUND_COLORS,
+  IMAGE_NAMES,
+  type Images,
+  ORIGINAL_WORLDS,
+  type OriginalWorld,
+  loadImages,
+} from "./images";
+import { type WorldLevelSets, parseLevels } from "./levels";
+import { LIMBES_LEVELS } from "./limbesLevels";
 import {
   type BackgroundColors,
   type VgaPalette,
@@ -14,9 +23,9 @@ import { parseWav } from "./wav";
 
 export interface Assets {
   config: GameConfig;
-  levels: LevelSet;
+  levels: WorldLevelSets;
   images: Images;
-  palettes: Record<World, VgaPalette>;
+  palettes: Record<OriginalWorld, VgaPalette>;
   /** Keyed by background image name, as given by backgroundImage(). */
   backgroundColors: Record<string, BackgroundColors>;
   sounds: Record<SoundName, Uint8Array>;
@@ -32,14 +41,17 @@ async function fetchOk(url: string): Promise<Response> {
 
 const fetchJson = async (url: string): Promise<unknown> => (await fetchOk(url)).json();
 
-async function loadPalettes(base: string): Promise<Record<World, VgaPalette>> {
+async function loadPalettes(base: string): Promise<Record<OriginalWorld, VgaPalette>> {
   const pals = await Promise.all(
-    WORLDS.map(async (_, i) => {
+    ORIGINAL_WORLDS.map(async (_, i) => {
       const url = `${base}palettes/sprite${i}.pal`;
       return parsePalette(await (await fetchOk(url)).arrayBuffer(), url);
     }),
   );
-  return Object.fromEntries(WORLDS.map((w, i) => [w, pals[i]!])) as Record<World, VgaPalette>;
+  return Object.fromEntries(ORIGINAL_WORLDS.map((w, i) => [w, pals[i]!])) as Record<
+    OriginalWorld,
+    VgaPalette
+  >;
 }
 
 async function loadSounds(base: string): Promise<Record<SoundName, Uint8Array>> {
@@ -77,5 +89,14 @@ export async function loadAssets(base = import.meta.env.BASE_URL): Promise<Asset
     loadSounds(base),
     loadFlc(`${base}video/intro.flc`),
   ]);
-  return { config, levels, images, palettes, backgroundColors, sounds, intro };
+  backgroundColors[BLACK_BACKGROUND] = backgroundColors[BLACK_BACKGROUND_COLORS]!;
+  return {
+    config,
+    levels: { ...levels, limbes: LIMBES_LEVELS },
+    images,
+    palettes,
+    backgroundColors,
+    sounds,
+    intro,
+  };
 }
