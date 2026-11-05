@@ -35,6 +35,13 @@ export function addScore(p: Player, units: number, difficulty: Difficulty, doubl
   for (; n > 0 && p.score !== MAX_SCORE; n--) p.score += POINTS_PER_UNIT;
 }
 
+/** Not in the original: what each spare life is worth past the last level, in the browser version. */
+export const SPARE_LIFE_POINTS = 1000;
+
+export function addSpareLivesBonus(p: Player, pointsPerLife: number): void {
+  p.score = Math.min(p.score + p.lives * pointsPerLife, MAX_SCORE);
+}
+
 /** 0x4083D2: no difficulty bonus here, unlike 0x40841D. The score stops at 0. */
 export function subtractScore(p: Player, units: number, doubled = false): void {
   let n = doubled ? units << 1 : units;

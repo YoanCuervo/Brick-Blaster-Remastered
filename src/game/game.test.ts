@@ -224,6 +224,17 @@ describe("level end (0x4045B2, 0x401C54)", () => {
     expect(g.paddleAnim).toBeNull();
   });
 
+  it("pays the spare lives past the last level only when asked to", () => {
+    const finish = (points?: number) => {
+      const g = new Game(config(), [level([])], Difficulty.Medium, new Rng(1), points);
+      ticks(g, READY_TICKS + 1);
+      expect(g.mode).toBe(GameMode.Finished);
+      return g.player.score;
+    };
+    expect(finish()).toBe(0);
+    expect(finish(1000)).toBe(2000);
+  });
+
   it("signals the end screens and does nothing more (0x401C82)", () => {
     const g = game([level([])], {}, 1);
     expect(g.finished).toBe(false);

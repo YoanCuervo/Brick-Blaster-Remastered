@@ -85,6 +85,7 @@ import {
   MONSTER_UNITS,
   type Player,
   addScore,
+  addSpareLivesBonus,
   checkExtraLife,
   createPlayer,
   gainLife,
@@ -248,6 +249,8 @@ export class Game {
     private readonly levels: readonly Level[],
     private readonly difficulty: Difficulty,
     private readonly rng: Rng,
+    /** Not in the original: 0 keeps its end of game, as the desktop version does. */
+    private readonly spareLifePoints = 0,
   ) {
     this.newGame();
   }
@@ -683,6 +686,7 @@ export class Game {
   /** 0x401C54: past the last level the game ends at once, without the paddle leaving. */
   private endLevel(): void {
     if (this.level === this.levelCount) {
+      addSpareLivesBonus(this.player, this.spareLifePoints);
       this.mode = GameMode.Finished;
       this.finished = true;
       return;

@@ -449,6 +449,8 @@ Une balle collée suit la raquette (`x = raquette.x + décalage`, `y = raquette.
 
 **Ordre de la boucle principale** (`0x401DFB`), pour la partie décodée : routine du bonus actif (`0x405DD2`), minuteur du bonus (`0x405E1A`), vie supplémentaire (`0x40600B`), raquette, attente du service (`0x405093`), balles (`0x403913`), capsules (`0x405452`), animations des objets (`0x4066BA`), vie perdue (`0x404A38`), fin de niveau (`0x4045B2`), animations de la grille, attente du tick (`0x40653C`), clignotement de l'icône (`0x405671`).
 
+**Écart du remake, version navigateur** : après le dernier niveau, chaque vie en réserve rapporte 1000 points, dans la limite de 999 990. L'original et le .exe n'ont pas ce bonus.
+
 **Vie supplémentaire** (`0x40600B`, en mode 3 seulement, une fois par tick). Si `score ≥ seuil`, le seuil augmente de `Extra_Life` et le joueur gagne **8 unités** de points (80/90/100). Le message « vie en plus » s'affiche. Puis `0x405FB1` joue `newlife`, ajoute une vie (plafond : 19 en réserve) et **efface le bonus actif**.
 
 **Vie perdue** (`0x404A38`, en mode 3). Le jeu compte les balles du joueur à l'état 1 ou −3. S'il n'en reste aucune (ou une seule en coop), `0x404AED` efface le bonus actif et son compteur, puis retire une vie. La réserve vaut `Nbs_Life − 1` au départ.

@@ -31,6 +31,7 @@ import { type Ball, BallState } from "./game/ball";
 import { CAPSULE_DY, CapsuleState } from "./game/bonus";
 import { GRID_CELLS, cellSprite } from "./game/bricks";
 import { Game } from "./game/game";
+import { SPARE_LIFE_POINTS } from "./game/score";
 import { MONSTER_PITCH } from "./game/monsters";
 import { PADDLE_H, clampPaddleX } from "./game/paddle";
 import { FireLatch } from "./input/fire";
@@ -172,7 +173,8 @@ function startGame(event: Extract<MenuEvent, { kind: "play" }>): void {
   const t = new Transition({ musicTicks: musicFadeTicks(settings.musicVolume) });
   startTransition(t, () => {
     const levels = assets.levels[WORLD_LEVELS[world]];
-    game = new Game(assets.config, levels, event.difficulty, new Rng(Date.now()));
+    const lifePoints = desktop ? 0 : SPARE_LIFE_POINTS;
+    game = new Game(assets.config, levels, event.difficulty, new Rng(Date.now()), lifePoints);
     keySpeed = keyboardSpeed(forDifficulty(assets.config.startSpeed, event.difficulty));
     mouse.reset();
     setScene("game");

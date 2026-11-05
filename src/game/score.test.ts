@@ -3,6 +3,7 @@ import { Difficulty } from "../data/config";
 import {
   MAX_LIVES,
   MAX_SCORE,
+  addSpareLivesBonus,
   addScore,
   checkExtraLife,
   createPlayer,
@@ -98,5 +99,22 @@ describe("loseSpareLife (0x405F7F)", () => {
     expect(p.lives).toBe(0);
     loseSpareLife(p);
     expect(p.lives).toBe(0);
+  });
+});
+
+describe("addSpareLivesBonus", () => {
+  it("pays each spare life, without touching them", () => {
+    const p = createPlayer(3, 10000);
+    p.score = 500;
+    addSpareLivesBonus(p, 1000);
+    expect(p.score).toBe(2500);
+    expect(p.lives).toBe(2);
+  });
+
+  it("stops at the score cap", () => {
+    const p = createPlayer(3, 10000);
+    p.score = MAX_SCORE - 10;
+    addSpareLivesBonus(p, 1000);
+    expect(p.score).toBe(MAX_SCORE);
   });
 });
