@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { WORLDS } from "../data/images";
 import {
   ARRIVAL,
   PaddleSprite,
@@ -13,11 +12,11 @@ import { PADDLE_LARGE, PADDLE_NORMAL, PADDLE_SMALL } from "../game/paddle";
 import { LIFE_ICONS, capsuleSprite } from "./atlas";
 import { livesSprite } from "./hud";
 import {
+  ACTIVE_SKIN,
   type PlayerSkin,
   skinnedCapsule,
   skinnedFrame,
   skinnedLifeIcons,
-  worldPlayerSkin,
 } from "./skin";
 
 const shown = (first: number, skin: PlayerSkin = "player2") =>
@@ -31,12 +30,8 @@ function ghostBall() {
 }
 
 describe("skin choice", () => {
-  it("gives the player 2 colours to Limbes only", () => {
-    expect(WORLDS.map((w) => [w, worldPlayerSkin(w)])).toEqual([
-      ["space", "player1"],
-      ["arcade", "player1"],
-      ["limbes", "player2"],
-    ]);
+  it("plays in the player 1 colours", () => {
+    expect(ACTIVE_SKIN).toBe("player1");
   });
 });
 
