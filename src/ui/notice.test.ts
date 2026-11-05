@@ -13,10 +13,8 @@ describe("Notice", () => {
     expect(new Notice().tick(false, true)).toBe(true);
   });
 
-  it("credits the 8 photos of space and the music of Limbes", () => {
-    expect(NOTICE_BLOCKS[0]!.lines).toHaveLength(8);
+  it("credits the music of Limbes", () => {
     const text = NOTICE_BLOCKS.flatMap((block) => block.lines).join("\n");
-    expect(text).toContain("EHT Collaboration");
     expect(text).toContain("JAM");
   });
 });

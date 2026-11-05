@@ -96,7 +96,7 @@ const menuRenderer = new MenuRenderer(
 const menuTexts = desktop ? assets.config.texts.menus : withLimbesLabel(assets.config.texts.menus);
 const newMenu = () => new Menu(menuTexts, settings, desktop ? ORIGINAL_WORLDS : WORLDS);
 const backgroundOf = (name: string): CanvasImageSource => assets.images.get(name)!;
-const backgroundAt = (w: World, level: number) => backgroundImage(w, level, !desktop);
+const backgroundAt = (w: World, level: number) => backgroundImage(w, level);
 
 type Scene = "slides" | "menu" | "game" | "scores" | "film" | "final" | "transition" | "notice";
 let scene: Scene = "slides";
@@ -189,9 +189,7 @@ function startGame(event: Extract<MenuEvent, { kind: "play" }>): void {
     game = new Game(rules, levels, event.difficulty, new Rng(Date.now()), lifePoints);
     keySpeed = keyboardSpeed(forDifficulty(assets.config.startSpeed, event.difficulty));
     mouse.reset();
-    // The licence of the photos asks for their credits to reach every player.
-    if (world === "space" && !desktop) showNotice(() => setScene("game"));
-    else setScene("game");
+    setScene("game");
   });
 }
 

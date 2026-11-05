@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
   FREE_BACKGROUND_COLORS,
   LIMBES_BACKGROUNDS,
-  SPACE_PHOTOS,
   IMAGE_NAMES,
   WORLD_SPRITES,
   backgroundImage,
@@ -31,15 +30,8 @@ describe("backgroundImage (0x407430)", () => {
     expect(backgroundImage("limbes", 50)).toBe("backgrounds/limbes_2");
   });
 
-  it("shows photos in space in the browser version only", () => {
-    expect(backgroundImage("space", 3, true)).toBe("backgrounds/space_photo_3");
-    expect(backgroundImage("space", 9, true)).toBe("backgrounds/space_photo_1");
-    expect(backgroundImage("space", 3, false)).toBe("backgrounds/space_3");
-    expect(backgroundImage("arcade", 3, true)).toBe("backgrounds/arcade_3");
-  });
-
   it("finds the new backgrounds versioned, and the colours they borrow in the pack", () => {
-    for (const name of [...LIMBES_BACKGROUNDS, ...SPACE_PHOTOS]) {
+    for (const name of LIMBES_BACKGROUNDS) {
       expect(existsSync(`src/assets/${name}.png`), name).toBe(true);
     }
     expect(IMAGE_NAMES).toContain(FREE_BACKGROUND_COLORS);
