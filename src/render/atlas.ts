@@ -102,13 +102,9 @@ export const LIFE_ICON_SIZE = 9;
  * Strip ending at the sheet's right edge, widened to the left by 12 px per spare
  * life. Its last 9 px are blank, so it shows exactly `lives` icons.
  */
-export function lifeIcons(lives: number): SpriteRef {
+export function lifeIcons(lives: number, end = LIFE_ICONS): SpriteRef {
   const n = Math.max(lives, 0);
-  return spriteAt(
-    LIFE_ICONS - LIFE_ICON_PITCH * n,
-    LIFE_ICON_SIZE + LIFE_ICON_PITCH * n,
-    LIFE_ICON_SIZE,
-  );
+  return spriteAt(end - LIFE_ICON_PITCH * n, LIFE_ICON_SIZE + LIFE_ICON_PITCH * n, LIFE_ICON_SIZE);
 }
 
 /** Side walls laid on the background in 0x40575F: 42 × 96 tiles, 5 high. */

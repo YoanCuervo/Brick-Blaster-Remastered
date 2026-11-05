@@ -155,6 +155,20 @@ Durées réelles en jeu (s), à 13 208 Hz (§4.5) : 0.30, 0.56, 1.63, 0.51, 0.64
 - **y = 802** (+`0x7D00`, `0x4055EF`) : l'icône du bonus actif dans le HUD. Même dessin que la première rangée, mais son cadre utilise les index 112..127 au lieu de 96..111. Ces index n'existent que là dans la planche, ce qui permet de les faire clignoter seuls (§5.2).
 - `0x81381` (y = 827) est un sprite vide : c'est lui qui « efface » une capsule ou l'icône.
 
+**Sprites du joueur 2** (vérifié dans le code et sur l'image, 05/11/2026). Mêmes dimensions et mêmes pas d'animation que le joueur 1 ; le masque de chaque image, comparé pixel à pixel pour les raquettes, les balles, les capsules et les vies, ne diffère que par les couleurs.
+
+| Sprite | Joueur 1 | Joueur 2 | Code |
+|---|---|---|---|
+| Raquette normale, grande, petite | `0x6900`, `0x6A28`, `0x6AFA` | `0xAA00`, `0xAB28`, `0xABFA` | `0x4030F4`, `0x4032CC` |
+| Explosion (mêmes tailles) | `0x1C701`, `0x1C7D5`, `0x1C778` | `0x89081`, `0x89155`, `0x890F8` | `0x4030DC`..`0x403162` |
+| Départ (warp) | `0x891E5`, `0xE1C81`, `0x8929F` | `0xCDDE5`, `0xE1D01`, `0xCDE9F` | `0x4032B4`..`0x40333A` |
+| Arrivée | `0x89242` | `0xCDE42` | `0x40329D` |
+| Balle : normale, fantôme, fer, fer fantôme | `0x1680`, `0x1692`, `0`, `0x12` | + 9 (verte, ou dorée pour le fer) | `0x4038E4`, `0x403998` |
+| Vies | `0x277` | `0x18F7` (+`0x1680`, rangée verte) | `0x405B81` |
+| Capsules | `0x75801 + 0x1A × n` | +`0x3E80` (rangée verte) | `0x405405` |
+
+**Écart du remake sur l'extinction de la balle**. Dans l'original, une balle fantôme du joueur 2 s'éteint comme une balle de fer bleue : `0x40466B` ne compare qu'à `0x1692`, donc `0x169B` part en `0x2E`. Limbes garde la couleur de la balle : verte en `0x16AE + 0x46`, dorée en `0x2E + 0x46`. La planche range ces 5 images à 70 px de celles du joueur 1, avec exactement les mêmes pixels ; à 60 px, on tomberait sur l'anneau intact et on perdrait la dernière image.
+
 **Police** (`0x408654`, `fonte.gif` 800 × 24).
 - Table des caractères en `0x41C360` : `abcdefghijklmnopqrstuvwxyz0123456789+-#!?:.&` puis espace. **Minuscules uniquement.**
 - Glyphe `i` en (1 + 16 i, 1), copié en **15 × 22** ; on avance de 15 px par caractère. Un retour chariot descend de `0x4B00` octets, soit 30 lignes.
@@ -332,7 +346,7 @@ Niveau 1                       Niveau 2 (bas)
 - `lv1` : 40 niveaux. **Monde « arcade »** (vérifié). Le menu propose 2 mondes, « espace » et « arcade », plus un 3ᵉ emplacement vide.
 - `lv2` : 40 niveaux, version **antérieure** de lv1 (9 niveaux diffèrent : 1-4, 7-9, 16, 19 ; daté du 26/04/1999 contre 10/05/1999 pour lv1). Le jeu ne le charge jamais.
 - La config limite `Start_Level` à 1–40.
-- **Écart du remake, version navigateur uniquement** : un 3ᵉ monde, « limbes », occupe l'emplacement vide, avec 50 niveaux nouveaux (`src/data/limbesLevels.ts`) sans équivalent dans l'original. Deux règles propres à ce monde, vérifiées par les tests : plus de 50 % de briques à 4 coups parmi les cassables imposent au moins un téléporteur, et un niveau demande au plus 200 coups. Ses fonds (`src/assets/backgrounds/limbes_*`) et ses 3 musiques (`src/assets/music/`, une par tranche de 5 niveaux, contrairement à l'original) ne viennent pas de l'original ; sprites et palette d'espace, couleurs 0 à 15 de `space_1`. Le nombre de niveaux étant lu des données (`0x404E96`), les paliers de vitesse tombent aux niveaux 16, 32 et 48 (12, 24, 36 et 48 en difficile) et le compteur d'accélération descend à 667 au niveau 50 (167 en difficile).
+- **Écart du remake, version navigateur uniquement** : un 3ᵉ monde, « limbes », occupe l'emplacement vide, avec 50 niveaux nouveaux (`src/data/limbesLevels.ts`) sans équivalent dans l'original. Deux règles propres à ce monde, vérifiées par les tests : plus de 50 % de briques à 4 coups parmi les cassables imposent au moins un téléporteur, et un niveau demande au plus 200 coups. Ses fonds (`src/assets/backgrounds/limbes_*`) et ses 3 musiques (`src/assets/music/`, une par tranche de 5 niveaux, contrairement à l'original) ne viennent pas de l'original ; sprites et palette d'espace, couleurs 0 à 15 de `space_1`, avec les couleurs du joueur 2 pour la raquette, la balle, les vies et les capsules (§3.5). Le nombre de niveaux étant lu des données (`0x404E96`), les paliers de vitesse tombent aux niveaux 16, 32 et 48 (12, 24, 36 et 48 en difficile) et le compteur d'accélération descend à 667 au niveau 50 (167 en difficile).
 
 ---
 
