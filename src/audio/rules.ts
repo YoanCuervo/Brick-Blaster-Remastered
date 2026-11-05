@@ -1,4 +1,4 @@
-import type { World } from "../data/images";
+import type { OriginalWorld, World } from "../data/images";
 import type { SoundName } from "../game/game";
 
 /** Sound files in the order of the slot table 0x41B9BB. */
@@ -45,7 +45,7 @@ export function soundToPlay(sounds: readonly SoundName[]): SoundName | null {
   return sounds.at(-1) ?? null;
 }
 
-/** Modules of the original. Keys are the names of the asset pack, see §3.3 for the files. */
+/** Modules of the original, keyed by their names in the asset pack (§3.3), then those of Limbes. */
 export const MUSIC_CHANNELS = {
   love: 6,
   starr: 4,
@@ -53,6 +53,9 @@ export const MUSIC_CHANNELS = {
   hunting_in_lacanau: 6,
   rain_in_the_brain: 8,
   "8bit_castle": 4,
+  dog39: 4,
+  stars_4ch: 4,
+  at_the_top: 4,
 } as const;
 export type MusicName = keyof typeof MUSIC_CHANNELS;
 
@@ -60,11 +63,25 @@ export const MENU_MUSIC: MusicName = "love"; // 0x401058, 0x4011B4
 export const CREDITS_MUSIC: MusicName = "starr"; // 0x4011FF
 export const SCORES_MUSIC: MusicName = "rain_in_the_brain"; // 0x408BB9, 0x408B1A
 /** Set by the world menu (0x401712, 0x40173B), started with the game (0x4011A4). */
-export const WORLD_MUSIC: Record<World, MusicName> = {
+export const WORLD_MUSIC: Record<OriginalWorld, MusicName> = {
   space: "the_last",
   arcade: "hunting_in_lacanau",
-  limbes: "8bit_castle",
 };
+
+/** Not in the original, whose game music never changes with the level. */
+export const LIMBES_MUSIC = [
+  "stars_4ch",
+  "dog39",
+  "8bit_castle",
+  "at_the_top",
+] as const satisfies readonly MusicName[];
+export const LIMBES_MUSIC_LEVELS = 5;
+
+export function worldMusic(world: World, level: number): MusicName {
+  if (world !== "limbes") return WORLD_MUSIC[world];
+  const turn = Math.floor((level - 1) / LIMBES_MUSIC_LEVELS);
+  return LIMBES_MUSIC[turn % LIMBES_MUSIC.length]!;
+}
 
 /** Mixer voices reserved for the sounds (0x4077D9), after those of the module. */
 const SOUND_VOICES = 2;

@@ -1,12 +1,22 @@
-// Not in the original: credit of the music that the browser version adds.
+// Not in the original: credits of the music that the browser version adds.
 
 export interface NoticeBlock {
   title: string;
   lines: readonly string[];
 }
 
+/** CC BY 4.0 asks for the author, the source and the licence to reach every player. */
 export const NOTICE_BLOCKS: readonly NoticeBlock[] = [
-  { title: "Musique du monde limbes", lines: ['"8-bit Castle" de JAM, domaine public'] },
+  {
+    title: "Musiques du monde limbes",
+    lines: [
+      '"8-bit Castle" de JAM, domaine public',
+      '"dog39" de Songerson, CC BY 4.0, modarchive.org/module.php?189675',
+      '"Stars (4ch. version)" de cs127, CC BY 4.0, modarchive.org/module.php?201917',
+      '"at the top" de Zilly Mike, CC BY 4.0, modarchive.org/module.php?169999',
+    ],
+  },
+  { title: "Licence", lines: ["CC BY 4.0 : creativecommons.org/licenses/by/4.0"] },
 ];
 
 /** Long enough to read it once; a key or fire ends it sooner. */

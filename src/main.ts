@@ -4,8 +4,8 @@ import {
   MENU_MUSIC,
   type MusicName,
   SCORES_MUSIC,
-  WORLD_MUSIC,
   musicFadeTicks,
+  worldMusic,
 } from "./audio/rules";
 import { TICK_RATE, startLoop } from "./core/loop";
 import { Rng } from "./core/rng";
@@ -180,7 +180,7 @@ function startGame(event: Extract<MenuEvent, { kind: "play" }>): void {
   difficulty = event.difficulty;
   // Still within the activation of the validating click or key.
   lockPointer(canvas);
-  audio.playMusic(WORLD_MUSIC[world]);
+  audio.playMusic(worldMusic(world, assets.config.startLevel));
   const t = new Transition({ musicTicks: musicFadeTicks(settings.musicVolume) });
   startTransition(t, () => {
     const levels = assets.levels[WORLD_LEVELS[world]];
@@ -229,7 +229,7 @@ const gameEntry = () => ({ score: game.player.score, level: game.level });
 
 /** 0x408AD9: fade out, scores, fade out. The mouse stays locked for the next game (0x401FB4). */
 function showGameOverScores(): void {
-  const music = WORLD_MUSIC[world];
+  const music = worldMusic(world, game.level);
   const leave = () => {
     const t = new Transition({
       waitRelease: true,
@@ -407,6 +407,7 @@ function updateGame(): void {
     mouse.take() + keyboardDx(keys.isDown("ArrowLeft"), keys.isDown("ArrowRight"), keySpeed);
   game.tick({ paddleDx, fire: fire.take() });
   audio.playSounds(game.sounds);
+  audio.playMusic(worldMusic(world, game.level));
   if (game.scoresDue) {
     game.scoresDue = false;
     showGameOverScores();
