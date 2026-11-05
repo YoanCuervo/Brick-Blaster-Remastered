@@ -332,7 +332,7 @@ Niveau 1                       Niveau 2 (bas)
 - `lv1` : 40 niveaux. **Monde « arcade »** (vérifié). Le menu propose 2 mondes, « espace » et « arcade », plus un 3ᵉ emplacement vide.
 - `lv2` : 40 niveaux, version **antérieure** de lv1 (9 niveaux diffèrent : 1-4, 7-9, 16, 19 ; daté du 26/04/1999 contre 10/05/1999 pour lv1). Le jeu ne le charge jamais.
 - La config limite `Start_Level` à 1–40.
-- **Écart du remake, version navigateur uniquement** : un 3ᵉ monde, « limbes », occupe l'emplacement vide, avec 50 niveaux nouveaux (`src/data/limbesLevels.ts`) sans équivalent dans l'original. Ses fonds (`src/assets/backgrounds/limbes_*`) et ses 4 musiques (`src/assets/music/`, une par tranche de 5 niveaux, contrairement à l'original) ne viennent pas de l'original ; sprites et palette d'espace, couleurs 0 à 15 de `space_1`. Le nombre de niveaux étant lu des données (`0x404E96`), les paliers de vitesse tombent aux niveaux 16, 32 et 48 (12, 24, 36 et 48 en difficile) et le compteur d'accélération descend à 667 au niveau 50 (167 en difficile).
+- **Écart du remake, version navigateur uniquement** : un 3ᵉ monde, « limbes », occupe l'emplacement vide, avec 50 niveaux nouveaux (`src/data/limbesLevels.ts`) sans équivalent dans l'original. Ses fonds (`src/assets/backgrounds/limbes_*`) et ses 3 musiques (`src/assets/music/`, une par tranche de 5 niveaux, contrairement à l'original) ne viennent pas de l'original ; sprites et palette d'espace, couleurs 0 à 15 de `space_1`. Le nombre de niveaux étant lu des données (`0x404E96`), les paliers de vitesse tombent aux niveaux 16, 32 et 48 (12, 24, 36 et 48 en difficile) et le compteur d'accélération descend à 667 au niveau 50 (167 en difficile).
 
 ---
 

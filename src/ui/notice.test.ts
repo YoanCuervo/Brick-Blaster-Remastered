@@ -13,9 +13,9 @@ describe("Notice", () => {
     expect(new Notice().tick(false, true)).toBe(true);
   });
 
-  it("credits the four modules of Limbes and their licence", () => {
+  it("credits the three modules of Limbes and their licence", () => {
     const text = NOTICE_BLOCKS.flatMap((block) => block.lines).join("\n");
-    for (const author of ["JAM", "Songerson", "cs127", "Zilly Mike"]) {
+    for (const author of ["JAM", "Songerson", "cs127"]) {
       expect(text).toContain(author);
     }
     expect(text).toContain("creativecommons.org/licenses/by/4.0");

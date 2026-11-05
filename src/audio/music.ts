@@ -1,5 +1,4 @@
 import castleUrl from "../assets/music/8bit_castle.mod?url";
-import atTheTopUrl from "../assets/music/at_the_top.mod?url";
 import dog39Url from "../assets/music/dog39.mod?url";
 import stars4chUrl from "../assets/music/stars_4ch.mod?url";
 import { TICK_MS } from "../core/loop";
@@ -25,7 +24,6 @@ const FREE_MUSIC: Partial<Record<MusicName, string>> = {
   "8bit_castle": castleUrl,
   dog39: dog39Url,
   stars_4ch: stars4chUrl,
-  at_the_top: atTheTopUrl,
 };
 
 export class Music {
