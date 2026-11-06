@@ -2,9 +2,20 @@
 
 Remake fidèle de **Brick Blaster**, un casse-briques français sorti en 1999 et créé par Eclipse, un groupe de la démoscène. Le jeu tourne dans le navigateur et sous Windows 10+.
 
-Le code source de l'original n'a jamais été publié, et le jeu était écrit à la main en assembleur x86. Ses règles ont donc été retrouvées par **rétro-ingénierie de l'exécutable** : désassemblage, lecture des routines, puis vérification sur le jeu d'origine. Le remake les reprend au pixel et au tick près, et corrige ce qui rend l'original injouable aujourd'hui : une souris saccadée et un plantage dès que le jeu perd le plein écran.
+Le jeu était écrit à la main en assembleur x86. Les règles du remake ont été retrouvées par **rétro-ingénierie de l'exécutable** : désassemblage, lecture des routines, puis vérification sur le jeu d'origine. Le remake les reprend au pixel et au tick près, et corrige ce qui rend l'original injouable aujourd'hui : une souris saccadée et un plantage dès que le jeu perd le plein écran.
 
 > Ce dépôt ne contient que du code. Les graphismes, sons, musiques et niveaux appartiennent à Eclipse et ne sont jamais versionnés (voir [Lancer le projet](#lancer-le-projet)).
+
+## L'édition de 1999
+
+Brick Blaster est sorti en 1999 sur CD-ROM chez Média Pocket, dans sa collection « le CD-ROM à prix poche », entièrement en français. La jaquette annonce 80 niveaux, un mode à deux joueurs sur le même écran et plus de 20 bonus et malus.
+
+<p align="center">
+  <img src="docs/img/jaquette-avant.webp" alt="Jaquette avant de Brick Blaster, Média Pocket, 1999" height="320">
+  <img src="docs/img/jaquette-arriere.webp" alt="Jaquette arrière de Brick Blaster, Média Pocket, 1999" height="320">
+</p>
+
+<sub>Jaquette © 1999 Média Pocket, reproduite à titre documentaire.</sub>
 
 ## Points techniques
 
