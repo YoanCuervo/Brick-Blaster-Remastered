@@ -1,4 +1,4 @@
-// Ball physics, ported from the original routines (§4.2). Units: pixels per 50 Hz tick.
+// Ball physics, ported from the original routines (§4.2). Units: pixels per 60 Hz tick.
 import type { Rng } from "../core/rng";
 import type { BonusKey } from "../data/config";
 import type { Level } from "../data/levels";

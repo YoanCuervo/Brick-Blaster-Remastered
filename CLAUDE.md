@@ -7,7 +7,7 @@ Scope, choices and legal: [`docs/cadrage.md`](docs/cadrage.md). Reverse-engineer
 
 - TypeScript + Canvas 2D + Vite, no game framework, no React.
 - 640×480 logical resolution, integer pixel scaling, optional fullscreen.
-- Deterministic engine: fixed 50 Hz step (original timer), seeded RNG. Never use `Math.random()` or wall-clock time in game logic.
+- Deterministic engine: fixed 60 Hz step (one tick per vertical blank of the original 60 Hz mode, §4.2), seeded RNG. Never use `Math.random()` or wall-clock time in game logic.
 - Music: chiptune3 (libopenmpt WASM), bundled locally. FLC: in-house decoder.
 - Storage: localStorage (high scores, settings). No backend in V1.
 - Desktop: Electron + electron-builder (Windows 10+ .exe).
@@ -62,7 +62,7 @@ Python tooling runs in `tools/.venv` (capstone, Pillow), never in the system Pyt
 ## Fidelity rules
 
 - Gameplay must match `BRICK_BLASTER_ANALYSE.md`. If a behaviour is undocumented or marked "probable", say so; do not invent. Prefer a targeted disassembly (`tools/re/`) or a test in `game/` over guessing.
-- Units are the original ones: pixels per tick at 50 Hz, ticks for durations.
+- Units are the original ones: pixels per tick at 60 Hz, ticks for durations.
 - Cover each decoded rule with a Vitest test.
 
 ## Legal

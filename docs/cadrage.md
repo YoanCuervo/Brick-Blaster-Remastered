@@ -53,7 +53,7 @@ On peut finir les niveaux d'un monde, du menu jusqu'à l'écran « félicitation
 |---|---|
 | **TypeScript + Canvas 2D + Vite**, sans framework de jeu ni React | Une boucle de jeu n'a rien à gagner avec React, et un moteur (Phaser…) cacherait la physique décodée qu'on doit reproduire exactement. |
 | Rendu en **640×480 logique**, mis à l'échelle en pixels nets (`imageSmoothingEnabled = false`), plein écran optionnel | C'est la résolution des assets. |
-| **Moteur déterministe** : pas fixe à 50 Hz, hasard à graine | Choisi d'après le timer d'origine (`timeSetEvent` 20 ms). La recette V1 a montré que l'original avance en fait à 60 ticks par seconde (analyse §4.2) : cadence à décider. Rend possibles la démo par replay et, en V2, la vérification des scores côté serveur. |
+| **Moteur déterministe** : pas fixe à 60 Hz, hasard à graine | La cadence de l'original : un tick par rafraîchissement de son mode d'écran à 60 Hz (analyse §4.2), et non son timer de 20 ms comme on l'a d'abord cru. Le remake tournait à 50 Hz jusqu'à la recette V1. Rend possibles la démo par replay et, en V2, la vérification des scores côté serveur. |
 | **chiptune3** (libopenmpt en WebAssembly), intégré au projet et non chargé depuis un CDN | Lit les musiques MOD d'origine, fidèle et léger. Fonctionne hors ligne. |
 | **Décodeur FLC maison** | Format 8 bits simple, sans dépendance, rendu exact. |
 | **localStorage** | Meilleurs scores et réglages, sans backend. |
