@@ -16,24 +16,30 @@ Projet personnel, qui alimentera un portfolio. Pas d'échéance.
 ## Périmètre V1
 
 - Partie solo complète, avec toutes les règles décodées de l'original (analyse §4 et §5) :
-  - 6 types de briques (normale, 4 coups, fantôme, indestructible, téléporteur) ;
+  - 5 comportements de briques pour 6 valeurs (normale, 4 coups sous 2 valeurs, fantôme, indestructible, téléporteur) ;
   - rebond sur la raquette à 2 angles, accélération progressive, anti-boucle infinie ;
-  - 24 bonus (tirage exact, un seul actif à la fois, durée 600 ticks) ;
+  - 23 bonus en solo sur les 24 de la table, `collision` ne servant qu'en duel (tirage exact, un seul actif à la fois, durée 600 ticks) ;
   - monstres, score, vies, vie supplémentaire.
-- Les 2 mondes (espace, arcade) et leurs ~100 niveaux, avec leurs fonds.
+- Les 2 mondes d'origine (espace, arcade) et leurs 80 niveaux, 40 par monde, avec leurs fonds.
 - Contrôle à la souris (Pointer Lock, sensibilité continue réglable), plus le clavier.
 - Sons, musiques MOD d'origine, 3 difficultés.
 - Menus d'origine (boutons ronds à 4 quadrants), meilleurs scores et réglages conservés localement.
-- Intro animée FLC.
+- Les animations FLC, jouées comme dans l'original : `intro.flc` dans les crédits, `blaster.flc` sur l'écran de fin.
 - Deux livrables : une version navigateur et un **.exe Windows 10+**.
+- Meilleurs scores de la version navigateur : une table par monde et par difficulté, écart assumé avec l'original (analyse, Écrans et meilleurs scores). Le .exe garde la table unique. Le 3e monde, « Limbes », occupe le bouton vide du menu Monde et a ses tables sans autre changement.
+- Fin de partie de la version navigateur, tous mondes : 1000 points par vie restante après le dernier niveau, écart assumé avec l'original. Le .exe ne les compte pas.
+- Vitesses de la version navigateur, tous mondes : départ 3/4/5 au lieu de 2/3/4, paliers 3/3/4 au lieu de 2/3/3, accélération tous les 1000 ticks en difficile au lieu de 1500. Écart assumé avec l'original, le jeu étant trop simple. Le .exe garde `blaster.cfg`.
+- Raquette au clavier, navigateur et .exe : partie de la vitesse d'origine (2 × la vitesse de départ de `blaster.cfg`), elle gagne 1 px par tick tant que la flèche reste appuyée, jusqu'à 16 px par tick. Écart assumé : l'original ne donne le clavier qu'au joueur 2 du duel, à vitesse fixe, trop lente pour suivre la balle.
+- 3e monde « Limbes », version navigateur uniquement : 50 niveaux originaux, versionnés dans `src/data/limbesLevels.ts`. Ses 8 fonds sont des orbitales de l'hydrogène calculées par `tools/limbes/make_backgrounds.py`, 3 musiques MOD qui changent tous les 3 niveaux, ramenées par un gain au niveau de la musique d'espace (fichiers inchangés), écart assumé avec l'original (sources et licences dans `CREDITS.md`), ses sprites et sa palette ceux du monde espace. Aucune brique ne doit y rester hors d'atteinte : au plus 25 passages de raquette pour la dernière brique et moins de 10 000 ticks par niveau pour un joueur simulé (analyse, §4). Le L du bouton rose est dessiné par le code, sans image ajoutée. Le .exe garde le bouton vide.
 
 ## Exclusions V1
 
 | Élément | Statut |
 |---|---|
-| Mode 2 joueurs (coop et duel) | Abandonné. Remplacé en V2 par la section en ligne. |
+| Mode 2 joueurs (coop et duel) | Abandonné en V1. Remplacé en V2 par la section en ligne et un mode multijoueur. |
 | Éditeur de niveaux | Plus tard, éventuellement |
 | Mode démo | **Dette technique.** Piste retenue : une vidéo ou un replay, jamais une IA. |
+| Choix du skin par le joueur (version navigateur) | **Dette technique.** Couleurs du joueur 1 ou du joueur 2 de l'original, affichage seul. La table existe (`src/render/skin.ts`, analyse §3.5), mais aucun réglage ni menu ne la propose. |
 | Classement en ligne, backend, authentification | V2 |
 | Version mobile et tactile | Exclue |
 | Autres langues que le français | Exclues |
@@ -48,7 +54,7 @@ On peut finir les niveaux d'un monde, du menu jusqu'à l'écran « félicitation
 |---|---|
 | **TypeScript + Canvas 2D + Vite**, sans framework de jeu ni React | Une boucle de jeu n'a rien à gagner avec React, et un moteur (Phaser…) cacherait la physique décodée qu'on doit reproduire exactement. |
 | Rendu en **640×480 logique**, mis à l'échelle en pixels nets (`imageSmoothingEnabled = false`), plein écran optionnel | C'est la résolution des assets. |
-| **Moteur déterministe** : pas fixe à 50 Hz, hasard à graine | Reproduit le timer d'origine (`timeSetEvent` 20 ms). Rend possibles la démo par replay et, en V2, la vérification des scores côté serveur. |
+| **Moteur déterministe** : pas fixe à 60 Hz, hasard à graine | La cadence de l'original : un tick par rafraîchissement de son mode d'écran à 60 Hz (analyse §4.2), et non son timer de 20 ms comme on l'a d'abord cru. Le remake tournait à 50 Hz jusqu'à la recette V1. Rend possibles la démo par replay et, en V2, la vérification des scores côté serveur. |
 | **chiptune3** (libopenmpt en WebAssembly), intégré au projet et non chargé depuis un CDN | Lit les musiques MOD d'origine, fidèle et léger. Fonctionne hors ligne. |
 | **Décodeur FLC maison** | Format 8 bits simple, sans dépendance, rendu exact. |
 | **localStorage** | Meilleurs scores et réglages, sans backend. |
@@ -67,7 +73,7 @@ Graphismes, sons, musiques et niveaux appartiennent à Eclipse et à leurs auteu
 
 ## Variables d'environnement et secrets
 
-- **V1** : aucun secret. Seulement des réglages de développement facultatifs (`.env.local`, non versionné, documenté par `.env.example`).
+- **V1** : aucun secret. Rien à configurer.
 - Tout ce qui est dans le front (y compris `VITE_*`) est public : **jamais de secret côté front**.
 - **V2** : les secrets (base de données, signature des jetons) vivent uniquement côté backend, dans l'interface de l'hébergeur. La triche se combat en faisant rejouer la partie par le serveur (replay déterministe), pas avec un secret.
 
@@ -86,5 +92,6 @@ Ces conclusions aident au cadrage. Elles ne remplacent pas l'avis d'un juriste.
 - Classement en ligne : backend sur Render ou Vercel, authentification.
 - Front hébergé sur GitHub Pages.
 - Mode démo (vidéo ou replay).
+- Mode multijoueur : le joueur 2 y reprendra ses couleurs de l'original (`src/render/skin.ts`). Rien n'est codé pour l'instant.
 - Éditeur de niveaux.
 - Passage éventuel du .exe à Tauri, si un livrable léger devient utile.

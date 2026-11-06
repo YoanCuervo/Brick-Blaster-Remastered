@@ -40,12 +40,75 @@ SOUND_NAMES = [
 ]
 SOUND_FIRST_BLOCK = 8
 
-LEVEL_COLS, LEVEL_ROWS, LEVEL_SLOTS = 13, 24, 100
+# 0x404D51: one level is 0x186 bytes. 0x407C34: the file is 0x79E0 bytes, i.e. 80 slots.
+LEVEL_COLS, LEVEL_ROWS, LEVEL_SLOTS = 13, 30, 80
+
+# blaster.cfg is read positionally (§5.1, 0x4079EE): key names are ignored, only the
+# order of the "(...)" groups matters. Triplets are (easy, medium, hard).
+BONUS_KEYS = [
+    "3_ball", "6_ball", "9_ball", "20_ball", "death", "new_life", "shoot", "slow_ball",
+    "fast_ball", "iron_ball", "telepod", "night", "small_ship", "large_ship", "reverse",
+    "next_level", "del_monster", "magnetic", "add_monster", "ghost", "bonus", "malus",
+    "mini_shoot", "collision",
+]
+CFG_SINGLES = ["editorFlag", "extraLife", "mouseSpeed", "nbsLife", "startLevel", "freqChangeSpeed"]
+CFG_TRIPLETS = ["timeBetweenOption", "freqCreateMonster", "startSpeed", "nbsChangeSpeedLevel"]
+STATUS_KEYS = ["off", "ready", "over", "again", "editor", "paused", "demo", "test"]
+MENU_COUNT, MENU_ITEMS, FINAL_LINES = 7, 4, 13
 
 
 def write(path: Path, data: bytes):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(data)
+
+
+# In-game sprites are shown with the world palette, not the GIF's own: the world menu
+# patches the digit of "sprite0.pal" (0x40172A: space -> 0, arcade -> 1).
+WORLD_PALETTES = {"space": "sprite0.pal", "arcade": "sprite1.pal"}
+WORLD_SPRITES = ["sprite_sheet", "font", "monsters"]
+
+
+def save_world_png(src: Path, vga_palette: bytes, path: Path):
+    im = Image.open(src)
+    # 6-bit VGA DAC values, scaled like the GIF palettes (63 -> 252).
+    im.putpalette(bytes(v << 2 for v in vga_palette))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    # The blitter skips index 0 (0x406A16).
+    im.save(path, transparency=0)
+
+
+# In game a background only brings palette entries 0..15, with 0 and 15 forced to black
+# (0x407430); entries 16..255, used by the side decor, stay those of the world palette.
+BACKGROUND_COLORS = 16
+WORLD_BACKGROUNDS = 8
+
+
+def repalette_background(path: Path, vga_palette: bytes) -> list:
+    im = Image.open(path)
+    pal = list(v << 2 for v in vga_palette)
+    pal[: BACKGROUND_COLORS * 3] = im.getpalette()[: BACKGROUND_COLORS * 3]
+    pal[0:3] = pal[45:48] = [0, 0, 0]
+    im.putpalette(pal)
+    im.save(path)
+    return [pal[i * 3:i * 3 + 3] for i in range(BACKGROUND_COLORS)]
+
+
+# Sprite pixels of index 1..15 therefore show the current background's colours. Only the
+# sprite sheet has such pixels where it is drawn (walls, some paddles): in font.gif and
+# monster.gif they sit on the frame markers only. The mask keeps the index, 0 elsewhere.
+def save_low_mask(src: Path, path: Path):
+    im = Image.open(src)
+    im.point(lambda v: v if v < BACKGROUND_COLORS else 0, "L").save(path)
+
+
+# Frame colours of the active-bonus icons (§3.5): the only sheet pixels of these indices.
+# 0x405671 fades them alone when a capsule is caught, so they need their own mask.
+FLASH_FIRST, FLASH_END = 0x70, 0x80
+
+
+def save_flash_mask(src: Path, path: Path):
+    im = Image.open(src)
+    im.point(lambda v: 255 if FLASH_FIRST <= v < FLASH_END else 0, "L").save(path)
 
 
 def save_png(raw: bytes, path: Path) -> tuple:
@@ -96,10 +159,71 @@ def parse_levels(raw: bytes) -> list:
     levels = []
     for n in range(LEVEL_SLOTS):
         chunk = raw[n * size:(n + 1) * size]
-        if all(b == 0xFF for b in chunk):
+        if chunk[0] == 0xFF:  # 0x404E96 only checks the first byte
             break
         levels.append([list(chunk[r * LEVEL_COLS:(r + 1) * LEVEL_COLS]) for r in range(LEVEL_ROWS)])
     return levels
+
+
+def parse_cfg(text: str) -> dict:
+    groups = re.findall(r"\(([^)]*)\)", text)
+    pos = 0
+
+    def numbers(count: int) -> list:
+        nonlocal pos
+        values = [int(v) for v in groups[pos].split(",")]
+        if len(values) != count:
+            raise ValueError(f"cfg group {pos}: expected {count} numbers, got {groups[pos]!r}")
+        pos += 1
+        return values
+
+    def strings(count: int) -> list:
+        nonlocal pos
+        values = re.findall(r'"([^"]*)"', groups[pos])
+        if len(values) != count:
+            raise ValueError(f"cfg group {pos}: expected {count} strings, got {groups[pos]!r}")
+        pos += 1
+        return values
+
+    cfg = {key: numbers(1)[0] for key in CFG_SINGLES}
+    cfg["bonusFreq"] = {key: numbers(3) for key in BONUS_KEYS}
+    cfg.update({key: numbers(3) for key in CFG_TRIPLETS})
+    status = {key: strings(1)[0] for key in STATUS_KEYS}
+    bonus = {key: strings(1)[0] for key in BONUS_KEYS}
+    menu_begin = strings(2)
+    menus = [[strings(2) for _ in range(MENU_ITEMS)] for _ in range(MENU_COUNT)]
+    menu_last = strings(2)
+    final = [strings(1)[0] for _ in range(FINAL_LINES)]
+    final_dual = [strings(1)[0] for _ in range(FINAL_LINES)]
+    if pos != len(groups):
+        raise ValueError(f"cfg has {len(groups) - pos} unexpected trailing groups")
+    cfg["texts"] = {
+        "status": status, "bonus": bonus, "menuBegin": menu_begin, "menus": menus,
+        "menuLast": menu_last, "final": final, "finalDual": final_dual,
+    }
+    return cfg
+
+
+# The menu shows menu.gif and fonte.gif under the palette of blaster.gif (0x40721F), which
+# menu.gif shares except for entry 0, skipped by the blitter (0x406A16). The hovered quadrant
+# pulses by palette entry (0x405671), so the entries are kept in a mask.
+def save_menu_sprites(sprites: Path, title: Path):
+    menu = Image.open(sprites / "menu.png")
+    menu.point(lambda v: v, "L").save(sprites / "menu_index.png")
+    font = Image.open(sprites / "font.png")
+    font.putpalette(Image.open(title).getpalette())
+    font.save(sprites / "menu_font.png", transparency=0)
+    menu.save(sprites / "menu.png", transparency=0)
+
+
+# 0x401BD5 fades the palette entries 0xE0..0xFF in first: the text of a credits screen comes
+# before its logo, so the text needs its own image.
+CREDIT_TEXT_FIRST = 0xE0
+
+
+def save_credit_text(src: Path, path: Path):
+    im = Image.open(src)
+    im.point(lambda v: v if v >= CREDIT_TEXT_FIRST else 0).save(path, transparency=0)
 
 
 def main():
@@ -116,6 +240,27 @@ def main():
     for name, a, b in zip(GIF_NAMES, gifs, gifs[1:] + [eos[0]]):
         w, h = save_png(ov[a:b], out / f"{name}.png")
         report.append(f"{name}.png  {w}x{h}")
+    save_low_mask(out / "sprites/sprite_sheet.png", out / "sprites/sprite_sheet_low.png")
+    report.append("sprites/sprite_sheet_low.png  (index 1..15 mask)")
+    save_flash_mask(out / "sprites/sprite_sheet.png", out / "sprites/sprite_sheet_flash.png")
+    report.append("sprites/sprite_sheet_flash.png  (index 112..127 mask)")
+    save_menu_sprites(out / "sprites", out / "backgrounds/title.png")
+    report.append("sprites/menu_index.png, menu_font.png  (menu palette entries, menu font)")
+    for i in range(1, 7):
+        save_credit_text(out / f"credits/credit_{i}.png", out / f"credits/credit_{i}_text.png")
+    report.append("credits/credit_*_text.png  (index 0xE0..0xFF)")
+    bg_palettes = {}
+    for world, pal in WORLD_PALETTES.items():
+        vga = (original / pal).read_bytes()
+        for name in WORLD_SPRITES:
+            save_world_png(out / f"sprites/{name}.png", vga, out / f"sprites/{world}/{name}.png")
+            report.append(f"sprites/{world}/{name}.png  ({pal}, index 0 transparent)")
+        for n in range(1, WORLD_BACKGROUNDS + 1):
+            name = f"{world}_{n}"
+            bg_palettes[name] = repalette_background(out / f"backgrounds/{name}.png", vga)
+        report.append(f"backgrounds/{world}_1..{WORLD_BACKGROUNDS}.png  in-game palette ({pal})")
+    (out / "backgrounds/palettes.json").write_text(json.dumps(bg_palettes, separators=(",", ":")))
+    report.append(f"backgrounds/palettes.json  colours 0..{BACKGROUND_COLORS - 1} of {len(bg_palettes)} backgrounds")
 
     blocks = [decompress(ov[a:b]) for a, b in zip(eos, eos[1:] + [len(ov)])]
     if blocks[3] != blocks[0] or blocks[5] != blocks[1]:
@@ -137,11 +282,19 @@ def main():
     (out / "levels.json").write_text(json.dumps(levels, separators=(",", ":")))
     report.append("levels.json  " + ", ".join(f"{k}: {len(v)} levels" for k, v in levels.items()))
 
+    raw = (original / "blaster.cfg").read_bytes()
+    cfg = parse_cfg((decompress(raw) if is_diet(raw) else raw).decode("ascii"))
+    (out / "config.json").write_text(json.dumps(cfg, separators=(",", ":")))
+    report.append(f"config.json  {len(cfg['bonusFreq'])} bonuses, {len(cfg['texts']['menus'])} menus")
+
     for f, dest in (("sprite0.pal", "palettes/sprite0.pal"), ("sprite1.pal", "palettes/sprite1.pal"),
                     ("blaster.flc", "video/blaster.flc"), ("blaster.ico", "icon/blaster.ico")):
         (out / dest).parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(original / f, out / dest)
         report.append(dest)
+    # electron-builder refuses an icon under 256 px; the original only holds 64x64.
+    Image.open(original / "blaster.ico").convert("RGBA").resize((256, 256), Image.NEAREST).save(out / "icon/blaster_256.png")
+    report.append("icon/blaster_256.png")
     w, h = save_png((original / "media.gif").read_bytes(), out / "backgrounds/media.png")
     report.append(f"backgrounds/media.png  {w}x{h}")
 

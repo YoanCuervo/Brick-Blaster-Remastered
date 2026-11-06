@@ -5,10 +5,10 @@ Starts from blaster_cfg_original.txt, the exact decompressed original
 The file also holds every in-game text: the game crashes if any is missing,
 so it must never be rebuilt from scratch.
 
-Usage: python tools/make_test_cfg.py [game_dir]
+Usage: python tools/make_test_cfg.py [game_dir] [--start-level N]
 """
+import argparse
 import re
-import sys
 from pathlib import Path
 
 ORIGINAL = Path(__file__).with_name("blaster_cfg_original.txt")
@@ -21,9 +21,9 @@ OVERRIDES = {
 }
 
 
-def build() -> bytes:
+def build(start_level: int = 1) -> bytes:
     text = ORIGINAL.read_bytes()
-    for key, value in OVERRIDES.items():
+    for key, value in {**OVERRIDES, "Start_Level": str(start_level)}.items():
         pattern = rb"^(" + key.encode() + rb"\s*:\s*\()[^)]*\)"
         text, count = re.subn(pattern, rb"\g<1>" + value.encode() + rb")", text, flags=re.M)
         if count != 1:
@@ -32,8 +32,12 @@ def build() -> bytes:
 
 
 def main() -> None:
-    game_dir = Path(sys.argv[1] if len(sys.argv) > 1 else "game")
-    (game_dir / "blaster.cfg").write_bytes(build())
+    parser = argparse.ArgumentParser()
+    parser.add_argument("game_dir", nargs="?", default="game", type=Path)
+    parser.add_argument("--start-level", type=int, default=1)
+    args = parser.parse_args()
+    game_dir = args.game_dir
+    (game_dir / "blaster.cfg").write_bytes(build(args.start_level))
     print(f"Wrote blaster.cfg in {game_dir}")
 
 
