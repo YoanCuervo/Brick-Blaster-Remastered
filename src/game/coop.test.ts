@@ -58,7 +58,7 @@ const fire2: GameInput = { paddleDx: 0, fire: false, fire2: true };
 function coop(partner: Partner = "keyboard", levels: Level[] = [level()]): Game {
   const set = [...levels];
   while (set.length < 40) set.push(level());
-  const g = new Game(config(), set, Difficulty.Medium, new Rng(1), 0, partner);
+  const g = new Game(config(), set, Difficulty.Medium, new Rng(1), 0, false, partner);
   ticks(g, READY_TICKS);
   return g;
 }
@@ -103,7 +103,7 @@ describe("start of a round (0x40256C, 0x4037C9)", () => {
 
   it("brings both paddles in, then shows them", () => {
     const set = Array.from({ length: 40 }, () => level());
-    const g = new Game(config(), set, Difficulty.Medium, new Rng(1), 0, "keyboard");
+    const g = new Game(config(), set, Difficulty.Medium, new Rng(1), 0, false, "keyboard");
     ticks(g, 1 + FADE_STEPS + 1);
     expect(g.mode).toBe(GameMode.Arrival);
     expect(g.paddleAnim2!.x).toBe(PLAYER2_START_X - 9);
@@ -294,7 +294,7 @@ describe("player 2 played by the computer (0x404F8B)", () => {
 describe("end of a level (0x404C14)", () => {
   it("takes both paddles away", () => {
     const set = [level([]), ...Array.from({ length: 39 }, () => level())];
-    const g = new Game(config(), set, Difficulty.Medium, new Rng(1), 0, "keyboard");
+    const g = new Game(config(), set, Difficulty.Medium, new Rng(1), 0, false, "keyboard");
     let n = 0;
     while (g.mode !== GameMode.LevelEnd && n++ < 200) g.tick(idle);
     expect(g.mode).toBe(GameMode.LevelEnd);

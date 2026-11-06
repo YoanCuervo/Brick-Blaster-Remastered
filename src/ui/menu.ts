@@ -2,6 +2,7 @@ import type { MenuText } from "../data/config";
 import { Difficulty } from "../data/config";
 import { WORLDS, type World } from "../data/images";
 import { type IconFlash, createIconFlash, stepIconFlash } from "../game/bonus";
+import { MenuIdle } from "../game/demo";
 import type { Partner, SoundName } from "../game/game";
 import { FADE_STEPS } from "../render/fade";
 import { MAX_SENSITIVITY, MIN_SENSITIVITY, type Settings } from "./settings";
@@ -24,6 +25,7 @@ export type MenuAction =
   /** 0x4011C3 and 0x4011E1: the one-player table or the coop one. */
   | { kind: "scores"; coop: boolean }
   | { kind: "credits" }
+  | { kind: "demo" }
   /** 0x401658, 0x40167E: one player, or coop with player 2 to choose. */
   | { kind: "players"; coop: boolean }
   /** 0x4016C1, 0x4016D0: who plays player 2. */
@@ -45,10 +47,13 @@ interface MenuDef {
 
 /**
  * Table 0x411CAC and actions 0x4014A3. Duel is deferred, and so are the joystick of player 2
- * and its menu 7: their quadrants only click. Demo is deferred too.
+ * and its menu 7: their quadrants only click.
  */
 export const MENUS: Record<MenuId, MenuDef> = {
-  [MenuId.Main]: { sprite: 0x7a82, actions: [go(MenuId.Players), none, go(MenuId.Misc), quit] },
+  [MenuId.Main]: {
+    sprite: 0x7a82,
+    actions: [go(MenuId.Players), { kind: "demo" }, go(MenuId.Misc), quit],
+  },
   [MenuId.Players]: {
     sprite: 0x7b86,
     actions: [
@@ -176,6 +181,8 @@ export type MenuEvent =
   | { kind: "quit" }
   | { kind: "scores"; coop: boolean }
   | { kind: "credits" }
+  /** 0x401423 and 0x401576: the demo, on medium. */
+  | { kind: "demo" }
   | { kind: "settings" };
 
 export type Arrow = "left" | "right" | "up" | "down";
@@ -209,6 +216,7 @@ export class Menu {
   private coop = false;
   private partner: Partner = "keyboard";
   private settingsChanged = false;
+  private readonly idle = new MenuIdle();
 
   constructor(
     private readonly texts: readonly (readonly MenuText[])[],
@@ -308,6 +316,8 @@ export class Menu {
     if (fire && this.hovered !== null) {
       return this.validate(MENUS[this.menu].actions[this.hovered as 0 | 1 | 2 | 3]);
     }
+    // 0x401805, 0x401464: a cursor move or a press, on a bar too, restarts the count.
+    if (this.idle.tick(this.x, this.y, fire)) return { kind: "demo" };
     if (!this.settingsChanged) return null;
     this.settingsChanged = false;
     return { kind: "settings" };
@@ -336,6 +346,7 @@ export class Menu {
       // 0x4010B3: these leave the menu loop too, without waiting for the release.
       case "quit":
       case "credits":
+      case "demo":
         return { kind: action.kind };
       case "scores":
         return { kind: "scores", coop: action.coop };

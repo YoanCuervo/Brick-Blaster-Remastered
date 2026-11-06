@@ -40,7 +40,7 @@ Projet personnel, qui alimentera un portfolio. Pas d'échéance.
 | Mode duel | Plus tard : toutes ses règles sont maintenant décodées, `collision` compris (analyse §4.6). |
 | Joystick du joueur 2 (menus 3 et 7) | Plus tard : décodé (analyse §4.6), non porté. |
 | Éditeur de niveaux | Plus tard, éventuellement |
-| Mode démo | **Dette technique.** Piste retenue : une vidéo ou un replay, jamais une IA. |
+| Mode démo | **Fait.** La démo de l'original est reproduite : la raquette suit la balle par la règle de 1999 (analyse, Démo). Ce n'est pas une IA moderne. |
 | Choix du skin par le joueur (version navigateur) | **Dette technique.** Couleurs du joueur 1 ou du joueur 2 de l'original, affichage seul. La table existe (`src/render/skin.ts`, analyse §3.5), mais aucun réglage ni menu ne la propose. |
 | Classement en ligne, backend, authentification | V2 |
 | Version mobile et tactile | Exclue |
@@ -56,7 +56,7 @@ On peut finir les niveaux d'un monde, du menu jusqu'à l'écran « félicitation
 |---|---|
 | **TypeScript + Canvas 2D + Vite**, sans framework de jeu ni React | Une boucle de jeu n'a rien à gagner avec React, et un moteur (Phaser…) cacherait la physique décodée qu'on doit reproduire exactement. |
 | Rendu en **640×480 logique**, mis à l'échelle en pixels nets (`imageSmoothingEnabled = false`), plein écran optionnel | C'est la résolution des assets. |
-| **Moteur déterministe** : pas fixe à 60 Hz, hasard à graine | La cadence de l'original : un tick par rafraîchissement de son mode d'écran à 60 Hz (analyse §4.2), et non son timer de 20 ms comme on l'a d'abord cru. Le remake tournait à 50 Hz jusqu'à la recette V1. Rend possibles la démo par replay et, en V2, la vérification des scores côté serveur. |
+| **Moteur déterministe** : pas fixe à 60 Hz, hasard à graine | La cadence de l'original : un tick par rafraîchissement de son mode d'écran à 60 Hz (analyse §4.2), et non son timer de 20 ms comme on l'a d'abord cru. Le remake tournait à 50 Hz jusqu'à la recette V1. Rend possible, en V2, la vérification des scores côté serveur. |
 | **chiptune3** (libopenmpt en WebAssembly), intégré au projet et non chargé depuis un CDN | Lit les musiques MOD d'origine, fidèle et léger. Fonctionne hors ligne. |
 | **Décodeur FLC maison** | Format 8 bits simple, sans dépendance, rendu exact. |
 | **localStorage** | Meilleurs scores et réglages, sans backend. |
@@ -93,7 +93,6 @@ Ces conclusions aident au cadrage. Elles ne remplacent pas l'avis d'un juriste.
 
 - Classement en ligne : backend sur Render ou Vercel, authentification.
 - Front hébergé sur GitHub Pages.
-- Mode démo (vidéo ou replay).
 - Mode duel, avec les couleurs du joueur 2 de l'original pour ses balles, capsules et vies (`src/render/skin.ts`).
 - Éditeur de niveaux.
 - Passage éventuel du .exe à Tauri, si un livrable léger devient utile.
