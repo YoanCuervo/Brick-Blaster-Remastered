@@ -4,7 +4,7 @@
 
 ## 1. Méthode et limites
 
-**Source lue.** Dépôt public [david4599/BrickBlaster](https://github.com/david4599/BrickBlaster) (GPL v3), commit `aa04971`, dossier `work400/`. Lecture en ligne seule, sans clone ni exécution. Ce document ne contient que des références de lignes, aucun extrait de code.
+**Source lue.** Sources assembleur d'origine du jeu, dossier `work400/`. Lecture en ligne seule, sans clone ni exécution. Ce document ne contient que des références de lignes, aucun extrait de code.
 
 **Références.** `FICHIER:lignes`, dans `work400/Blaster/` sauf mention contraire :
 
@@ -22,8 +22,8 @@
 **Ce que la comparaison peut et ne peut pas dire.**
 
 - Les adresses `0x4…` de l'analyse viennent de l'exe et n'existent pas dans le source : on compare les **règles**, pas les adresses.
-- Le README du dépôt précise que le source reconstitué ne correspond pas exactement à l'exe commercial (textes plus longs, quelques coordonnées). Un écart entre l'analyse et le source n'est donc pas automatiquement une erreur de l'analyse : il demande un désassemblage ciblé (`tools/re/`) pour trancher.
-- Les tableaux de valeurs du source (fréquences des bonus, délais des monstres, vitesses) sont des **valeurs par défaut** que `blaster.cfg` écrase à la lecture (`FILE:926-1005`). La vérité vient du `Blaster.cfg` du dépôt (§2.5).
+- Le README des sources précise que le source reconstitué ne correspond pas exactement à l'exe commercial (textes plus longs, quelques coordonnées). Un écart entre l'analyse et le source n'est donc pas automatiquement une erreur de l'analyse : il demande un désassemblage ciblé (`tools/re/`) pour trancher.
+- Les tableaux de valeurs du source (fréquences des bonus, délais des monstres, vitesses) sont des **valeurs par défaut** que `blaster.cfg` écrase à la lecture (`FILE:926-1005`). La vérité vient du `Blaster.cfg` des sources (§2.5).
 
 **Verdicts.**
 
@@ -113,7 +113,7 @@ Précision : le « mode 4 » de l'analyse (§3.5, sprite d'une brique à plusieu
 |---|---|---|---|---|
 | 46 | Tirage à chaque brique détruite, seulement si le délai (`Time_Between_Option`, en ticks) est écoulé ; il est remis à 0 même sans lâcher | §5.2 | `MAIN:5452-5468` | Conforme |
 | 47 | Indice uniforme sur 24, jamais deux fois le même de suite ; bonus inactif → rien ; fréquence 0 → nouveau tirage ; fréquence f → 1 chance sur f | §5.2 | `MAIN:5472-5513`, `MAIN:6959` | Conforme |
-| 48 | Les 24 triplets du cfg, lus dans l'ordre du fichier | §5.1 | `FILE:961-973`, `Blaster.cfg:16-39` | Conforme (les 24 triplets du `Blaster.cfg` du dépôt sont identiques à ceux de l'analyse) |
+| 48 | Les 24 triplets du cfg, lus dans l'ordre du fichier | §5.1 | `FILE:961-973`, `Blaster.cfg:16-39` | Conforme (les 24 triplets du `Blaster.cfg` des sources sont identiques à ceux de l'analyse) |
 | 49 | Capsule posée au coin haut gauche de la brique, chute de 2 px par tick | §5.2 | `MAIN:5536-5539` | Conforme |
 | 50 | Couleur de la capsule selon le joueur | §3.5, §5.2 | `MAIN:5525-5533` | **Écart A2** (duel, pas coop) |
 | 51 | Ramassage : mode 3, y 416..440, capsule entière dans la largeur de la raquette ; perdue si `y+24+2 ≥ 480` | §5.2 | `MAIN:5571-5596`, `MAIN:5606-5652` | Conforme |
