@@ -246,7 +246,8 @@ Pour le remake : reproduire ce comportement tel quel. C'est simple et fidèle.
 | `+0x5D` | compte à rebours avant la prochaine accélération |
 
 **Cadence (vérifié dans le code, 02/11/2026).** La logique n'avance **pas** au rythme du timer, mais de l'écran. Le « tick » `0x40653C` appelle le service `0x20` (`0x40B088`), soit `0x40DF87` : `IDirectDraw::WaitForVerticalBlank` (`+0x58`), puis attente active jusqu'à 14 ms depuis le tick précédent (`[0x421614]`, `timeGetTime`). La cadence vaut donc min(rafraîchissement de l'écran, ≈ 71,4 Hz).
-- Le mode d'écran demande **60 Hz** en dur (`SetDisplayMode(640, 480, 8, 0x3C, 0)`, `0x40DAF4`), et ne retombe sur le défaut du pilote que s'il échoue (`0x40DB0C`). La cadence attendue est donc **60 ticks par seconde**, à confirmer au chronomètre sur l'original.
+- Le mode d'écran demande **60 Hz** en dur (`SetDisplayMode(640, 480, 8, 0x3C, 0)`, `0x40DAF4`), et ne retombe sur le défaut du pilote que s'il échoue (`0x40DB0C`). La cadence attendue est donc **60 ticks par seconde**.
+- **Mesure (06/11/2026)** : l'original lancé sous Windows 10 (écran à 143 Hz), avec lecture de `[0x4262dc]`, l'heure `timeGetTime` du dernier tick écrite en `0x40DFD1`. Les écarts entre ticks valent 16-17 ms (60 Hz) ou 14 ms (le plancher), jamais 20 ms : le 50 Hz est exclu. Le mélange vient de Windows, qui n'applique pas toujours le 60 Hz demandé ; sur un écran de 1999 à 60 Hz, la cadence était 60. Pendant 16 s d'une mesure, rien n'a été écrit : un écran qui n'attend pas par ce service (non identifié).
 - Le timer `timeSetEvent(20 ms)` (`0x409EC1`, `0x40A07B`) ne fait tourner que l'entrée DirectInput et le mixage du son. La musique n'en dépend donc pas.
 - **Remake** : il tourne à 60 ticks par seconde comme l'original (`TICK_RATE`, `src/core/loop.ts`), un tick par image sur un écran à 60 Hz. Il a tourné à 50 jusqu'à la recette V1, soit 17 % trop lentement. Les secondes de ce document sont comptées à 60 Hz : 600 ticks font 10 s, 1952 ticks font 32,5 s.
 
@@ -925,7 +926,7 @@ Graphismes, sons, musiques et niveaux appartiennent à Eclipse / leurs auteurs (
 - ~~Signification des 6 types de briques~~ : résolu (§4).
 - ~~Types de balle 6 et 7~~ : résolu, ce sont les monstres et les projectiles (§4.2).
 - ~~Effet exact du garde-fou « monstre bloqué en haut »~~ : résolu, il n'en a aucun (§4.3).
-- ~~Logique cadencée exactement à 50 Hz ?~~ : résolu, non : 60 ticks par seconde (§4.2), cadence adoptée par le remake. Reste à le confirmer au chronomètre sur l'original (un bonus doit durer 10 s).
+- ~~Logique cadencée exactement à 50 Hz ?~~ : résolu, non : 60 ticks par seconde (§4.2), cadence adoptée par le remake. Mesure sur l'original : jamais de tick à 20 ms (§4.2).
 - Le jeu plante dès qu'il perd le plein écran (Alt+Tab, Impr. écran) : comparer le remake à l'original demandera un outil de fenêtrage (DxWnd).
 - La démo plante si le set de niveaux contient des emplacements vides (`0xFF`) parmi ceux qu'elle tire au sort : un set de test doit remplir 40 emplacements.
 - ~~Correspondance entre noms de fichiers `.mod` et titres de modules~~ : résolu, par le répertoire de l'exe (§3.3).
