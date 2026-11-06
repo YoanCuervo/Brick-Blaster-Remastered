@@ -173,6 +173,13 @@ describe("menu tree (0x4014A3)", () => {
     expect(m.menu).toBe(MenuId.Main);
   });
 
+  it("starts the demo from the blue quadrant, without waiting for the release (0x401576)", () => {
+    const m = ready();
+    m.pointAt(centers[1]!.x, centers[1]!.y);
+    expect(m.tick(true, false)).toEqual({ kind: "demo" });
+    expect(m.sounds).toEqual(["optionon"]);
+  });
+
   it("quits from the orange quadrant of the main menu", () => {
     const m = ready();
     expect(choose(m, 3)).toEqual({ kind: "quit" });
@@ -187,7 +194,6 @@ describe("menu tree (0x4014A3)", () => {
   });
 
   it.each([
-    ["demo", MenuId.Main, [], 1],
     ["coop", MenuId.Players, [0], 1],
     ["duel", MenuId.Players, [0], 2],
     ["coop scores", MenuId.Misc, [2], 1],
@@ -450,5 +456,31 @@ describe("keyboard (remake)", () => {
     m.arrow("right");
     for (let i = 0; i < FADE_STEPS + 1; i++) tick(m);
     expect(m.x).toBe(260);
+  });
+});
+
+describe("idle (0x4013D0)", () => {
+  it("starts the demo after 600 ticks without a cursor move, from any menu", () => {
+    const m = ready();
+    choose(m, 2);
+    expect(m.menu).toBe(MenuId.Misc);
+    m.pointAt(10, 10);
+    let n = 0;
+    let event = null;
+    while (!event && n < 1000) {
+      event = m.tick(false, false);
+      n++;
+    }
+    expect(event).toEqual({ kind: "demo" });
+    expect(n).toBe(600);
+  });
+
+  it("counts again from a cursor move", () => {
+    const m = ready();
+    // ready() has already counted one tick.
+    for (let i = 0; i < 598; i++) expect(m.tick(false, false)).toBeNull();
+    m.pointAt(200, 100);
+    for (let i = 0; i < 599; i++) expect(m.tick(false, false)).toBeNull();
+    expect(m.tick(false, false)).toEqual({ kind: "demo" });
   });
 });
