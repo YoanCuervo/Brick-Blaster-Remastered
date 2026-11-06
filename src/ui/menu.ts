@@ -2,6 +2,7 @@ import type { MenuText } from "../data/config";
 import { Difficulty } from "../data/config";
 import { WORLDS, type World } from "../data/images";
 import { type IconFlash, createIconFlash, stepIconFlash } from "../game/bonus";
+import { MenuIdle } from "../game/demo";
 import type { SoundName } from "../game/game";
 import { FADE_STEPS } from "../render/fade";
 import { MAX_SENSITIVITY, MIN_SENSITIVITY, type Settings } from "./settings";
@@ -16,6 +17,7 @@ export type MenuAction =
   | { kind: "quit" }
   | { kind: "scores" }
   | { kind: "credits" }
+  | { kind: "demo" }
   /** Plays the click and stays, like the empty quadrant of the world menu (0x4014A8). */
   | { kind: "none" };
 
@@ -33,10 +35,13 @@ interface MenuDef {
 
 /**
  * Table 0x411CAC and actions 0x4014A3. Without coop and duel, menus 3 (player 2 control)
- * and 7 (joystick) cannot be reached. Demo is deferred, and so are the coop scores.
+ * and 7 (joystick) cannot be reached. The coop scores are deferred.
  */
 export const MENUS: Record<MenuId, MenuDef> = {
-  [MenuId.Main]: { sprite: 0x7a82, actions: [go(MenuId.Players), none, go(MenuId.Misc), quit] },
+  [MenuId.Main]: {
+    sprite: 0x7a82,
+    actions: [go(MenuId.Players), { kind: "demo" }, go(MenuId.Misc), quit],
+  },
   [MenuId.Players]: { sprite: 0x7b86, actions: [go(MenuId.World), none, none, go(MenuId.Main)] },
   [MenuId.World]: {
     sprite: 0x59486,
@@ -142,6 +147,8 @@ export type MenuEvent =
   | { kind: "quit" }
   | { kind: "scores" }
   | { kind: "credits" }
+  /** 0x401423 and 0x401576: the demo, on medium. */
+  | { kind: "demo" }
   | { kind: "settings" };
 
 export type Arrow = "left" | "right" | "up" | "down";
@@ -172,6 +179,7 @@ export class Menu {
   private target: { x: number; y: number } | null = null;
   private world: World = "space";
   private settingsChanged = false;
+  private readonly idle = new MenuIdle();
 
   constructor(
     private readonly texts: readonly (readonly MenuText[])[],
@@ -271,6 +279,8 @@ export class Menu {
     if (fire && this.hovered !== null) {
       return this.validate(MENUS[this.menu].actions[this.hovered as 0 | 1 | 2 | 3]);
     }
+    // 0x401805, 0x401464: a cursor move or a press, on a bar too, restarts the count.
+    if (this.idle.tick(this.x, this.y, fire)) return { kind: "demo" };
     if (!this.settingsChanged) return null;
     this.settingsChanged = false;
     return { kind: "settings" };
@@ -298,6 +308,7 @@ export class Menu {
       case "quit":
       case "scores":
       case "credits":
+      case "demo":
         return { kind: action.kind };
       case "world":
         // A world left out stays an empty quadrant: the click plays and nothing else (0x4014A8).

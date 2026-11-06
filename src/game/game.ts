@@ -68,6 +68,7 @@ import {
   stepMonsters,
   updateMonsters,
 } from "./monsters";
+import { DEMO_SERVE, type Demo, createDemo, demoPaddleX, demoShot, stepDemo } from "./demo";
 import {
   PADDLE_LARGE,
   PADDLE_NORMAL,
@@ -243,11 +244,16 @@ export class Game {
   finished = false;
   /** Game over: 0x408AD9 shows the scores before mode 7. For the caller to reset. */
   scoresDue = false;
+  /** Demo in progress ([0x411035] without [0x41103D]); a game over turns it into a game. */
+  demo: Demo | null = null;
+  /** The demo has run its course (0x401F72): for the caller to go back to the menu. */
+  demoOver = false;
   private pauseStep = false;
   private interval = 0;
   private pause = 0;
   private fadeStep = 0;
   private nextLevel = false;
+  private demoKick = false;
   private readonly bonusDraw = createBonusDraw();
   private readonly probe: BrickProbe = {
     hit: (x, y, ball) => this.hitBrick(x, y, ball),
@@ -268,7 +274,9 @@ export class Game {
     private readonly rng: Rng,
     /** Not in the original: 0 keeps its end of game, as the desktop version does. */
     private readonly spareLifePoints = 0,
+    demo = false,
   ) {
+    if (demo) this.demo = createDemo();
     this.newGame();
   }
 
@@ -318,6 +326,11 @@ export class Game {
   /** 0x401D4C: background load and fade in, without a fade out. */
   newGame(): void {
     this.level = this.config.startLevel;
+    // 0x401D7C: any level of the set, then the "demo" text (0x401D8D).
+    if (this.demo) {
+      this.level = this.rng.rand(this.levelCount - 1) + 1;
+      this.message = this.config.texts.status.demo;
+    }
     this.player = createPlayer(this.config.nbsLife, this.config.extraLife);
     this.livesShown = this.player.lives;
     this.balls = [];
@@ -327,8 +340,9 @@ export class Game {
 
   tick(input: GameInput): void {
     this.sounds.length = 0;
+    if (this.demo) this.demo.shotClock++;
     if (this.paused) {
-      if (this.pauseStep) this.stepPaused(input.fire);
+      if (this.pauseStep) this.stepPaused(this.autoFire(input.fire));
       return;
     }
     switch (this.mode) {
@@ -352,6 +366,8 @@ export class Game {
         // 0x401FB4: only a release is awaited, there is no press to give.
         if (!input.fire) {
           this.sounds.push("restart");
+          // 0x401FCE: a demo that reached its game over goes on as a game.
+          this.demo = null;
           this.newGame();
         }
         break;
@@ -400,9 +416,11 @@ export class Game {
     // 0x406370: a lasting bonus cancels "points x2"; an instant one has cleared the slot.
     if (this.doubled && this.bonus.active) this.fullPalette();
     movePaddle(this.paddle, this.reversed ? -input.paddleDx : input.paddleDx);
+    if (this.demo) this.paddle.x = demoPaddleX(this.paddle, this.balls[0]!);
     placeCannons(this.shotSystem, this.paddle);
-    if (this.mode === GameMode.Ready) this.ready(input.fire);
-    if (this.mode === GameMode.Playing) this.updateBalls(input.fire);
+    const fire = this.autoFire(input.fire);
+    if (this.mode === GameMode.Ready) this.ready(fire);
+    if (this.mode === GameMode.Playing) this.updateBalls(fire);
     this.updateShotsAndMonsters();
     for (const b of updateCapsules(this.capsules, this.paddle, this.mode === GameMode.Playing)) {
       this.capsuleCaught(b);
@@ -423,6 +441,13 @@ export class Game {
     this.animateGrid();
     this.clampObjects();
     stepIconFlash(this.flash);
+    // A lost life or a level end jumps back over the countdown (0x401E6E, 0x401E91).
+    if (this.demo && stepDemo(this.demo)) this.demoOver = true;
+  }
+
+  /** 0x405123 and 0x403E37: in the demo, the serve and the stuck balls do not wait for fire. */
+  private autoFire(fire: boolean): boolean {
+    return this.demo !== null || fire;
   }
 
   /**
@@ -509,6 +534,11 @@ export class Game {
   private fireShots(fire: boolean): void {
     const key = this.bonus.active?.key;
     const active: ShotKind | null = key === "shoot" || key === "mini_shoot" ? key : null;
+    if (this.demo && active) {
+      // 0x40290F: the demo fires on its own counter, the latch has no say.
+      fire = demoShot(this.demo);
+      if (fire) this.shotSystem.latch = false;
+    }
     const fired = updateCannons(this.shotSystem, active, fire, this.paddle);
     if (fired) this.sounds.push("shoot");
     if (fired === "shoot") {
@@ -702,7 +732,7 @@ export class Game {
 
   /** 0x401C54: past the last level the game ends at once, without the paddle leaving. */
   private endLevel(): void {
-    if (this.level === this.levelCount) {
+    if (this.level === this.levelCount && !this.demo) {
       addSpareLivesBonus(this.player, this.spareLifePoints);
       this.mode = GameMode.Finished;
       this.finished = true;
@@ -791,7 +821,8 @@ export class Game {
   private fadeIn(): void {
     if (this.fadeStep === FADE_STEPS) {
       // 0x407336 loads the background of [0x411031], raised by 0x401C54.
-      if (this.nextLevel) this.level++;
+      // 0x401C88: past the last level, the demo starts over at level 1.
+      if (this.nextLevel) this.level = (this.level % this.levelCount) + 1;
       this.nextLevel = false;
       this.bare = true;
       this.fade = FADE_STEPS - 1;
@@ -814,6 +845,8 @@ export class Game {
 
   /** 0x401DB5: new ball and paddle, ball stuck in the paddle's middle (0x404FBE). */
   private startRound(): void {
+    // 0x4037F0: only a lost life (mode 6) gives the demo a serve; otherwise the ball just leaves.
+    this.demoKick = this.demo !== null && this.mode !== GameMode.LifeLost;
     this.capsules = createCapsules();
     // 0x404FBE, 0x405264, 0x4057B4 (icon blank) and 0x406392 (full palette).
     this.bonus.active = null;
@@ -821,7 +854,7 @@ export class Game {
     this.bonus.icon = null;
     this.fullPalette();
     this.mode = GameMode.Arrival;
-    this.message = this.config.texts.status.ready;
+    if (!this.demoKick) this.message = this.config.texts.status.ready;
     this.paddle.x = createPaddle().x;
     setPaddleSize(this.paddle, PADDLE_NORMAL);
     this.shotSystem = resetShotSystem(this.shotSystem);
@@ -841,7 +874,13 @@ export class Game {
   private endArrival(): void {
     this.paddleAnim = null;
     setPaddleSize(this.paddle, PADDLE_NORMAL);
-    this.balls[0]!.state = BallState.Active;
+    const ball = this.balls[0]!;
+    ball.state = BallState.Active;
     this.mode = GameMode.Ready;
+    if (!this.demoKick) return;
+    // 0x403820: mode 3 is kept, so the stuck ball leaves on the next tick at this speed.
+    this.mode = GameMode.Playing;
+    ball.dx = DEMO_SERVE.dx;
+    ball.dy = DEMO_SERVE.dy;
   }
 }

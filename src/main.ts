@@ -105,6 +105,8 @@ let menu = newMenu();
 let world: World = "space";
 let difficulty: Difficulty = Difficulty.Easy;
 let game!: Game;
+/** 0x401142: the demo keeps the menu module, and so does the game a demo can turn into. */
+let menuMusicInGame = false;
 let keyboard = new KeyboardPaddle(0);
 let show = new Slideshow(BOOT_SLIDES);
 let showMusic: MusicName = MENU_MUSIC;
@@ -130,7 +132,7 @@ frozen.width = SCREEN_WIDTH;
 frozen.height = SCREEN_HEIGHT;
 
 const mouse = new MouseAccumulator(settings.mouseSensitivity);
-bindPointerLock(canvas, mouse, () => scene === "game");
+bindPointerLock(canvas, mouse, () => scene === "game" && !game.demo);
 const keys = new KeyState();
 const fire = new FireLatch();
 const locked = () => document.pointerLockElement === canvas;
@@ -141,7 +143,8 @@ const pointMenu = (e: MouseEvent) => {
 canvas.addEventListener("mousedown", (e) => {
   // A tap can come without any move before it.
   pointMenu(e);
-  if (locked() || scene !== "game") fire.press();
+  // The demo ends on a click (0x406FE1), and leaves the mouse free.
+  if (locked() || scene !== "game" || game.demo) fire.press();
 });
 window.addEventListener("mouseup", () => fire.release());
 window.addEventListener("mousemove", pointMenu);
@@ -181,6 +184,7 @@ function startGame(event: Extract<MenuEvent, { kind: "play" }>): void {
   difficulty = event.difficulty;
   // Still within the activation of the validating click or key.
   lockPointer(canvas);
+  menuMusicInGame = false;
   audio.playMusic(worldMusic(world, assets.config.startLevel));
   const t = new Transition({ musicTicks: musicFadeTicks(settings.musicVolume) });
   startTransition(t, () => {
@@ -195,6 +199,28 @@ function startGame(event: Extract<MenuEvent, { kind: "play" }>): void {
     setScene("game");
   });
 }
+
+/**
+ * 0x4010E4: a world drawn at random, on medium, straight into 0x401D18 with the music as it is.
+ * The original also draws 1 or 2 players: the remake has no coop yet, so the demo plays alone.
+ */
+function startDemo(): void {
+  const worlds = desktop ? ORIGINAL_WORLDS : WORLDS;
+  const rng = new Rng(Date.now());
+  world = worlds[rng.rand(worlds.length - 1)]!;
+  difficulty = Difficulty.Medium;
+  menuMusicInGame = true;
+  startTransition(new Transition(), () => {
+    const levels = assets.levels[WORLD_LEVELS[world]];
+    const lifePoints = desktop ? 0 : SPARE_LIFE_POINTS;
+    const rules = desktop ? assets.config : webConfig(assets.config, difficulty);
+    game = new Game(rules, levels, difficulty, rng, lifePoints, true);
+    mouse.reset();
+    setScene("game");
+  });
+}
+
+const gameMusic = (): MusicName => (menuMusicInGame ? MENU_MUSIC : worldMusic(world, game.level));
 
 /** The wait of 0x40666A is only there when the module changes (0x4077AF). */
 const musicTicks = (name: MusicName | null) =>
@@ -232,7 +258,7 @@ const gameEntry = () => ({ score: game.player.score, level: game.level });
 
 /** 0x408AD9: fade out, scores, fade out. The mouse stays locked for the next game (0x401FB4). */
 function showGameOverScores(): void {
-  const music = worldMusic(world, game.level);
+  const music = gameMusic();
   const leave = () => {
     const t = new Transition({
       waitRelease: true,
@@ -333,6 +359,7 @@ function menuEvent(event: MenuEvent | null): void {
   if (event?.kind === "play") startGame(event);
   if (event?.kind === "quit") quit();
   if (event?.kind === "credits") showCredits();
+  if (event?.kind === "demo") startDemo();
   // 0x408AA1, then 0x4074C5: one of the first 4 backgrounds of the last world (0x404F42 with 3).
   if (event?.kind === "scores") {
     const background = backgroundAt(world, screenRng.rand(3) + 1);
@@ -400,6 +427,11 @@ function updateGame(): void {
     returnToMenu(true);
     return;
   }
+  // 0x401F5C: fire, Space included, ends the demo once released; Esc does the same above.
+  if (game.demo && game.canLeave && fire.take()) {
+    returnToMenu(true);
+    return;
+  }
   if (gameKey === "KeyP" && game.canPause) {
     gameKey = null;
     game.startPause();
@@ -410,7 +442,9 @@ function updateGame(): void {
     mouse.take() + keyboard.step(keys.isDown("ArrowLeft"), keys.isDown("ArrowRight"));
   game.tick({ paddleDx, fire: fire.take() });
   audio.playSounds(game.sounds);
-  audio.playMusic(worldMusic(world, game.level));
+  audio.playMusic(gameMusic());
+  // 0x401F72: the end of the countdown does not wait for anything.
+  if (game.demoOver) returnToMenu(false);
   if (game.scoresDue) {
     game.scoresDue = false;
     showGameOverScores();
@@ -525,7 +559,7 @@ function renderGame(alpha: number): void {
   drawPlayfield(ctx, backgroundOf(background), sheet);
   if (!game.bare) drawGame(alpha, sheet, background);
   applyFade(ctx, game.screenFade);
-  if (!locked()) font().draw(ctx, "clic", 290, 220, false);
+  if (!locked() && !game.demo) font().draw(ctx, "clic", 290, 220, false);
 }
 
 function font(): BitmapFont {
