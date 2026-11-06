@@ -6,6 +6,17 @@ Le jeu était écrit à la main en assembleur x86. Les règles du remake ont ét
 
 > Ce dépôt ne contient que du code. Les graphismes, sons, musiques et niveaux appartiennent à Eclipse et ne sont jamais versionnés (voir [Lancer le projet](#lancer-le-projet)).
 
+## L'édition de 1999
+
+Brick Blaster est sorti en 1999 sur CD-ROM chez Média Pocket, dans sa collection « le CD-ROM à prix poche », entièrement en français. La jaquette annonce 80 niveaux, un mode à deux joueurs sur le même écran et plus de 20 bonus et malus.
+
+<p align="center">
+  <img src="docs/img/jaquette-avant.webp" alt="Jaquette avant de Brick Blaster, Média Pocket, 1999" height="320">
+  <img src="docs/img/jaquette-arriere.webp" alt="Jaquette arrière de Brick Blaster, Média Pocket, 1999" height="320">
+</p>
+
+<sub>Jaquette © 1999 Média Pocket, reproduite à titre documentaire.</sub>
+
 ## Points techniques
 
 - **Rétro-ingénierie.** L'analyse complète du jeu d'origine est dans [`BRICK_BLASTER_ANALYSE.md`](BRICK_BLASTER_ANALYSE.md) : formats de fichiers, physique de la balle, tirage des bonus, monstres, menus. Chaque règle y cite l'adresse de la routine d'origine, et le code du remake reprend ces références (`// §4.2, 0x404610`). Les outils sont dans `tools/` : un décompresseur DIET, l'extraction des assets et des aides au désassemblage avec capstone.
