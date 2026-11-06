@@ -12,7 +12,10 @@ import {
   worldMusic,
   holdResample,
   musicFadeTicks,
+  LIMBES_MUSIC_RMS_DB,
+  MUSIC_TARGET_DB,
   musicGain,
+  musicTrim,
   soundGain,
   soundPan,
   soundToPlay,
@@ -112,6 +115,24 @@ describe("music rules", () => {
     expect(musicGain(6, 64)).toBeCloseTo(3 / 4);
     expect(musicGain(8, 64)).toBeCloseTo(4 / 5);
     expect(musicGain(4, 32)).toBeCloseTo(1 / 3);
+  });
+
+  it("brings the Limbes modules to the level of the Space one, the others untouched", () => {
+    for (const name of LIMBES_MUSIC) {
+      const rms = LIMBES_MUSIC_RMS_DB[name]!;
+      expect(rms + 20 * Math.log10(musicTrim(name))).toBeCloseTo(MUSIC_TARGET_DB);
+    }
+    expect(musicTrim("stars_4ch")).toBeGreaterThan(1);
+    expect(musicTrim("8bit_castle")).toBeLessThan(1);
+    for (const name of [
+      "love",
+      "starr",
+      "the_last",
+      "hunting_in_lacanau",
+      "rain_in_the_brain",
+    ] as const) {
+      expect(musicTrim(name)).toBe(1);
+    }
   });
 
   it("fades one volume step per tick, down to -1", () => {
