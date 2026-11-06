@@ -136,7 +136,7 @@ export function updateCapsules(
   return caught;
 }
 
-/** Ticks a bonus lasts [0x411CA4], 12 s at 50 Hz (0x4055E5). */
+/** Ticks a bonus lasts [0x411CA4], 10 s at 60 Hz (0x4055E5). */
 export const BONUS_TICKS = 0x258;
 /** The message goes blank, 100 ticks after the catch (0x405E33). */
 export const MESSAGE_END_TICKS = 0x1f4;

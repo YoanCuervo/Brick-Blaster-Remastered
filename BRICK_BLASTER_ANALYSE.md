@@ -248,7 +248,7 @@ Pour le remake : reproduire ce comportement tel quel. C'est simple et fidèle.
 **Cadence (vérifié dans le code, 02/11/2026).** La logique n'avance **pas** au rythme du timer, mais de l'écran. Le « tick » `0x40653C` appelle le service `0x20` (`0x40B088`), soit `0x40DF87` : `IDirectDraw::WaitForVerticalBlank` (`+0x58`), puis attente active jusqu'à 14 ms depuis le tick précédent (`[0x421614]`, `timeGetTime`). La cadence vaut donc min(rafraîchissement de l'écran, ≈ 71,4 Hz).
 - Le mode d'écran demande **60 Hz** en dur (`SetDisplayMode(640, 480, 8, 0x3C, 0)`, `0x40DAF4`), et ne retombe sur le défaut du pilote que s'il échoue (`0x40DB0C`). La cadence attendue est donc **60 ticks par seconde**, à confirmer au chronomètre sur l'original.
 - Le timer `timeSetEvent(20 ms)` (`0x409EC1`, `0x40A07B`) ne fait tourner que l'entrée DirectInput et le mixage du son. La musique n'en dépend donc pas.
-- **Écart du remake** : il tourne à 50 ticks par seconde (`TICK_RATE`, `src/core/loop.ts`), soit 17 % plus lentement. Toutes les durées « à 50 Hz » de ce document (12 s pour un bonus, 39 s pour le film de fin…) décrivent le remake : à 60 Hz, 600 ticks font 10 s et 1952 ticks font 32,5 s.
+- **Remake** : il tourne à 60 ticks par seconde comme l'original (`TICK_RATE`, `src/core/loop.ts`), un tick par image sur un écran à 60 Hz. Il a tourné à 50 jusqu'à la recette V1, soit 17 % trop lentement. Les secondes de ce document sont comptées à 60 Hz : 600 ticks font 10 s, 1952 ticks font 32,5 s.
 
 **Création de la balle** (`0x40225E`). Taille 9 × 9, sprite `0x1680`. Bornes : x de 112 (`0x70`) à `0x210 − 9` = 519, et y de 0 à `0x1E0 − 9` = 471. `+0x59 = 1` : la balle rebondit sur les briques (le bonus `iron_ball` le met à 0). `+0x5D = Freq_Change_Speed`. Au service, elle est posée au centre de la raquette (`0x404FDC`) : `y = raquette.y − h`, `x = raquette.x + l/2 − w/2`.
 
@@ -352,7 +352,7 @@ Niveau 1                       Niveau 2 (bas)
 
 ### 4.3 Monstres (vérifié dans le code, 30/10/2026)
 
-**Apparition** (`0x403A93`, puis `0x403ADA`). Un compteur avance à chaque tick de jeu. Quand il atteint `Freq_Create_Monster[diff]` (600/500/400 ticks, soit 12/10/8 s à 50 Hz), il revient à 0 et un monstre apparaît dans le premier emplacement libre. Il y a 5 emplacements : quand ils sont pleins, rien n'apparaît.
+**Apparition** (`0x403A93`, puis `0x403ADA`). Un compteur avance à chaque tick de jeu. Quand il atteint `Freq_Create_Monster[diff]` (600/500/400 ticks, soit 10/8,3/6,7 s à 60 Hz), il revient à 0 et un monstre apparaît dans le premier emplacement libre. Il y a 5 emplacements : quand ils sont pleins, rien n'apparaît.
 
 ```
 monstre.x  = 112 + rand(0..384)          // n'importe où sur la largeur de l'aire de jeu
@@ -629,7 +629,7 @@ lâcher une capsule au coin haut-gauche de la brique, chute 2 px/tick
 ```
 
 - **`Freq_Option_* = f` veut dire « 1 chance sur f »** une fois le bonus tiré au sort. La probabilité qu'une brique cassée lâche le bonus `i` vaut donc ≈ `1/24 × 1/f`. Une valeur plus haute rend le bonus plus rare : l'hypothèse de départ était juste. `0` désactive le bonus.
-- `Time_Between_Option` se compte en **ticks** : le compteur `0x40655D` avance à chaque tour de boucle principale (`0x40653C`). Avec 6/10/12 ticks (0,12 à 0,24 s à 50 Hz), il empêche surtout deux capsules quasi simultanées.
+- `Time_Between_Option` se compte en **ticks** : le compteur `0x40655D` avance à chaque tour de boucle principale (`0x40653C`). Avec 6/10/12 ticks (0,1 à 0,2 s à 60 Hz), il empêche surtout deux capsules quasi simultanées.
 - `[0x4125D0]`, s'il n'est pas nul, force le bonus lâché (mode test ou éditeur, probablement).
 - Le dernier bonus `[0x411C68]` vaut 0 au départ et n'est jamais remis à zéro. Le compteur `[0x40655D]` avance dans tous les modes, fondus compris.
 - **Sprites inversés** : `+100 pts` (entrée 20) utilise le dessin n° 21 (`0x75A23`), `-100 pts` (entrée 21) le n° 20 (`0x75A09`).
@@ -643,7 +643,7 @@ lâcher une capsule au coin haut-gauche de la brique, chute 2 px/tick
 
 **Bonus actif** (`0x4055AE`, à la récupération de la capsule). Le ramassage joue `optionon`, donne **2 unités** de score (20/30/40 points), affiche l'icône et lance le clignotement. Le libellé n'apparaît qu'au tick suivant, avec `0x405DD2`.
 - **Un seul bonus actif à la fois**, dans `[0x411C70]`. Un nouveau bonus remplace le précédent, qui est mémorisé dans `[0x411C74]`.
-- **Durée : 600 ticks** (`[0x411CA4] = 0x258`, soit 12 s à 50 Hz, `0x405E1A`, en mode 3). À **500**, le message s'efface et, si aucun bonus n'est actif, l'icône disparaît et le dernier libellé est oublié. À **0**, le jeu joue `endopt`, libère les balles collées (`0x403E91`), remet la palette et le score normal (`0x406392`) et efface l'icône. Le minuteur n'est pas arrêté par les bonus instantanés : **`endopt` sonne aussi 12 s après un bonus instantané**, sauf si une manche a recommencé entre-temps.
+- **Durée : 600 ticks** (`[0x411CA4] = 0x258`, soit 10 s à 60 Hz, `0x405E1A`, en mode 3). À **500**, le message s'efface et, si aucun bonus n'est actif, l'icône disparaît et le dernier libellé est oublié. À **0**, le jeu joue `endopt`, libère les balles collées (`0x403E91`), remet la palette et le score normal (`0x406392`) et efface l'icône. Le minuteur n'est pas arrêté par les bonus instantanés : **`endopt` sonne aussi 10 s après un bonus instantané**, sauf si une manche a recommencé entre-temps.
 - Chaque tick, la routine d'effet du bonus actif est appelée (`0x405DD2`, mode 3). Son libellé n'est écrit que s'il diffère du dernier écrit (`[0x411CA0]`) : reprendre le même bonus ne le réécrit pas.
 - **Effacement** : une vie supplémentaire ou le bonus vie (`0x405FB1`) efface le bonus actif, mais pas le minuteur. Une vie perdue (`0x404AED`) efface les deux. Une nouvelle manche (`0x401DB5`) efface aussi les capsules et l'icône, et rétablit la palette.
 - Les bonus instantanés (balles, vie, points…) remettent l'état actif à 0 dans leur routine, au tick qui suit le ramassage.
@@ -678,7 +678,7 @@ répéter :
 tant qu'un des 4 coins touche une indestructible (0x40252D, même test qu'au §4.1)
 ```
 
-**Effets d'un seul tick** (`0x403932`). `fast`, `slow`, `telepod` et `iron` **ne durent pas 12 s** : ils agissent sur chaque balle au tick qui suit le ramassage, puis `0x4039E9` vide l'emplacement. L'icône et le libellé restent jusqu'à 500.
+**Effets d'un seul tick** (`0x403932`). `fast`, `slow`, `telepod` et `iron` **ne durent pas 10 s** : ils agissent sur chaque balle au tick qui suit le ramassage, puis `0x4039E9` vide l'emplacement. L'icône et le libellé restent jusqu'à 500.
 - `fast` et `slow` : voir §4.2. Les balles sur le point d'être perdues (état −3) sont concernées.
 - `telepod` (`0x4039BE`) : téléportation `0x4023AA` après le déplacement, avant le test de perte, sans son, état −3 compris.
 - `iron` (`0x40394B`, état −3 exclu) : `+0x59 = 0`, sprite 0, ou `0x12` pour une balle fantôme. L'effet dure jusqu'à ce que l'objet soit recréé (`0x403866`) : les balles créées ensuite restent normales.
@@ -865,7 +865,7 @@ Le jeu lit les modules tels quels (§4.5), adresse les sprites dans la planche (
 
 ## 7. Recommandations pour le remake
 
-> Écrites avant le remake, gardées comme trace. Ce qui a été fait est dans `docs/cadrage.md` : notamment une boucle à 50 Hz sans la physique à 120 Hz proposée ici, et pas de mode 2 joueurs en V1.
+> Écrites avant le remake, gardées comme trace. Ce qui a été fait est dans `docs/cadrage.md` : notamment une boucle à 60 Hz, celle de l'original, sans la physique à 120 Hz proposée ici, et pas de mode 2 joueurs en V1.
 
 ### Stack recommandée
 
@@ -925,7 +925,7 @@ Graphismes, sons, musiques et niveaux appartiennent à Eclipse / leurs auteurs (
 - ~~Signification des 6 types de briques~~ : résolu (§4).
 - ~~Types de balle 6 et 7~~ : résolu, ce sont les monstres et les projectiles (§4.2).
 - ~~Effet exact du garde-fou « monstre bloqué en haut »~~ : résolu, il n'en a aucun (§4.3).
-- ~~Logique cadencée exactement à 50 Hz ?~~ : résolu, non : 60 ticks par seconde attendus (§4.2). Reste à le mesurer sur l'original, et à décider de la cadence du remake.
+- ~~Logique cadencée exactement à 50 Hz ?~~ : résolu, non : 60 ticks par seconde (§4.2), cadence adoptée par le remake. Reste à le confirmer au chronomètre sur l'original (un bonus doit durer 10 s).
 - Le jeu plante dès qu'il perd le plein écran (Alt+Tab, Impr. écran) : comparer le remake à l'original demandera un outil de fenêtrage (DxWnd).
 - La démo plante si le set de niveaux contient des emplacements vides (`0xFF`) parmi ceux qu'elle tire au sort : un set de test doit remplir 40 emplacements.
 - ~~Correspondance entre noms de fichiers `.mod` et titres de modules~~ : résolu, par le répertoire de l'exe (§3.3).

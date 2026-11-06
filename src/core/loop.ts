@@ -1,12 +1,22 @@
-/** Logic rate of the original game: timeSetEvent(20 ms), see analysis §4.2. */
-export const TICK_RATE = 50;
+/**
+ * Logic rate of the original game: one tick per vertical blank of the 60 Hz mode it requests
+ * (0x40DAF4, 0x40DF87), see analysis §4.2. Its 20 ms timer only drives input and sound.
+ */
+export const TICK_RATE = 60;
 export const TICK_MS = 1000 / TICK_RATE;
 
 /** Caps catch-up after a stall (hidden tab, breakpoint) so the game never fast-forwards. */
 export const MAX_TICKS_PER_FRAME = 5;
 
+/**
+ * A tick may start this early. On a 60 Hz screen frames last about TICK_MS, give or take some
+ * jitter: without slack a frame would now and then run no tick and the next one two. The
+ * accumulator then dips below 0, so the average rate stays exactly TICK_RATE.
+ */
+export const TICK_SLACK_MS = 2;
+
 export interface LoopCallbacks {
-  /** Advances the game by exactly one 50 Hz tick. */
+  /** Advances the game by exactly one tick. */
   update: () => void;
   /** Draws the current state; `alpha` in [0, 1) is the progress towards the next tick. */
   render: (alpha: number) => void;
@@ -29,14 +39,14 @@ export class FixedStep {
     this.last = now;
 
     let ticks = 0;
-    while (this.accumulator >= TICK_MS && ticks < MAX_TICKS_PER_FRAME) {
+    while (this.accumulator >= TICK_MS - TICK_SLACK_MS && ticks < MAX_TICKS_PER_FRAME) {
       this.callbacks.update();
       this.accumulator -= TICK_MS;
       ticks++;
     }
     if (ticks === MAX_TICKS_PER_FRAME) this.accumulator %= TICK_MS;
 
-    this.callbacks.render(this.accumulator / TICK_MS);
+    this.callbacks.render(Math.max(this.accumulator / TICK_MS, 0));
     return ticks;
   }
 
