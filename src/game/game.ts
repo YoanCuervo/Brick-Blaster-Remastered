@@ -1,4 +1,4 @@
-// One-player game flow: rounds, lives, level end, game over (§4.5).
+// Game flow: rounds, lives, level end, game over (§4.5), alone or in coop (§4.6).
 import type { Rng } from "../core/rng";
 import { type BonusKey, Difficulty, type GameConfig, forDifficulty } from "../data/config";
 import { LEVEL_COLS, type Level } from "../data/levels";
@@ -20,6 +20,7 @@ import {
   BallState,
   type BrickProbe,
   type Magnet,
+  type Seat,
   addBalls,
   clampToBounds,
   createBall,
@@ -37,7 +38,10 @@ import {
   type Capsule,
   EXTRA_BALLS,
   MALUS_UNITS,
+  TWO_PLAYER_GHOSTS,
   catchBonus,
+  catchCapsules,
+  clearActive,
   createActiveBonus,
   createBonusDraw,
   createCapsules,
@@ -46,7 +50,6 @@ import {
   spawnCapsule,
   stepBonusTimer,
   stepIconFlash,
-  updateCapsules,
 } from "./bonus";
 import {
   type BrickGrid,
@@ -74,9 +77,13 @@ import {
   PADDLE_NORMAL,
   PADDLE_SMALL,
   PADDLE_X_MIN,
+  PLAYER1_START_X,
+  PLAYER2_START_X,
   type Paddle,
+  clampPaddleX,
   createPaddle,
   movePaddle,
+  resetPaddleBounds,
   setPaddleSize,
 } from "./paddle";
 import { BRICK_H, BRICK_W } from "../render/atlas";
@@ -102,6 +109,7 @@ import {
   resetShotSystem,
   setupBigCannon,
   setupMiniCannons,
+  stepCannons,
   stepShotSystem,
   updateCannons,
   updateShots,
@@ -199,7 +207,16 @@ export interface GameInput {
   paddleDx: number;
   /** Fire held (mouse button or key). */
   fire: boolean;
+  /** Player 2 at the keyboard: move and fire (Ctrl, 0x407023). */
+  paddle2Dx?: number;
+  fire2?: boolean;
 }
+
+/** Who plays player 2 in coop, [0x411011]: the keyboard (0x10) or the computer (8). */
+export type Partner = "keyboard" | "computer";
+
+/** 0x402CCC: the computer fires once its timer [0x406565] is past this. */
+export const AUTO_FIRE_TICKS = 0xa;
 
 export interface PaddleAnim {
   readonly anim: SpriteAnim;
@@ -219,19 +236,26 @@ export class Game {
   /** Spare lives as last drawn: the original redraws them only in 0x405BC1. */
   livesShown = 0;
   readonly paddle: Paddle = createPaddle();
+  /** Player 2's paddle 0x413F60, null alone. */
+  readonly paddle2: Paddle | null;
   balls: Ball[] = [];
   capsules: Capsule[] = createCapsules();
   readonly bonus: ActiveBonus = createActiveBonus();
   readonly flash = createIconFlash();
   /** [0x41104D] */
   readonly magnet: Magnet = { on: false };
+  /** [0x41104D] bit 1, for player 2's paddle. */
+  readonly magnet2: Magnet = { on: false };
   /** [0x411CA8]: "points x2" is on, score doubled and palette darkened. */
   doubled = false;
   shotSystem: ShotSystem = createShotSystem();
+  /** Player 2's cannons, sharing player 1's shot slots. */
+  shotSystem2: ShotSystem | null;
   monsterSystem: MonsterSystem = createMonsterSystem();
   /** 18-character status line, from the cfg texts. */
   message = "";
   paddleAnim: PaddleAnim | null = null;
+  paddleAnim2: PaddleAnim | null = null;
   /** Sounds started during the last tick. */
   readonly sounds: SoundName[] = [];
   /** Fade step shown, 0 (normal) to FADE_STEPS − 1 (darkest). */
@@ -254,6 +278,10 @@ export class Game {
   private fadeStep = 0;
   private nextLevel = false;
   private demoKick = false;
+  /** [0x411041]: player 2's x minus player 1's, written by the collision routine 0x406501. */
+  private collisionGap = 0;
+  /** [0x406565], raised once per tick (0x406555), reset by each shot of the computer. */
+  private autoFireTicks = 0;
   private readonly bonusDraw = createBonusDraw();
   private readonly probe: BrickProbe = {
     hit: (x, y, ball) => this.hitBrick(x, y, ball),
@@ -275,18 +303,37 @@ export class Game {
     /** Not in the original: 0 keeps its end of game, as the desktop version does. */
     private readonly spareLifePoints = 0,
     demo = false,
+    /** Coop with this player 2, null alone. */
+    readonly partner: Partner | null = null,
   ) {
     if (demo) this.demo = createDemo();
+    this.paddle2 = partner ? createPaddle(PLAYER2_START_X) : null;
+    this.shotSystem2 = partner ? createShotSystem(1, this.shotSystem.shots) : null;
     this.newGame();
+  }
+
+  /** [0x411015] = 2 with [0x41101D] = 1. */
+  get coop(): boolean {
+    return this.paddle2 !== null;
+  }
+
+  /** In slot order: player 1, then player 2. */
+  get paddles(): Paddle[] {
+    return this.paddle2 ? [this.paddle, this.paddle2] : [this.paddle];
   }
 
   get levelCount(): number {
     return this.levels.length;
   }
 
-  /** 0x406E12: the reverse bonus negates the paddle movement. */
+  /** 0x406E12: the reverse bonus negates the paddle movement, read in the player's slot. */
   get reversed(): boolean {
-    return this.bonus.active?.key === "reverse";
+    return this.bonus.seats[0]?.key === "reverse";
+  }
+
+  /** 0x406BBE: player 2's own slot. */
+  get reversed2(): boolean {
+    return this.bonus.seats[1]?.key === "reverse";
   }
 
   /**
@@ -342,7 +389,7 @@ export class Game {
     this.sounds.length = 0;
     if (this.demo) this.demo.shotClock++;
     if (this.paused) {
-      if (this.pauseStep) this.stepPaused(this.autoFire(input.fire));
+      if (this.pauseStep) this.stepPaused({ ...input, fire: this.autoFire(input.fire) });
       return;
     }
     switch (this.mode) {
@@ -375,23 +422,28 @@ export class Game {
         break;
     }
     this.bonusDraw.ticks++;
+    this.autoFireTicks++;
   }
 
   /** 0x402058: the objects move once, but neither the paddle nor the end tests run. */
-  private stepPaused(fire: boolean): void {
+  private stepPaused(input: GameInput): void {
     this.pauseStep = false;
-    if (this.mode === GameMode.Playing) this.updateBalls(fire);
+    if (this.mode === GameMode.Playing) this.updateBalls(input.fire, this.fire2(input));
     this.updateShotsAndMonsters();
-    for (const b of updateCapsules(this.capsules, this.paddle, this.mode === GameMode.Playing)) {
-      this.capsuleCaught(b);
-    }
+    this.catchCapsules(this.paddles, this.mode === GameMode.Playing);
     this.stepObjects();
     this.animateGrid();
     stepIconFlash(this.flash);
   }
 
+  /** Player 2's fire: the computer releases its stuck balls at once (0x403E71). */
+  private fire2(input: GameInput): boolean {
+    return this.partner === "computer" || (input.fire2 ?? false);
+  }
+
   /** Main loop 0x401DFB, in the original order. */
   private play(input: GameInput): void {
+    const fire2 = this.fire2(input);
     if (this.mode === GameMode.Playing) {
       this.runActiveBonus();
       this.stepBonusTimer();
@@ -399,11 +451,17 @@ export class Game {
         // 0x406040 writes the label itself, then shares the end of the bonus routine.
         this.bonus.label = "new_life";
         this.message = this.config.texts.bonus.new_life;
+        this.bonus.picker = 0;
         this.lifeGained();
       }
-      this.largePaddle();
-      this.smallPaddle();
-      this.fireShots(input.fire);
+      this.largePaddle(0);
+      this.smallPaddle(0);
+      if (this.paddle2) {
+        this.largePaddle(1);
+        this.smallPaddle(1);
+      }
+      this.fireShots(0, input.fire);
+      if (this.paddle2) this.fireShots(1, fire2);
       stepMonsterTimer(
         this.monsterSystem,
         forDifficulty(this.config.freqCreateMonster, this.difficulty),
@@ -411,29 +469,36 @@ export class Game {
         this.rng,
       );
     } else {
+      // 0x402B5B and 0x402F17
       this.shotSystem.latch = false;
+      if (this.shotSystem2) this.shotSystem2.latch = false;
     }
     // 0x406370: a lasting bonus cancels "points x2"; an instant one has cleared the slot.
     if (this.doubled && this.bonus.active) this.fullPalette();
+    this.collisionBounds();
+    // 0x406D17: player 2 moves first, then the mouse (0x406DFF).
+    this.movePaddle2(input.paddle2Dx ?? 0);
     movePaddle(this.paddle, this.reversed ? -input.paddleDx : input.paddleDx);
     if (this.demo) this.paddle.x = demoPaddleX(this.paddle, this.balls[0]!);
     placeCannons(this.shotSystem, this.paddle);
     const fire = this.autoFire(input.fire);
-    if (this.mode === GameMode.Ready) this.ready(fire);
-    if (this.mode === GameMode.Playing) this.updateBalls(fire);
+    // 0x406FE1: any player's fire serves, the computer's aside.
+    const serve = fire || (this.partner === "keyboard" && fire2);
+    if (this.mode === GameMode.Ready) this.ready(serve);
+    if (this.mode === GameMode.Playing) this.updateBalls(fire, fire2);
     this.updateShotsAndMonsters();
-    for (const b of updateCapsules(this.capsules, this.paddle, this.mode === GameMode.Playing)) {
-      this.capsuleCaught(b);
-    }
+    this.catchCapsules(this.paddles, this.mode === GameMode.Playing);
     this.stepObjects();
-    if (this.mode === GameMode.Playing && this.ballsInPlay() === 0) {
+    // 0x404A96: in coop a life goes as soon as fewer than 2 balls are left.
+    const inPlay = this.ballsInPlay();
+    if (this.mode === GameMode.Playing && (inPlay === 0 || (this.coop && inPlay < 2))) {
       this.loseLife();
       return;
     }
     // 0x4045BB: next_level has an empty routine, this test is its whole effect.
     const skipLevel = this.bonus.active?.key === "next_level";
     if (skipLevel || isLevelCleared(this.grid)) {
-      if (skipLevel) this.bonus.active = null;
+      if (skipLevel) clearActive(this.bonus);
       this.sounds.push("next");
       this.endLevel();
       return;
@@ -461,13 +526,47 @@ export class Game {
     updateMonsters(this.monsterSystem, probe);
   }
 
+  /** 0x404F8B, 0x406BB1 */
+  private movePaddle2(dx: number): void {
+    const p = this.paddle2;
+    if (!p) return;
+    if (this.partner === "computer") {
+      // Centred on whatever ball holds slot 1, in mode 3 only, then clamped.
+      const ball = this.balls[1];
+      if (this.mode === GameMode.Playing && ball) p.x = ball.x - (p.w >> 1);
+      p.x = clampPaddleX(p, p.x);
+    } else if (dx !== 0) {
+      // A key not pressed returns before the clamp.
+      movePaddle(p, this.reversed2 ? -dx : dx);
+    }
+    placeCannons(this.shotSystem2!, p);
+  }
+
+  /** 0x402F9D: under `collision` the paddles cannot cross, otherwise the play area. */
+  private collisionBounds(): void {
+    const p2 = this.paddle2;
+    if (!p2 || this.mode !== GameMode.Playing) return;
+    const p1 = this.paddle;
+    if (this.bonus.active?.key !== "collision") {
+      resetPaddleBounds(p1);
+      resetPaddleBounds(p2);
+    } else if (this.collisionGap < 0) {
+      p1.xMin = p2.x + p2.w;
+      p2.xMax = p1.x - p2.w;
+    } else {
+      p2.xMin = p1.x + p1.w;
+      p1.xMax = p2.x - p1.w;
+    }
+  }
+
   /** 0x403913: the ball loop, then 0x4039E9 clears the one-tick bonuses. */
-  private updateBalls(fire: boolean): void {
+  private updateBalls(fire: boolean, fire2: boolean): void {
     const active = this.bonus.active?.key ?? null;
     const teleportBall = (ball: Ball) => teleport(ball, this.grid.level, this.rng);
     const ctx = {
       fire,
       magnet: this.magnet,
+      second: this.paddle2 && { paddle: this.paddle2, magnet: this.magnet2, fire: fire2 },
       active,
       teleport: teleportBall,
       hitMonsters: this.hitMonsters,
@@ -477,52 +576,73 @@ export class Game {
         this.sounds.push(e === "paddle" ? "wall" : e === "speedUp" ? "speedup" : "pertebal");
       }
     }
-    if (active && ONE_TICK_BONUSES.includes(active)) this.bonus.active = null;
+    if (active && ONE_TICK_BONUSES.includes(active)) clearActive(this.bonus);
+  }
+
+  /** 0x405452 */
+  private catchCapsules(paddles: readonly Pick<Paddle, "x" | "w">[], canCatch: boolean): void {
+    for (const c of catchCapsules(this.capsules, paddles, canCatch)) {
+      this.capsuleCaught(c.bonus, c.seat);
+    }
   }
 
   /** The objects of the stepper 0x4066BA. */
   private stepObjects(): void {
     stepAnim(this.paddle.anim);
+    if (this.paddle2) stepAnim(this.paddle2.anim);
     stepShotSystem(this.shotSystem);
+    if (this.shotSystem2) stepCannons(this.shotSystem2);
     stepMonsters(this.monsterSystem);
     for (const ball of this.balls) stepBallAnim(ball);
   }
 
   /** 0x406874, called by 0x40675F for each object it draws. */
   private clampObjects(): void {
+    for (const p of this.paddles) p.x = clampPaddleX(p, p.x);
     for (const ball of this.balls) clampToBounds(ball);
     for (const shot of this.shotSystem.shots) clampToBounds(shot);
     for (const monster of this.monsterSystem.monsters) clampToBounds(monster);
   }
 
-  /** 0x4033A9 */
-  private largePaddle(): void {
-    const wanted = this.bonus.active?.key === "large_ship";
-    if (this.paddle.anim.first === PaddleSprite.Large) {
-      if (!wanted) this.normalPaddle();
+  private paddleOf(seat: Seat): Paddle {
+    return seat === 0 ? this.paddle : this.paddle2!;
+  }
+
+  private shotsOf(seat: Seat): ShotSystem {
+    return seat === 0 ? this.shotSystem : this.shotSystem2!;
+  }
+
+  /** 0x4033A9, 0x4035AC for player 2: each reads its own slot. */
+  private largePaddle(seat: Seat): void {
+    const paddle = this.paddleOf(seat);
+    const wanted = this.bonus.seats[seat]?.key === "large_ship";
+    if (paddle.anim.first === PaddleSprite.Large) {
+      if (!wanted) this.normalPaddle(seat);
     } else if (wanted) {
       this.sounds.push("large");
-      setPaddleSize(this.paddle, PADDLE_LARGE);
+      setPaddleSize(paddle, PADDLE_LARGE);
     }
   }
 
-  /** 0x4034B0 */
-  private smallPaddle(): void {
-    const wanted = this.bonus.active?.key === "small_ship";
-    if (this.paddle.anim.first === PaddleSprite.Small) {
-      if (!wanted) this.normalPaddle();
+  /** 0x4034B0, 0x4036C0 for player 2. */
+  private smallPaddle(seat: Seat): void {
+    const paddle = this.paddleOf(seat);
+    const wanted = this.bonus.seats[seat]?.key === "small_ship";
+    if (paddle.anim.first === PaddleSprite.Small) {
+      if (!wanted) this.normalPaddle(seat);
     } else if (wanted) {
       this.sounds.push("small");
       this.unstickBalls();
-      setPaddleSize(this.paddle, PADDLE_SMALL);
+      setPaddleSize(paddle, PADDLE_SMALL);
     }
   }
 
-  /** 0x4025B0 */
-  private normalPaddle(): void {
-    if (this.paddle.anim.first === PaddleSprite.Large) this.unstickBalls();
-    setPaddleSize(this.paddle, PADDLE_NORMAL);
-    hideCannons(this.shotSystem);
+  /** 0x4025B0, 0x4026E4 for player 2. Both unstick every ball (0x403E91). */
+  private normalPaddle(seat: Seat): void {
+    const paddle = this.paddleOf(seat);
+    if (paddle.anim.first === PaddleSprite.Large) this.unstickBalls();
+    setPaddleSize(paddle, PADDLE_NORMAL);
+    hideCannons(this.shotsOf(seat));
   }
 
   /** 0x403E91 without its clearing of the flag: the callers put it back (0x4025BC, 0x4034EA). */
@@ -530,20 +650,26 @@ export class Game {
     for (const b of this.balls) b.stuckOffset = null;
   }
 
-  /** 0x402828 */
-  private fireShots(fire: boolean): void {
-    const key = this.bonus.active?.key;
+  /** 0x402828, 0x402BE1 for player 2: the cannons of the bonus in the player's slot. */
+  private fireShots(seat: Seat, fire: boolean): void {
+    const key = this.bonus.seats[seat]?.key;
     const active: ShotKind | null = key === "shoot" || key === "mini_shoot" ? key : null;
-    if (this.demo && active) {
+    const auto = seat === 1 && this.partner === "computer";
+    let pull = fire;
+    if (auto) {
+      pull = active !== null && this.autoFireTicks > AUTO_FIRE_TICKS;
+      if (pull) this.autoFireTicks = 0;
+    } else if (this.demo && active) {
       // 0x40290F: the demo fires on its own counter, the latch has no say.
-      fire = demoShot(this.demo);
-      if (fire) this.shotSystem.latch = false;
+      pull = demoShot(this.demo);
+      if (pull) this.shotSystem.latch = false;
     }
-    const fired = updateCannons(this.shotSystem, active, fire, this.paddle);
+    const fired = updateCannons(this.shotsOf(seat), active, pull, this.paddleOf(seat), auto);
     if (fired) this.sounds.push("shoot");
     if (fired === "shoot") {
-      // A single shot (0x40299E): slot, icon and label all go.
+      // A single shot (0x40299E, 0x402D5B): active bonus, own slot, icon and label all go.
       this.bonus.active = null;
+      this.bonus.seats[seat] = null;
       this.bonus.icon = null;
       this.bonus.label = null;
     }
@@ -556,8 +682,8 @@ export class Game {
   }
 
   /** 0x4055AE */
-  private capsuleCaught(bonus: BonusDef): void {
-    catchBonus(this.bonus, bonus);
+  private capsuleCaught(bonus: BonusDef, seat: Seat = 0): void {
+    catchBonus(this.bonus, bonus, seat);
     this.flash.on = true;
     this.sounds.push("optionon");
     addScore(this.player, CAPSULE_UNITS, this.difficulty, this.doubled);
@@ -571,13 +697,18 @@ export class Game {
       this.bonus.label = bonus.key;
       this.message = this.config.texts.bonus[bonus.key];
     }
-    const balls = EXTRA_BALLS[bonus.key];
-    if (balls !== undefined) {
-      const { paddle, grid, config, rng } = this;
-      addBalls(this.balls, balls, paddle, grid.level, config.freqChangeSpeed, rng);
+    const { picker } = this.bonus;
+    const extra = EXTRA_BALLS[bonus.key];
+    if (extra !== undefined) {
+      const { grid, config, rng } = this;
+      const ghost = bonus.key === "ghost";
+      const count = ghost && this.coop ? TWO_PLAYER_GHOSTS : extra;
+      // 0x40242F: above the catcher's paddle, owned by the catcher.
+      const paddle = this.paddleOf(picker);
+      addBalls(this.balls, count, paddle, grid.level, config.freqChangeSpeed, rng, picker);
       // 0x40645F then 0x403ED5.
-      if (bonus.key === "ghost") makeGhosts(this.balls);
-      this.bonus.active = null;
+      if (ghost) makeGhosts(this.balls, picker);
+      clearActive(this.bonus);
       return;
     }
     switch (bonus.key) {
@@ -586,7 +717,7 @@ export class Game {
         this.sounds.push("death");
         loseSpareLife(this.player);
         this.livesShown = this.player.lives;
-        this.bonus.active = null;
+        clearActive(this.bonus);
         break;
       case "new_life":
         gainLife(this.player);
@@ -595,41 +726,48 @@ export class Game {
       case "bonus":
         // 0x40649B
         addScore(this.player, BONUS_UNITS, this.difficulty, this.doubled);
-        this.bonus.active = null;
+        clearActive(this.bonus);
         break;
       case "malus":
         // 0x4064CE
         subtractScore(this.player, MALUS_UNITS, this.doubled);
-        this.bonus.active = null;
+        clearActive(this.bonus);
         break;
       case "night":
         // 0x406310: caught again, the slot stays and 0x406370 turns it off for one tick.
         if (this.doubled) break;
         this.doubled = true;
         this.sounds.push("night");
-        this.bonus.active = null;
+        clearActive(this.bonus);
         break;
       case "magnetic":
-        // 0x4063E6: the previous bonus runs again, its label is written again.
+        // 0x4063E6: the previous bonus runs again, in both slots, its label is written again.
+        // Only the catcher's paddle gets the magnet.
         this.bonus.active = this.bonus.previous;
+        this.bonus.seats[0] = this.bonus.previous;
+        this.bonus.seats[1] = this.bonus.previous;
         this.bonus.label = null;
-        this.magnet.on = true;
+        (picker === 0 ? this.magnet : this.magnet2).on = true;
         break;
       case "shoot":
-        setupBigCannon(this.shotSystem);
+        setupBigCannon(this.shotsOf(picker));
         break;
       case "mini_shoot":
-        setupMiniCannons(this.shotSystem);
+        setupMiniCannons(this.shotsOf(picker));
+        break;
+      case "collision":
+        // 0x406501, every tick while it lasts.
+        if (this.paddle2) this.collisionGap = this.paddle2.x - this.paddle.x;
         break;
       case "del_monster":
         // 0x4063C2: no score, unlike a hit.
         for (let i = explodeAll(this.monsterSystem); i > 0; i--) this.sounds.push("monstoff");
-        this.bonus.active = null;
+        clearActive(this.bonus);
         break;
       case "add_monster":
         // 0x40643B
         spawnMonster(this.monsterSystem, this.level, this.rng);
-        this.bonus.active = null;
+        clearActive(this.bonus);
         break;
     }
   }
@@ -638,7 +776,7 @@ export class Game {
   private lifeGained(): void {
     this.sounds.push("newlife");
     this.livesShown = this.player.lives;
-    this.bonus.active = null;
+    clearActive(this.bonus);
   }
 
   /** 0x405E1A */
@@ -650,13 +788,16 @@ export class Game {
     this.sounds.push("endopt");
     this.unstickBalls();
     this.magnet.on = false;
+    this.magnet2.on = false;
     this.fullPalette();
   }
 
-  /** 0x405093: the ball sits centred on the paddle until fire is pressed. */
+  /** 0x405093: each ball sits centred on its paddle until fire is pressed. */
   private ready(fire: boolean): void {
     const ball = this.balls[0]!;
     placeOnPaddle(ball, this.paddle);
+    const ball2 = this.paddle2 && this.balls[1]!;
+    if (ball2) placeOnPaddle(ball2, this.paddle2!);
     if (!fire) return;
     this.mode = GameMode.Playing;
     this.message = this.config.texts.status.off;
@@ -668,9 +809,14 @@ export class Game {
     );
     ball.dx = dx;
     ball.dy = dy;
+    // 0x405172: player 2's ball leaves to the left.
+    if (ball2) {
+      ball2.dx = -dx;
+      ball2.dy = dy;
+    }
   }
 
-  /** 0x404A38: balls of player 1 still in play (state 1 or −3). */
+  /** 0x404A38: balls still in play (state 1 or −3), whoever owns them outside a duel. */
   private ballsInPlay(): number {
     return this.balls.filter((b) => b.state === BallState.Active || b.state === BallState.Lost).length;
   }
@@ -700,7 +846,7 @@ export class Game {
 
   /** 0x40531A: the capsule starts at the top left corner of the brick (0x40448E). */
   private dropBonus(index: number): void {
-    const bonus = drawBonus(this.bonusDraw, this.config, this.difficulty, this.rng);
+    const bonus = drawBonus(this.bonusDraw, this.config, this.difficulty, this.rng, this.coop);
     if (!bonus) return;
     const x = PADDLE_X_MIN + (index % LEVEL_COLS) * BRICK_W;
     const y = Math.floor(index / LEVEL_COLS) * BRICK_H;
@@ -715,7 +861,7 @@ export class Game {
 
   /** 0x404AED */
   private loseLife(): void {
-    this.bonus.active = null;
+    clearActive(this.bonus);
     this.bonus.timer = 0;
     this.player.lives--;
     for (const b of this.balls) b.state = BallState.Dead;
@@ -727,7 +873,8 @@ export class Game {
       this.message = this.config.texts.status.again;
     }
     this.sounds.push("boom", "death");
-    this.startPaddleAnim(explosionOf(this.paddle.anim.first), EXPLOSION_Y, LIFE_LOST_PAUSE);
+    // 0x404C88: in coop both paddles explode.
+    this.startPaddleAnims(explosionOf, EXPLOSION_Y, LIFE_LOST_PAUSE);
   }
 
   /** 0x401C54: past the last level the game ends at once, without the paddle leaving. */
@@ -740,32 +887,52 @@ export class Game {
     }
     for (const b of this.balls) b.state = BallState.Dead;
     this.mode = GameMode.LevelEnd;
-    this.startPaddleAnim(warpOf(this.paddle.anim.first), WARP_Y, LEVEL_END_PAUSE);
+    // 0x404C14: both paddles leave.
+    this.startPaddleAnims(warpOf, WARP_Y, LEVEL_END_PAUSE);
   }
 
-  /** 0x40303F and 0x4031D1 also take the cannons away. */
-  private startPaddleAnim({ spec, dx }: PaddleEffect, y: number, pause: number): void {
+  /**
+   * 0x40303F and 0x4031D1 also take the cannons away. Player 2's paddle runs the same
+   * animation at the same pace, so the waits read player 1's.
+   */
+  private startPaddleAnims(
+    effectOf: (sprite: number) => PaddleEffect,
+    y: number,
+    pause: number,
+  ): void {
+    const start = (p: Paddle): PaddleAnim => {
+      const { spec, dx } = effectOf(p.anim.first);
+      return { anim: createAnim(spec), x: p.x + dx, y, visible: true, done: false };
+    };
     hideCannons(this.shotSystem);
-    this.paddleAnim = { anim: createAnim(spec), x: this.paddle.x + dx, y, visible: true, done: false };
+    if (this.shotSystem2) hideCannons(this.shotSystem2);
+    this.paddleAnim = start(this.paddle);
+    this.paddleAnim2 = this.paddle2 && start(this.paddle2);
     this.pause = pause;
   }
 
   /** Wait loops of 0x404C66 and 0x404C00: animation, then a pause with the paddle hidden. */
   private waitAnim(): void {
     const pa = this.paddleAnim!;
+    const anims = this.paddleAnim2 ? [pa, this.paddleAnim2] : [pa];
     this.updateShotsAndMonsters();
     // 0x402058 keeps the capsules falling. Mode 3 lasts while the paddle leaves (0x401C54), and
     // 0x4054D2 reads the object 0x4031D1 has just resized and moved, even once it is hidden.
     const leaving = this.mode === GameMode.LevelEnd;
-    const catcher = { x: pa.x, w: pa.anim.w };
-    for (const b of updateCapsules(this.capsules, catcher, leaving)) this.capsuleCaught(b);
+    this.catchCapsules(
+      anims.map((a) => ({ x: a.x, w: a.anim.w })),
+      leaving,
+    );
     stepShotSystem(this.shotSystem);
+    if (this.shotSystem2) stepCannons(this.shotSystem2);
     stepMonsters(this.monsterSystem);
-    if (!pa.done) {
-      stepAnim(pa.anim);
-      pa.done = pa.anim.left === ANIM_END_LEFT;
-    } else {
-      pa.visible = false;
+    for (const a of anims) {
+      if (!a.done) {
+        stepAnim(a.anim);
+        a.done = a.anim.left === ANIM_END_LEFT;
+      } else {
+        a.visible = false;
+      }
     }
     this.animateGrid();
     this.clampObjects();
@@ -849,13 +1016,13 @@ export class Game {
     this.demoKick = this.demo !== null && this.mode !== GameMode.LifeLost;
     this.capsules = createCapsules();
     // 0x404FBE, 0x405264, 0x4057B4 (icon blank) and 0x406392 (full palette).
-    this.bonus.active = null;
+    clearActive(this.bonus);
     this.bonus.timer = 0;
     this.bonus.icon = null;
     this.fullPalette();
     this.mode = GameMode.Arrival;
     if (!this.demoKick) this.message = this.config.texts.status.ready;
-    this.paddle.x = createPaddle().x;
+    this.paddle.x = this.paddle2 ? PLAYER1_START_X : createPaddle().x;
     setPaddleSize(this.paddle, PADDLE_NORMAL);
     this.shotSystem = resetShotSystem(this.shotSystem);
     this.monsterSystem = createMonsterSystem();
@@ -865,17 +1032,29 @@ export class Game {
     placeOnPaddle(ball, this.paddle);
     stickToPaddle(ball, this.paddle);
     this.balls = [ball];
-    // 0x404B88: the ball is hidden while the paddle arrives.
-    ball.state = BallState.Dead;
-    this.startPaddleAnim(ARRIVAL, WARP_Y, 0);
+    if (this.paddle2) {
+      // 0x40256C, 0x4037D8: player 2 on the left, with a ball of its own, stuck by bit 1 (0x405075).
+      this.paddle2.x = PLAYER2_START_X;
+      setPaddleSize(this.paddle2, PADDLE_NORMAL);
+      this.shotSystem2 = resetShotSystem(this.shotSystem2!, 1, this.shotSystem.shots);
+      this.magnet2.on = true;
+      const ball2 = createBall(this.config.freqChangeSpeed, 1);
+      placeOnPaddle(ball2, this.paddle2);
+      stickToPaddle(ball2, this.paddle2, 1);
+      this.balls.push(ball2);
+    }
+    // 0x404B88: the balls are hidden while the paddles arrive.
+    for (const b of this.balls) b.state = BallState.Dead;
+    this.startPaddleAnims(() => ARRIVAL, WARP_Y, 0);
   }
 
-  /** End of 0x404B88: ball back in play, paddle back from its animation (0x40256C). */
+  /** End of 0x404B88: balls back in play, paddles back from their animation (0x40256C). */
   private endArrival(): void {
     this.paddleAnim = null;
-    setPaddleSize(this.paddle, PADDLE_NORMAL);
+    this.paddleAnim2 = null;
+    for (const p of this.paddles) setPaddleSize(p, PADDLE_NORMAL);
+    for (const b of this.balls) b.state = BallState.Active;
     const ball = this.balls[0]!;
-    ball.state = BallState.Active;
     this.mode = GameMode.Ready;
     if (!this.demoKick) return;
     // 0x403820: mode 3 is kept, so the stuck ball leaves on the next tick at this speed.

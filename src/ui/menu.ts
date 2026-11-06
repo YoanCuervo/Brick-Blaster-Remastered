@@ -3,11 +3,18 @@ import { Difficulty } from "../data/config";
 import { WORLDS, type World } from "../data/images";
 import { type IconFlash, createIconFlash, stepIconFlash } from "../game/bonus";
 import { MenuIdle } from "../game/demo";
-import type { SoundName } from "../game/game";
+import type { Partner, SoundName } from "../game/game";
 import { FADE_STEPS } from "../render/fade";
 import { MAX_SENSITIVITY, MIN_SENSITIVITY, type Settings } from "./settings";
 
-export const MenuId = { Main: 1, Players: 2, World: 4, Difficulty: 5, Misc: 6 } as const;
+export const MenuId = {
+  Main: 1,
+  Players: 2,
+  Partner: 3,
+  World: 4,
+  Difficulty: 5,
+  Misc: 6,
+} as const;
 export type MenuId = (typeof MenuId)[keyof typeof MenuId];
 
 export type MenuAction =
@@ -15,9 +22,14 @@ export type MenuAction =
   | { kind: "world"; world: World }
   | { kind: "difficulty"; difficulty: Difficulty }
   | { kind: "quit" }
-  | { kind: "scores" }
+  /** 0x4011C3 and 0x4011E1: the one-player table or the coop one. */
+  | { kind: "scores"; coop: boolean }
   | { kind: "credits" }
   | { kind: "demo" }
+  /** 0x401658, 0x40167E: one player, or coop with player 2 to choose. */
+  | { kind: "players"; coop: boolean }
+  /** 0x4016C1, 0x4016D0: who plays player 2. */
+  | { kind: "partner"; partner: Partner }
   /** Plays the click and stays, like the empty quadrant of the world menu (0x4014A8). */
   | { kind: "none" };
 
@@ -34,15 +46,32 @@ interface MenuDef {
 }
 
 /**
- * Table 0x411CAC and actions 0x4014A3. Without coop and duel, menus 3 (player 2 control)
- * and 7 (joystick) cannot be reached. The coop scores are deferred.
+ * Table 0x411CAC and actions 0x4014A3. Duel is deferred, and so are the joystick of player 2
+ * and its menu 7: their quadrants only click.
  */
 export const MENUS: Record<MenuId, MenuDef> = {
   [MenuId.Main]: {
     sprite: 0x7a82,
     actions: [go(MenuId.Players), { kind: "demo" }, go(MenuId.Misc), quit],
   },
-  [MenuId.Players]: { sprite: 0x7b86, actions: [go(MenuId.World), none, none, go(MenuId.Main)] },
+  [MenuId.Players]: {
+    sprite: 0x7b86,
+    actions: [
+      { kind: "players", coop: false },
+      { kind: "players", coop: true },
+      none,
+      go(MenuId.Main),
+    ],
+  },
+  [MenuId.Partner]: {
+    sprite: 0x30702,
+    actions: [
+      { kind: "partner", partner: "computer" },
+      { kind: "partner", partner: "keyboard" },
+      none,
+      go(MenuId.Players),
+    ],
+  },
   [MenuId.World]: {
     sprite: 0x59486,
     actions: [
@@ -50,7 +79,7 @@ export const MENUS: Record<MenuId, MenuDef> = {
       { kind: "world", world: "arcade" },
       { kind: "world", world: "limbes" },
       // 0x401640: "back" lands on menu 3, skipped when there is no player 2.
-      go(MenuId.Players),
+      go(MenuId.Partner),
     ],
   },
   [MenuId.Difficulty]: {
@@ -64,7 +93,12 @@ export const MENUS: Record<MenuId, MenuDef> = {
   },
   [MenuId.Misc]: {
     sprite: 0x59382,
-    actions: [{ kind: "scores" }, none, { kind: "credits" }, go(MenuId.Main)],
+    actions: [
+      { kind: "scores", coop: false },
+      { kind: "scores", coop: true },
+      { kind: "credits" },
+      go(MenuId.Main),
+    ],
   },
 };
 
@@ -143,9 +177,9 @@ export function withLimbesLabel(
 }
 
 export type MenuEvent =
-  | { kind: "play"; world: World; difficulty: Difficulty }
+  | { kind: "play"; world: World; difficulty: Difficulty; partner: Partner | null }
   | { kind: "quit" }
-  | { kind: "scores" }
+  | { kind: "scores"; coop: boolean }
   | { kind: "credits" }
   /** 0x401423 and 0x401576: the demo, on medium. */
   | { kind: "demo" }
@@ -178,6 +212,9 @@ export class Menu {
   private next: MenuId | null = null;
   private target: { x: number; y: number } | null = null;
   private world: World = "space";
+  /** [0x411015] = 2 with [0x41101D] = 1, then [0x411011]. */
+  private coop = false;
+  private partner: Partner = "keyboard";
   private settingsChanged = false;
   private readonly idle = new MenuIdle();
 
@@ -302,14 +339,25 @@ export class Menu {
   private validate(action: MenuAction): MenuEvent | null {
     this.sounds.push("optionon"); // 0x40148D
     switch (action.kind) {
-      case "difficulty":
-        return { kind: "play", world: this.world, difficulty: action.difficulty };
+      case "difficulty": {
+        const partner = this.coop ? this.partner : null;
+        return { kind: "play", world: this.world, difficulty: action.difficulty, partner };
+      }
       // 0x4010B3: these leave the menu loop too, without waiting for the release.
       case "quit":
-      case "scores":
       case "credits":
       case "demo":
         return { kind: action.kind };
+      case "scores":
+        return { kind: "scores", coop: action.coop };
+      case "players":
+        this.coop = action.coop;
+        this.next = action.coop ? MenuId.Partner : MenuId.World;
+        break;
+      case "partner":
+        this.partner = action.partner;
+        this.next = MenuId.World;
+        break;
       case "world":
         // A world left out stays an empty quadrant: the click plays and nothing else (0x4014A8).
         if (!this.worlds.includes(action.world)) break;
@@ -317,7 +365,8 @@ export class Menu {
         this.next = MenuId.Difficulty;
         break;
       case "go":
-        this.next = action.menu;
+        // 0x401640: back from the worlds skips menu 3 with one player.
+        this.next = action.menu === MenuId.Partner && !this.coop ? MenuId.Players : action.menu;
         break;
       case "none":
         break;

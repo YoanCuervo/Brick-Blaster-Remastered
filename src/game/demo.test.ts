@@ -174,7 +174,7 @@ describe("demo game", () => {
   it("fires the cannons every 11 ticks, without fire (0x40290F)", () => {
     const g = demo();
     until(g, () => g.mode === GameMode.Playing);
-    g.bonus.active = bonusByKey("mini_shoot");
+    g.bonus.active = g.bonus.seats[0] = bonusByKey("mini_shoot");
     g.bonus.timer = BONUS_TICKS;
     const fired: number[] = [];
     for (let i = 0; i < 40; i++) {

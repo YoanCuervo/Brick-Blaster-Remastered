@@ -25,12 +25,20 @@ export const IRON_SPRITE = 0;
 export const GHOST_OFFSET = 0x12;
 export const GHOST_DEATH = 0x16ae;
 export const IRON_GHOST_DEATH = 0x2e;
+/** The same fades 70 px further, green and gold: a ghost ball dying on player 2 (0x4047CE). */
+export const P2_GHOST_DEATH = 0x16f4;
+export const P2_IRON_GHOST_DEATH = 0x74;
+/** Player 2 ghost ball of the duel (0x169B), the only one that dies green on player 2. */
+const P2_GHOST_SPRITE = BALL_SPRITE + GHOST_OFFSET + 9;
 /** [+0x8D] at the paddle contact: the ball goes at 1, after 6 anim steps (0x404684, 0x406717). */
 export const GHOST_DEATH_STEPS = 5 + 2;
 
 /** [ball + 1]: 0 = gone, 1 = in play, −3 = past the paddle and about to be lost. */
 export const BallState = { Dead: 0, Active: 1, Lost: -3 } as const;
 export type BallState = (typeof BallState)[keyof typeof BallState];
+
+/** Index of a player: 0 for the mouse, 1 for player 2. */
+export type Seat = 0 | 1;
 
 export interface Ball {
   x: number;
@@ -57,6 +65,10 @@ export interface Ball {
   loopY: number;
   /** Offset on the paddle while the ball is stuck to it [+0x95], null when free [+0x91]. */
   stuckOffset: number | null;
+  /** Paddle [+0x91] holds it to, when stuckOffset is set. */
+  stuckTo: Seat;
+  /** Owner [+0x9D]: the player whose ghost bonus it takes (0x403EE5). */
+  owner: Seat;
   /** [+0x0D], [+0x3D] and the animation fields. */
   anim: SpriteAnim;
   /** [+0x99] */
@@ -84,8 +96,8 @@ export interface BrickProbe {
   endSweep?(): void;
 }
 
-/** Ball object as set up in 0x40225E. */
-export function createBall(freqChangeSpeed: number): Ball {
+/** Ball object as set up in 0x40225E, given to its player by 0x403866. */
+export function createBall(freqChangeSpeed: number, owner: Seat = 0): Ball {
   return {
     x: 0,
     y: 0,
@@ -106,6 +118,8 @@ export function createBall(freqChangeSpeed: number): Ball {
     loopX: 0,
     loopY: 0,
     stuckOffset: null,
+    stuckTo: 0,
+    owner,
     anim: createAnim({
       first: BALL_SPRITE,
       w: BALL_SIZE,
@@ -157,11 +171,12 @@ export function addBalls(
   level: Level,
   freqChangeSpeed: number,
   rng: Rng,
+  owner: Seat = 0,
 ): void {
   let left = count;
   for (let slot = 0; slot < MAX_BALLS && left > 0; slot++) {
     if (balls[slot]?.state === BallState.Active) continue;
-    const ball = createBall(freqChangeSpeed);
+    const ball = createBall(freqChangeSpeed, owner);
     extraBallSpeed(ball, rng);
     placeExtraBall(ball, paddle, level, rng);
     balls[slot] = ball;
@@ -170,17 +185,17 @@ export function addBalls(
 }
 
 /**
- * 0x403ED5: every ball not yet ghost becomes one, then 0x403F16 gives the first ball
- * in play back its normal state.
+ * 0x403ED5: every ball of the player not yet ghost becomes one, then 0x403F16 gives the
+ * player's first ball in play back its normal state.
  */
-export function makeGhosts(balls: Ball[]): void {
+export function makeGhosts(balls: Ball[], owner: Seat = 0): void {
   for (const ball of balls) {
-    if (ball.ghost) continue;
+    if (ball.ghost || ball.owner !== owner) continue;
     ball.ghost = true;
     ball.anim.first += GHOST_OFFSET;
     ball.anim.frame += GHOST_OFFSET;
   }
-  const first = balls.find((b) => b.state === BallState.Active);
+  const first = balls.find((b) => b.state === BallState.Active && b.owner === owner);
   if (!first) return;
   first.ghost = false;
   first.anim.first -= GHOST_OFFSET;
@@ -195,11 +210,18 @@ export function makeIron(ball: Ball): void {
   ball.anim.frame = sprite;
 }
 
-/** 0x40465C: a ghost ball dies on the paddle, with no bounce, no sound and no stick. */
-export function ghostContact(ball: Ball): void {
+/**
+ * 0x40465C: a ghost ball dies on the paddle, with no bounce, no sound and no stick. On player 2
+ * (0x4047BF) only the duel's green ghost dies green: a blue one takes the gold fade.
+ */
+export function ghostContact(ball: Ball, seat: Seat = 0): void {
   const { anim } = ball;
-  if (anim.first === IRON_GHOST_DEATH || anim.first === GHOST_DEATH) return;
-  const sprite = anim.first === BALL_SPRITE + GHOST_OFFSET ? GHOST_DEATH : IRON_GHOST_DEATH;
+  const [normal, iron, ghost] =
+    seat === 0
+      ? [GHOST_DEATH, IRON_GHOST_DEATH, BALL_SPRITE + GHOST_OFFSET]
+      : [P2_GHOST_DEATH, P2_IRON_GHOST_DEATH, P2_GHOST_SPRITE];
+  if (anim.first === iron || anim.first === normal) return;
+  const sprite = anim.first === ghost ? normal : iron;
   anim.first = sprite;
   anim.frame = sprite;
   anim.frames = 5;
@@ -225,8 +247,9 @@ export function placeOnPaddle(ball: Ball, paddle: Paddle): void {
 }
 
 /** 0x4048F7: sticks the ball where it touches the paddle, kept within its width. */
-export function stickToPaddle(ball: Ball, paddle: Paddle): void {
+export function stickToPaddle(ball: Ball, paddle: Paddle, seat: Seat = 0): void {
   ball.stuckOffset = Math.min(Math.abs(ball.x - paddle.x), paddle.w - ball.w);
+  ball.stuckTo = seat;
 }
 
 /** 0x404963: +1 for dx ≥ 0, −1 otherwise. */
@@ -286,21 +309,21 @@ export function flipY(ball: Ball): void {
 }
 
 /**
- * 0x404610. Only the top of the paddle is tested: a falling ball still bounces
- * when it is already lower, as long as it overlaps horizontally. With the magnet on
- * the ball sticks, the bounce still sets the speed it will leave with (0x4048C9).
+ * 0x404610, and 0x40476A for player 2. Only the top of the paddle is tested: a falling ball
+ * still bounces when it is already lower, as long as it overlaps horizontally. With the magnet
+ * on the ball sticks, the bounce still sets the speed it will leave with (0x4048C9, 0x4048E0).
  */
-export function paddleBounce(ball: Ball, paddle: Paddle, magnet?: Magnet): boolean {
+export function paddleBounce(ball: Ball, paddle: Paddle, magnet?: Magnet, seat: Seat = 0): boolean {
   if (ball.dy < 0) return false;
   if (ball.y + ball.h < paddle.y) return false;
   if (ball.x + ball.w < paddle.x) return false;
   if (ball.x >= paddle.x + paddle.w) return false;
 
   if (ball.ghost) {
-    ghostContact(ball);
+    ghostContact(ball, seat);
     return false;
   }
-  if (magnet?.on) stickToPaddle(ball, paddle);
+  if (magnet?.on) stickToPaddle(ball, paddle, seat);
   else ball.stuckOffset = null;
   ball.dy = -ball.dy;
   const s = sign(ball.dx);
@@ -480,8 +503,17 @@ export function slowDown(ball: Ball, interval: number): void {
   if (ball.dy > ly || ball.dy < -ly) ball.dy -= sign(ball.dy);
 }
 
+/** Player 2's paddle, its bit of [0x41104D] and its fire (0x407023). */
+export interface SecondPaddle {
+  paddle: Paddle;
+  magnet: Magnet;
+  fire: boolean;
+}
+
 /** What one ball sees of the rest of the game during a tick. */
 export interface BallContext {
+  /** Player 2, tested after player 1 (0x40476A). */
+  second?: SecondPaddle | null;
   /** Fire held. */
   fire?: boolean;
   magnet?: Magnet;
@@ -503,16 +535,19 @@ export function updateBall(
 ): BallEvent[] {
   const events: BallEvent[] = [];
   if (ball.state === BallState.Dead) return events;
-  const { fire = false, magnet, active = null, teleport, hitMonsters } = ctx;
-  // A ball about to be lost skips the iron bonus and the paddle (0x403936).
+  const { fire = false, magnet, active = null, teleport, hitMonsters, second } = ctx;
+  // A ball about to be lost skips the iron bonus and the paddles (0x403936).
   if (ball.state !== BallState.Lost) {
     if (active === "iron_ball") makeIron(ball);
     if (paddleBounce(ball, paddle, magnet)) events.push("paddle");
+    if (second && paddleBounce(ball, second.paddle, second.magnet, 1)) events.push("paddle");
   }
   wallBounce(ball);
   brickSweep(ball, probe);
   hitMonsters?.(ball);
-  moveBall(ball, paddle, magnet, fire);
+  // 0x403D97: a stuck ball follows the paddle holding it, and leaves on that player's fire.
+  if (ball.stuckTo === 1 && second) moveBall(ball, second.paddle, second.magnet, second.fire);
+  else moveBall(ball, paddle, magnet, fire);
   if (active === "telepod") teleport?.(ball);
   if (lostCheck(ball)) events.push("lost");
   if (accelerate(ball, speedInterval, active === "fast_ball")) events.push("speedUp");

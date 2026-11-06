@@ -312,3 +312,24 @@ describe("monster test of a shot (0x403A5C)", () => {
     expect(shot.y).toBe(-1);
   });
 });
+
+describe("player 2's cannons (0x402BE1, §4.6)", () => {
+  it("has its own frames and shares player 1's shot slots (0x406287, 0x406157)", () => {
+    const p1 = createShotSystem();
+    const p2 = createShotSystem(1, p1.shots);
+    expect([p2.miniLeft, p2.miniRight, p2.big].map((c) => c.anim.first)).toEqual([
+      0x3f5f6, 0x3f612, 0x4413e,
+    ]);
+    expect(p2.shots).toBe(p1.shots);
+    expect(resetShotSystem(p2, 1, p1.shots).shots).toBe(p1.shots);
+  });
+
+  it("lets the computer fire without the latch, whenever asked (0x402CCC)", () => {
+    const s = createShotSystem(1);
+    const paddle = createPaddle(203);
+    expect(updateCannons(s, "mini_shoot", true, paddle, true)).toBe("mini_shoot");
+    expect(updateCannons(s, "mini_shoot", true, paddle, true)).toBe("mini_shoot");
+    expect(updateCannons(s, "mini_shoot", false, paddle, true)).toBeNull();
+    expect(s.latch).toBe(true);
+  });
+});

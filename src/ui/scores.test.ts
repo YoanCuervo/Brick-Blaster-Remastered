@@ -279,6 +279,22 @@ describe("tables per world and difficulty (browser only)", () => {
     ];
     expect(tableTitle(SPACE_EASY, menus)).toBe("espace : facile");
     expect(tableTitle(ARCADE_HARD, menus)).toBe("arcade : difficile");
+    const misc = [text("scores"), text("meilleurs scores coop.")];
+    const withMisc = [...menus, misc];
+    expect(tableTitle({ ...SPACE_EASY, coop: true }, withMisc)).toBe("coop. espace : facile");
+  });
+});
+
+describe("coop tables (0x408C2E, 0x41C642)", () => {
+  it("keeps the coop tables apart, desktop and browser", () => {
+    expect(scoresKey(null, true)).toBe("brick-blaster.scores.coop");
+    expect(scoresKey({ ...SPACE_EASY, coop: true })).toBe("brick-blaster.scores.coop.space.easy");
+    expect(scoresKey({ ...SPACE_EASY, coop: false })).toBe("brick-blaster.scores.space.easy");
+  });
+
+  it("keeps the coop flag while the arrows change the table", () => {
+    expect(stepTable({ ...SPACE_EASY, coop: true }, "right")).toMatchObject({ coop: true });
+    expect(stepTable({ ...SPACE_EASY, coop: true }, "down")).toMatchObject({ coop: true });
   });
 });
 

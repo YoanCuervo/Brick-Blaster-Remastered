@@ -6,7 +6,7 @@ import { levelText, scoreText } from "../render/hud";
 import type { Arrow } from "./menu";
 import type { Store } from "./settings";
 
-/** The .scr file holds 2 tables of 15 entries, solo at 0x41C462. Coop is out of scope. */
+/** The .scr file holds 2 tables of 15 entries, solo at 0x41C462 and coop at 0x41C642. */
 export const SCORE_ROWS = 0xf;
 export const NAME_LENGTH = 0xf;
 
@@ -32,6 +32,8 @@ export const ROW_HEIGHT = 0x1e;
 export interface ScoreTableId {
   world: World;
   difficulty: Difficulty;
+  /** 0x408C2E: two players write to the coop table. */
+  coop?: boolean;
 }
 
 /** The 15 rows fill the screen: they move down just enough for the title above them. */
@@ -47,14 +49,24 @@ const DIFFICULTIES = [Difficulty.Easy, Difficulty.Medium, Difficulty.Hard] as co
 /** Menus 4 and 5 of blaster.cfg hold the names of the worlds and of the difficulties. */
 const WORLD_MENU = 3;
 const DIFFICULTY_MENU = 4;
+/** "meilleurs scores coop.", blue quadrant of menu 6: its last word names the coop tables. */
+const MISC_MENU = 5;
+const COOP_SCORES_QUADRANT = 1;
 
-/** The single table of the desktop version has no id and stays under the first key. */
-export const scoresKey = (id: ScoreTableId | null) =>
-  id ? `${SCORES_KEY}.${id.world}.${DIFFICULTY_NAMES[id.difficulty]}` : SCORES_KEY;
+/**
+ * The tables of the desktop version have no id: the one-player table stays under the first key,
+ * the coop one under its own.
+ */
+export function scoresKey(id: ScoreTableId | null, coop = id?.coop ?? false): string {
+  const base = coop ? `${SCORES_KEY}.coop` : SCORES_KEY;
+  return id ? `${base}.${id.world}.${DIFFICULTY_NAMES[id.difficulty]}` : base;
+}
 
 export function tableTitle(id: ScoreTableId, menus: readonly (readonly MenuText[])[]): string {
   const world = menus[WORLD_MENU]![WORLDS.indexOf(id.world)]![0].trim();
-  return `${world} : ${menus[DIFFICULTY_MENU]![id.difficulty]![0].trim()}`;
+  const title = `${world} : ${menus[DIFFICULTY_MENU]![id.difficulty]![0].trim()}`;
+  if (!id.coop) return title;
+  return `${menus[MISC_MENU]![COOP_SCORES_QUADRANT]![0].trim().split(" ").pop()} ${title}`;
 }
 
 /** Left and right change the world, up and down the difficulty. Both wrap around. */

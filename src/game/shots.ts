@@ -4,6 +4,7 @@ import {
   type Ball,
   BallState,
   type BrickProbe,
+  type Seat,
   SCREEN_BOTTOM,
   brickSweep,
   createBall,
@@ -98,25 +99,40 @@ function miniCannonSpec(first: number): AnimSpec {
   };
 }
 
+function bigCannonSpec(first: number): AnimSpec {
+  return {
+    first,
+    w: BIG_CANNON_W,
+    h: BIG_CANNON_H,
+    step: BIG_CANNON_W + 1,
+    frames: 4,
+    delay: 1,
+    countdown: 1,
+  };
+}
+
 export const MINI_LEFT_SPEC = miniCannonSpec(0x1caf6);
 export const MINI_RIGHT_SPEC = miniCannonSpec(0x1cb12);
-export const BIG_CANNON_SPEC: AnimSpec = {
-  first: 0x40a3e,
-  w: BIG_CANNON_W,
-  h: BIG_CANNON_H,
-  step: BIG_CANNON_W + 1,
-  frames: 4,
-  delay: 1,
-  countdown: 1,
-};
+export const BIG_CANNON_SPEC = bigCannonSpec(0x40a3e);
+/** Player 2's cannons have their own frames (0x406287, 0x4062CF, 0x406157). */
+export const P2_MINI_LEFT_SPEC = miniCannonSpec(0x3f5f6);
+export const P2_MINI_RIGHT_SPEC = miniCannonSpec(0x3f612);
+export const P2_BIG_CANNON_SPEC = bigCannonSpec(0x4413e);
 
-/** Objects reset by 0x40222D and 0x4025B0 at the start of a round. */
-export function createShotSystem(): ShotSystem {
+/**
+ * Objects reset by 0x40222D and 0x4025B0 at the start of a round. Player 2 has its own cannons,
+ * latch and side, and shares the 20 shot slots: pass player 1's array.
+ */
+export function createShotSystem(seat: Seat = 0, shots: Ball[] = []): ShotSystem {
+  const specs =
+    seat === 0
+      ? [MINI_LEFT_SPEC, MINI_RIGHT_SPEC, BIG_CANNON_SPEC]
+      : [P2_MINI_LEFT_SPEC, P2_MINI_RIGHT_SPEC, P2_BIG_CANNON_SPEC];
   return {
-    shots: [],
-    miniLeft: createCannon(7, -7, MINI_LEFT_SPEC),
-    miniRight: createCannon(0x37, -7, MINI_RIGHT_SPEC),
-    big: createCannon(0x1f, -8, BIG_CANNON_SPEC),
+    shots,
+    miniLeft: createCannon(7, -7, specs[0]!),
+    miniRight: createCannon(0x37, -7, specs[1]!),
+    big: createCannon(0x1f, -8, specs[2]!),
     miniReady: false,
     bigReady: false,
     latch: false,
@@ -125,8 +141,8 @@ export function createShotSystem(): ShotSystem {
 }
 
 /** 0x40222D: empties the slots. The latch and the side are globals left as they are. */
-export function resetShotSystem(s: ShotSystem): ShotSystem {
-  return { ...createShotSystem(), latch: s.latch, leftNext: s.leftNext };
+export function resetShotSystem(s: ShotSystem, seat: Seat = 0, shots: Ball[] = []): ShotSystem {
+  return { ...createShotSystem(seat, shots), latch: s.latch, leftNext: s.leftNext };
 }
 
 function rewind(c: Cannon, frames: number, left: number, ticks: number): void {
@@ -204,14 +220,16 @@ function createShot(kind: typeof BIG_SHOT | typeof MINI_SHOT, x: number, paddle:
 export type ShotKind = "shoot" | "mini_shoot";
 
 /**
- * 0x402828, mode 3. Returns the kind of shot fired this tick. A shot with all slots
- * taken is lost and the latch stays off.
+ * 0x402828 (0x402BE1 for player 2), mode 3. Returns the kind of shot fired this tick. A shot
+ * with all slots taken is lost and the latch stays off. The computer (`auto`) fires without
+ * the latch, whenever its timer lets it (0x40290F, 0x402CCC).
  */
 export function updateCannons(
   s: ShotSystem,
   active: ShotKind | null,
   fire: boolean,
   paddle: Paddle,
+  auto = false,
 ): ShotKind | null {
   if (active === null) {
     clearMini(s);
@@ -231,11 +249,15 @@ export function updateCannons(
   countDown(s.miniRight);
   countDown(s.big);
 
-  if (!fire) {
-    s.latch = false;
-    return null;
+  if (auto) {
+    if (!fire) return null;
+  } else {
+    if (!fire) {
+      s.latch = false;
+      return null;
+    }
+    if (s.latch) return null;
   }
-  if (s.latch) return null;
   let slot = 0;
   while (slot < MAX_SHOTS && s.shots[slot]?.state === BallState.Active) slot++;
   if (slot === MAX_SHOTS) {
@@ -284,10 +306,15 @@ export function updateShots(
   }
 }
 
-/** Their part of the stepper 0x4066BA. */
-export function stepShotSystem(s: ShotSystem): void {
+/** The cannons' part of the stepper 0x4066BA. */
+export function stepCannons(s: ShotSystem): void {
   for (const c of [s.miniLeft, s.miniRight, s.big]) {
     if (c.on) stepAnim(c.anim);
   }
+}
+
+/** Their part of the stepper 0x4066BA. */
+export function stepShotSystem(s: ShotSystem): void {
+  stepCannons(s);
   for (const shot of s.shots) stepBallAnim(shot);
 }

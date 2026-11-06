@@ -29,10 +29,11 @@ import { paletteColor } from "./data/palette";
 import { type Ball, BallState } from "./game/ball";
 import { CAPSULE_DY, CapsuleState } from "./game/bonus";
 import { GRID_CELLS, cellSprite } from "./game/bricks";
-import { Game, webConfig } from "./game/game";
+import { Game, type PaddleAnim, type Partner, webConfig } from "./game/game";
 import { SPARE_LIFE_POINTS } from "./game/score";
 import { MONSTER_PITCH } from "./game/monsters";
-import { PADDLE_H, clampPaddleX } from "./game/paddle";
+import { PADDLE_H, type Paddle, clampPaddleX } from "./game/paddle";
+import type { ShotSystem } from "./game/shots";
 import { FireLatch } from "./input/fire";
 import { KeyState, KeyboardPaddle, keyboardSpeed } from "./input/keyboard";
 import { MouseAccumulator, bindPointerLock, lockPointer } from "./input/mouse";
@@ -53,7 +54,7 @@ import {
 } from "./render/screens";
 import { SheetRecolorer } from "./render/recolor";
 import { SCREEN_HEIGHT, SCREEN_WIDTH, Screen } from "./render/screen";
-import { ACTIVE_SKIN, skinnedCapsule, skinnedFrame } from "./render/skin";
+import { ACTIVE_SKIN, type PlayerSkin, skinnedCapsule, skinnedFrame } from "./render/skin";
 import { ENDING_STEPS, Film } from "./ui/film";
 import { FinalScreen } from "./ui/final";
 import { type Arrow, Menu, type MenuEvent, withLimbesLabel } from "./ui/menu";
@@ -105,14 +106,19 @@ let menu = newMenu();
 let world: World = "space";
 let difficulty: Difficulty = Difficulty.Easy;
 let game!: Game;
+/** Player 2 of the last game, null alone: the scores follow it. */
+let partner: Partner | null = null;
 /** 0x401142: the demo keeps the menu module, and so does the game a demo can turn into. */
 let menuMusicInGame = false;
 let keyboard = new KeyboardPaddle(0);
+let keyboard2 = new KeyboardPaddle(0);
 let show = new Slideshow(BOOT_SLIDES);
 let showMusic: MusicName = MENU_MUSIC;
 let afterShow = () => startTransition(new Transition(), backToMenu);
 let scores!: ScoresScreen;
 let scoresBackground = "";
+/** 0x408C2E: two players write to the coop table. */
+let scoresCoop = false;
 let afterScores = () => {};
 let notice = new Notice();
 let afterNotice = () => {};
@@ -135,6 +141,8 @@ const mouse = new MouseAccumulator(settings.mouseSensitivity);
 bindPointerLock(canvas, mouse, () => scene === "game" && !game.demo);
 const keys = new KeyState();
 const fire = new FireLatch();
+/** Player 2's fire in coop: Ctrl, as in the original (0x407023). */
+const fire2 = new FireLatch();
 const locked = () => document.pointerLockElement === canvas;
 const pointMenu = (e: MouseEvent) => {
   const { x, y } = screen.toLogical(e.clientX, e.clientY);
@@ -148,7 +156,10 @@ canvas.addEventListener("mousedown", (e) => {
 });
 window.addEventListener("mouseup", () => fire.release());
 window.addEventListener("mousemove", pointMenu);
-window.addEventListener("blur", () => fire.clear());
+window.addEventListener("blur", () => {
+  fire.clear();
+  fire2.clear();
+});
 document.addEventListener("pointerlockchange", () => {
   if (!locked()) fire.clear();
 });
@@ -182,6 +193,7 @@ function backToMenu(): void {
 function startGame(event: Extract<MenuEvent, { kind: "play" }>): void {
   world = event.world;
   difficulty = event.difficulty;
+  partner = event.partner;
   // Still within the activation of the validating click or key.
   lockPointer(canvas);
   menuMusicInGame = false;
@@ -191,10 +203,19 @@ function startGame(event: Extract<MenuEvent, { kind: "play" }>): void {
     const levels = assets.levels[WORLD_LEVELS[world]];
     const lifePoints = desktop ? 0 : SPARE_LIFE_POINTS;
     const rules = desktop ? assets.config : webConfig(assets.config, event.difficulty);
-    game = new Game(rules, levels, event.difficulty, new Rng(Date.now()), lifePoints);
-    keyboard = new KeyboardPaddle(
-      keyboardSpeed(forDifficulty(assets.config.startSpeed, event.difficulty)),
+    game = new Game(
+      rules,
+      levels,
+      event.difficulty,
+      new Rng(Date.now()),
+      lifePoints,
+      false,
+      partner,
     );
+    const speed = keyboardSpeed(forDifficulty(assets.config.startSpeed, event.difficulty));
+    keyboard = new KeyboardPaddle(speed);
+    // Not in the original: player 2 takes the same acceleration as the player 1 keyboard.
+    keyboard2 = new KeyboardPaddle(speed);
     mouse.reset();
     setScene("game");
   });
@@ -202,7 +223,7 @@ function startGame(event: Extract<MenuEvent, { kind: "play" }>): void {
 
 /**
  * 0x4010E4: a world drawn at random, on medium, straight into 0x401D18 with the music as it is.
- * The original also draws 1 or 2 players: the remake has no coop yet, so the demo plays alone.
+ * The original also draws 1 or 2 players (0x4010E4): the demo of the remake plays alone.
  */
 function startDemo(): void {
   const worlds = desktop ? ORIGINAL_WORLDS : WORLDS;
@@ -242,11 +263,13 @@ function openScores(
   background: string,
   entry: { score: number; level: number } | null,
   leave: () => void,
+  coop: boolean,
 ): void {
   const ticks = musicTicks(SCORES_MUSIC);
   audio.playMusic(SCORES_MUSIC);
-  const load = (table: ScoreTableId | null) => loadScores(storage, scoresKey(table));
-  const id = desktop ? null : { world, difficulty };
+  scoresCoop = coop;
+  const load = (table: ScoreTableId | null) => loadScores(storage, scoresKey(table, coop));
+  const id = desktop ? null : { world, difficulty, coop };
   const title = (table: ScoreTableId) => tableTitle(table, menuTexts);
   scores = new ScoresScreen(load(id), entry, ticks, id && { id, load, title });
   scoresBackground = background;
@@ -268,7 +291,7 @@ function showGameOverScores(): void {
     startTransition(t, () => setScene("game"));
   };
   startTransition(new Transition(), () =>
-    openScores(backgroundAt(world, game.level), gameEntry(), leave),
+    openScores(backgroundAt(world, game.level), gameEntry(), leave, game.coop),
   );
 }
 
@@ -363,7 +386,10 @@ function menuEvent(event: MenuEvent | null): void {
   // 0x408AA1, then 0x4074C5: one of the first 4 backgrounds of the last world (0x404F42 with 3).
   if (event?.kind === "scores") {
     const background = backgroundAt(world, screenRng.rand(3) + 1);
-    startTransition(new Transition(), () => openScores(background, null, () => returnToMenu(true)));
+    const coop = event.coop;
+    startTransition(new Transition(), () =>
+      openScores(background, null, () => returnToMenu(true), coop),
+    );
   }
   if (event?.kind === "settings") {
     audio.setMusicVolume(settings.musicVolume);
@@ -376,6 +402,9 @@ let showStats = false;
 const stats = { ticks: 0, frames: 0, tps: 0, fps: 0, since: performance.now() };
 
 const FIRE_KEYS = ["Space", "Enter", "ControlLeft", "ControlRight"];
+const CTRL_KEYS = ["ControlLeft", "ControlRight"];
+/** In a coop game at the keyboard, Ctrl and the arrows belong to player 2. */
+const keyboardPartner = () => scene === "game" && game.partner === "keyboard";
 const ARROWS: Record<string, Arrow> = {
   ArrowLeft: "left",
   ArrowRight: "right",
@@ -406,11 +435,13 @@ window.addEventListener("keydown", (e) => {
   anyKeyPressed = true;
   if (!typing && e.code === "KeyF") void screen.toggleFullscreen();
   if (!typing && e.code === "KeyS") showStats = !showStats;
-  if (FIRE_KEYS.includes(e.code)) fire.press();
+  if (CTRL_KEYS.includes(e.code) && keyboardPartner()) fire2.press();
+  else if (FIRE_KEYS.includes(e.code)) fire.press();
   if (e.code === "Escape" && scene === "menu") escapePressed = true;
   if ((e.code === "Escape" || e.code === "KeyP") && scene === "game") gameKey = e.code;
 });
 window.addEventListener("keyup", (e) => {
+  if (CTRL_KEYS.includes(e.code)) fire2.release();
   if (FIRE_KEYS.includes(e.code)) fire.release();
 });
 
@@ -418,7 +449,8 @@ function updateGame(): void {
   if (game.paused) {
     // 0x4020C1: a key or fire ends the pause, the arrows and the pause key included.
     game.tick({ paddleDx: 0, fire: false });
-    if (anyKeyPressed || fire.take()) game.endPause();
+    const fired = fire.take();
+    if (anyKeyPressed || fire2.take() || fired) game.endPause();
     gameKey = null;
     return;
   }
@@ -438,9 +470,12 @@ function updateGame(): void {
   }
   const moving = [...game.balls, ...game.monsterSystem.monsters, ...game.shotSystem.shots];
   prevBalls = new Map(moving.map((b) => [b, { x: b.x, y: b.y }]));
-  const paddleDx =
-    mouse.take() + keyboard.step(keys.isDown("ArrowLeft"), keys.isDown("ArrowRight"));
-  game.tick({ paddleDx, fire: fire.take() });
+  const left = keys.isDown("ArrowLeft");
+  const right = keys.isDown("ArrowRight");
+  const shared = game.partner === "keyboard";
+  const paddleDx = mouse.take() + (shared ? 0 : keyboard.step(left, right));
+  const paddle2Dx = shared ? keyboard2.step(left, right) : 0;
+  game.tick({ paddleDx, fire: fire.take(), paddle2Dx, fire2: fire2.take() });
   audio.playSounds(game.sounds);
   audio.playMusic(gameMusic());
   // 0x401F72: the end of the countdown does not wait for anything.
@@ -479,7 +514,9 @@ startLoop({
       case "scores":
         if (scores.tick(fire.take(), anyKeyPressed)) {
           // 0x408D71: only a validated name reaches the file.
-          if (scores.rank !== null) saveScores(storage, scores.table, scoresKey(scores.tableId));
+          if (scores.rank !== null) {
+            saveScores(storage, scores.table, scoresKey(scores.tableId, scoresCoop));
+          }
           afterScores();
         }
         break;
@@ -489,7 +526,12 @@ startLoop({
       case "final":
         if (final.tick(fire.take(), anyKeyPressed)) {
           // 0x401C87 comes after these scores: the module they bring back is theirs.
-          openScores(backgroundAt(world, game.level), gameEntry(), () => returnToMenu(true));
+          openScores(
+            backgroundAt(world, game.level),
+            gameEntry(),
+            () => returnToMenu(true),
+            game.coop,
+          );
         }
         break;
       case "notice":
@@ -584,6 +626,29 @@ function drawMoving(
   drawSprite(ctx, sheet, spriteAt(frame, b.w, b.h, pitch), x, y);
 }
 
+function drawPaddle(
+  sheet: HTMLCanvasElement,
+  paddle: Paddle,
+  paddleAnim: PaddleAnim | null,
+  shotSystem: ShotSystem,
+  skin: PlayerSkin,
+  ahead: number,
+): void {
+  if (paddleAnim) {
+    const { anim } = paddleAnim;
+    if (paddleAnim.visible) {
+      const frame = skinnedFrame(anim, skin);
+      drawSprite(ctx, sheet, spriteAt(frame, anim.w, anim.h), paddleAnim.x, paddleAnim.y);
+    }
+  } else {
+    const frame = skinnedFrame(paddle.anim, skin);
+    drawSprite(ctx, sheet, spriteAt(frame, paddle.w, PADDLE_H), paddle.x + ahead, paddle.y);
+  }
+  for (const c of [shotSystem.miniLeft, shotSystem.miniRight, shotSystem.big]) {
+    if (c.on) drawSprite(ctx, sheet, spriteAt(c.anim.frame, c.anim.w, c.anim.h), c.x + ahead, c.y);
+  }
+}
+
 function drawGame(alpha: number, sheet: HTMLCanvasElement, background: string): void {
   const skin = ACTIVE_SKIN;
   for (let i = 0; i < GRID_CELLS; i++) {
@@ -614,35 +679,21 @@ function drawGame(alpha: number, sheet: HTMLCanvasElement, background: string): 
   for (const b of game.balls) {
     if (b.state === BallState.Dead) continue;
     const frame = skinnedFrame(b.anim, skin);
-    // A ball waiting on the paddle follows it; a moving one is interpolated.
-    if (b.stuckOffset !== null && game.magnet.on) {
-      drawSprite(ctx, sheet, spriteAt(frame, b.w, b.h), b.x + ahead, b.y);
+    // A ball waiting on a paddle follows it; a moving one is interpolated.
+    const second = b.stuckTo === 1 && game.paddle2;
+    if (b.stuckOffset !== null && (second ? game.magnet2 : game.magnet).on) {
+      drawSprite(ctx, sheet, spriteAt(frame, b.w, b.h), b.x + (second ? 0 : ahead), b.y);
       continue;
     }
     drawMoving(b, frame, alpha, sheet);
   }
 
-  if (paddleAnim) {
-    const { anim } = paddleAnim;
-    if (paddleAnim.visible) {
-      const frame = skinnedFrame(anim, skin);
-      drawSprite(ctx, sheet, spriteAt(frame, anim.w, anim.h), paddleAnim.x, paddleAnim.y);
-    }
-  } else {
-    drawSprite(
-      ctx,
-      sheet,
-      spriteAt(skinnedFrame(paddle.anim, skin), paddle.w, PADDLE_H),
-      paddle.x + ahead,
-      paddle.y,
-    );
-  }
-
-  // Next in slot order: the cannons, the monsters, then the shots.
-  const { miniLeft, miniRight, big, shots } = game.shotSystem;
-  for (const c of [miniLeft, miniRight, big]) {
-    if (c.on) drawSprite(ctx, sheet, spriteAt(c.anim.frame, c.anim.w, c.anim.h), c.x + ahead, c.y);
-  }
+  // Next in slot order: each paddle and its cannons, the monsters, then the shots.
+  drawPaddle(sheet, paddle, paddleAnim, game.shotSystem, skin, ahead);
+  // Player 2 keeps the colours from the original (§4.6).
+  if (game.paddle2)
+    drawPaddle(sheet, game.paddle2, game.paddleAnim2, game.shotSystem2!, "player2", 0);
+  const { shots } = game.shotSystem;
   const monsterSheet = assets.images.get(worldImage(world, "monsters"))!;
   for (const m of game.monsterSystem.monsters) {
     if (m.state === BallState.Dead) continue;
