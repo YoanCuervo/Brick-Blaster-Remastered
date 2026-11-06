@@ -422,7 +422,7 @@ En résumé, un monstre est un **obstacle mobile qui perturbe la trajectoire des
 - la souris passe par Pointer Lock (`unadjustedMovement`), avec `x += movementX × 0,5 × sensibilité` et une sensibilité continue (1,0 = `Mouse_Speed 0`, 0,5 par défaut = `−1`) ;
 - le reste fractionnaire est conservé d'un tick à l'autre ;
 - le rejeu d'un tick sans mouvement n'est pas reproduit (artefact d'époque) ;
-- le joueur 1 a aussi le clavier, selon la règle du J2 ;
+- le joueur 1 a aussi le clavier, à la vitesse du J2 au premier tick, puis +1 px par tick d'appui continu jusqu'à 16 (au-delà de la balle la plus rapide, `|dx| < 14 + mode`) ; relâcher ou changer de sens repart de la vitesse du J2 (`src/input/keyboard.ts`) ;
 - `reverse` inverse le déplacement déjà mis à l'échelle (souris et clavier). L'original inverse avant l'arrondi `⌈d/2⌉` : l'écart est d'au plus 1 px sur un déplacement impair, et le reste fractionnaire du remake le rattrape.
 
 ### 4.5 Déroulement d'une partie (vérifié dans le code, 30/10/2026)

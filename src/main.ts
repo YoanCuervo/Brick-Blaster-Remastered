@@ -34,7 +34,7 @@ import { SPARE_LIFE_POINTS } from "./game/score";
 import { MONSTER_PITCH } from "./game/monsters";
 import { PADDLE_H, clampPaddleX } from "./game/paddle";
 import { FireLatch } from "./input/fire";
-import { KeyState, keyboardDx, keyboardSpeed } from "./input/keyboard";
+import { KeyState, KeyboardPaddle, keyboardSpeed } from "./input/keyboard";
 import { MouseAccumulator, bindPointerLock, lockPointer } from "./input/mouse";
 import { BRICK_H, BRICK_W, capsuleSprite, drawSprite, spriteAt } from "./render/atlas";
 import { BitmapFont } from "./render/font";
@@ -105,7 +105,7 @@ let menu = newMenu();
 let world: World = "space";
 let difficulty: Difficulty = Difficulty.Easy;
 let game!: Game;
-let keySpeed = 0;
+let keyboard = new KeyboardPaddle(0);
 let show = new Slideshow(BOOT_SLIDES);
 let showMusic: MusicName = MENU_MUSIC;
 let afterShow = () => startTransition(new Transition(), backToMenu);
@@ -188,7 +188,9 @@ function startGame(event: Extract<MenuEvent, { kind: "play" }>): void {
     const lifePoints = desktop ? 0 : SPARE_LIFE_POINTS;
     const rules = desktop ? assets.config : webConfig(assets.config, event.difficulty);
     game = new Game(rules, levels, event.difficulty, new Rng(Date.now()), lifePoints);
-    keySpeed = keyboardSpeed(forDifficulty(assets.config.startSpeed, event.difficulty));
+    keyboard = new KeyboardPaddle(
+      keyboardSpeed(forDifficulty(assets.config.startSpeed, event.difficulty)),
+    );
     mouse.reset();
     setScene("game");
   });
@@ -405,7 +407,7 @@ function updateGame(): void {
   const moving = [...game.balls, ...game.monsterSystem.monsters, ...game.shotSystem.shots];
   prevBalls = new Map(moving.map((b) => [b, { x: b.x, y: b.y }]));
   const paddleDx =
-    mouse.take() + keyboardDx(keys.isDown("ArrowLeft"), keys.isDown("ArrowRight"), keySpeed);
+    mouse.take() + keyboard.step(keys.isDown("ArrowLeft"), keys.isDown("ArrowRight"));
   game.tick({ paddleDx, fire: fire.take() });
   audio.playSounds(game.sounds);
   audio.playMusic(worldMusic(world, game.level));
