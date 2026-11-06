@@ -779,11 +779,13 @@ tant qu'un des 4 coins touche une indestructible (0x40252D, même test qu'au §4
 - Lancement (`0x40119A`) : musique du monde, le menu restant figé `volume + 1` ticks, fondu de sortie (`0x401D18`), puis la partie (§4.5).
 - Retour : Échap (`0x401FB3`) ou fin du dernier niveau (`0x401C87`) ressortent de `0x401D18`. Musique `love` (`0x4011B4`), puis menu principal.
 - Quitter (`0x4012AA`) : fondu de sortie, avec les volumes qui baissent de `[0x41B7A4]` = 2 par tick tant qu'ils restent positifs (`0x40663C`).
-- Veille : 600 ticks sans mouvement remettent la difficulté à moyen et lancent la démo (`0x401423`).
+- Veille : 600 ticks sans mouvement remettent la difficulté à moyen et lancent la démo (`0x401423`), depuis n'importe quel menu. Le compteur repart de 600 quand le curseur bouge (`0x401805`) ou sur un appui, même hors quadrant (`0x401464`).
+- Quadrant démo : il renvoie 4, qui tombe dans le cas par défaut (`0x401576` : difficulté moyenne, sans attendre le relâchement), et la boucle principale lance la démo (`0x4010D4`). Voir Démo.
 - Démarrage (`0x401058`) : `media.gif` (`0x401B98`, 200 ticks ou une touche), puis `credit_b.gif` (`0x401BD5`, 150 ticks), puis le menu. Aucun FLC : `intro.flc` joue dans les crédits (`0x407078`), `Blaster.flc` sur l'écran de fin (`0x407143`).
 
 **Remake.**
-- Démo, coop, duel, scores coop : le quadrant joue le son et ne fait rien, comme le quadrant vide. Les menus 3 et 7 sont inaccessibles en solo, donc non portés. Pas de veille.
+- Coop, duel, scores coop : le quadrant joue le son et ne fait rien, comme le quadrant vide. Les menus 3 et 7 sont inaccessibles en solo, donc non portés.
+- La démo et la veille sont portées. Seules les touches de validation remettent la veille à zéro : les autres ne valident rien dans le remake.
 - Le curseur suit la position réelle de la souris, sans Pointer Lock. Le verrouillage est demandé au lancement de la partie et libéré au retour.
 - Les flèches déplacent le curseur entre les quadrants et les barres, et une barre se règle avec gauche et droite. Seuls Entrée, Espace et Ctrl valident, sinon les flèches valideraient aussi.
 - Ajout : une barre de sensibilité de la souris (0,1 à 3), en miroir en x 134, avec le cadre 72 × 19 (`0x17F2`) que `menu.gif` contient sans s'en servir. Elle affiche « souris » à la place du titre au survol.
@@ -791,6 +793,37 @@ tant qu'un des 4 coins touche une indestructible (0x40252D, même test qu'au §4
 - Échap en partie, souris verrouillée : le navigateur s'en sert d'abord pour libérer la souris, un second appui revient au menu.
 - La pulsation ne touche que le bouton et le logo : 20 pixels de `title.gif` de ces couleurs, hors du bouton, ne pulsent pas. La phase repart de 0 à chaque visite, elle n'est pas partagée avec l'icône de bonus. Le tick perdu par `0x408602` à chaque changement de texte n'est pas reproduit.
 - Musique et sensibilité sont gardées dans `localStorage` (`brick-blaster.settings`).
+
+### Démo (vérifié dans le code, 06/11/2026)
+
+Drapeaux : `[0x411035]` = 1 sans `[0x41103D]` (le joueur 1 est l'ordinateur), `[0x411039]` = 0 (à 1, c'est le mode « test » d'une touche de triche, sans fin).
+
+**Lancement** (`0x4010E4`). `[0x411015]` = `rand(1) + 1` joueurs, puis le monde `rand(1)` : le chiffre est écrit dans le nom du set (`[0x41100C]`), du fond (`0x41B7E8`) et de la palette (`0x41B80B`). Mode 3, `[0x411004]` = 800, puis `0x401D18` comme une partie, mais **sans changer de musique**. Dans `0x401D18`, le niveau est tiré parmi tout le set, `rand(nombre − 1) + 1` (`0x401D7C`), et le texte « demo » s'affiche (`0x401D8D`).
+
+**Niveaux vides.** Le nombre de niveaux `[0x411C5C]` n'est compté qu'au démarrage, sur `lv0` (`0x401062`), et sert aussi à `lv1`. Un set plus court que `lv0` fait tirer un emplacement vide `0xFF` : c'est le plantage de §8.
+
+**Jeu.**
+- Raquette (`0x404F64`, appelée par `0x406EAC` après le déplacement de la souris) : `x = balle1.x − largeur / 2`, quel que soit l'état de la balle 1, puis bornes. Si la souris a rendu x négatif, le suivi saute ce tick.
+- Manche (`0x4037F0`) : ni « pret ? » ni mode 2. La balle 1 passe à l'état 1 avec `dx = 3`, `dy = −4`, sans tenir compte du niveau ni de la difficulté. Le mode reste 3 : la balle collée part au tick suivant.
+- Après une vie perdue, le mode vaut 6 : le service (`0x405093`) a lieu, sans attendre le tir (`0x40511C`), à la vitesse du niveau, et efface « pret ? ».
+- Aimant : une balle collée repart aussitôt (`0x403E27`).
+- Canons : ils tirent seuls quand le compteur de rafraîchissements `[0x406561]` (+1 à chaque appel de `0x40653C`) dépasse 10, puis il repart de 0 : un tir tous les 11 ticks, sans verrou (`0x40290F`).
+- Après le dernier niveau, retour au niveau 1 (`0x401C79`), sans « pret ? » (`0x401CF6`).
+- Bonus, vies, score et pause (P) fonctionnent comme en partie.
+
+**Fin** (`0x401F41`, à chaque tour complet de la boucle principale, donc ni pendant les animations, ni pendant les fondus, ni en pause) :
+- un tir tenu (`0x406FE1` : bouton, Ctrl ou joystick), Espace (`0x401F79`) ou Échap (`0x401EF9`) : attente du relâchement, puis retour au menu ;
+- `[0x411004]` tombe à 0 : retour au menu sans attente, après **800 tours** (13,3 s) ;
+- la souris qui bouge ne compte pas.
+
+Le retour passe par `0x40107B` : menu principal, avec ses fondus. Aucun score n'est enregistré. Un game over (presque impossible en 800 tours, la raquette rattrapant toujours la balle 1) suit le chemin d'une partie : écran des scores, puis `0x401FCE` efface les drapeaux et une vraie partie commence au niveau de départ, avec la musique du menu.
+
+**Remake** (`src/game/demo.ts`) :
+- un seul joueur tant que la coop n'existe pas ;
+- le niveau est tiré parmi ceux du monde choisi, jamais un emplacement vide ;
+- le .exe tire espace ou arcade, la version navigateur tire aussi Limbes, que son menu propose ;
+- le compteur des canons part de 0 au lancement de la démo ;
+- un clic, Entrée, Espace, Ctrl ou Échap l'arrête ; la souris n'est pas verrouillée pendant la démo.
 
 ### Écrans et meilleurs scores (vérifié dans le code, 01/11/2026)
 
@@ -928,7 +961,7 @@ Graphismes, sons, musiques et niveaux appartiennent à Eclipse / leurs auteurs (
 - ~~Effet exact du garde-fou « monstre bloqué en haut »~~ : résolu, il n'en a aucun (§4.3).
 - ~~Logique cadencée exactement à 50 Hz ?~~ : résolu, non : 60 ticks par seconde (§4.2), cadence adoptée par le remake. Mesure sur l'original : jamais de tick à 20 ms (§4.2).
 - Le jeu plante dès qu'il perd le plein écran (Alt+Tab, Impr. écran) : comparer le remake à l'original demandera un outil de fenêtrage (DxWnd).
-- La démo plante si le set de niveaux contient des emplacements vides (`0xFF`) parmi ceux qu'elle tire au sort : un set de test doit remplir 40 emplacements.
+- La démo plante si le set de niveaux contient des emplacements vides (`0xFF`) parmi ceux qu'elle tire au sort : un set de test doit remplir 40 emplacements. Cause trouvée : le nombre de niveaux vient de `lv0` seul (Démo). Le remake tire dans le set du monde choisi.
 - ~~Correspondance entre noms de fichiers `.mod` et titres de modules~~ : résolu, par le répertoire de l'exe (§3.3).
 - ~~Sortie de l'original en stéréo ou non~~ : résolu, il la demande (§4.5).
 - ~~Quel set de niveaux correspond à quel monde~~ : résolu, espace = lv0, arcade = lv1 (§4).
