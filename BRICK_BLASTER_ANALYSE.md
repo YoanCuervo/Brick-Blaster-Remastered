@@ -579,7 +579,12 @@ Une balle collée suit la raquette qui la tient (`+0x91`, `0x403D97`). Celle du 
 
 **Fin de partie.** Hors duel, le game over (`0x408AD9`) et l'écran de félicitations (`0x408710`, `final_text`) sont ceux du solo. Les meilleurs scores vont dans la **table coop** dès que `[0x411015]` vaut 2 (`0x408C2E`, `0x408528`), avec le score commun. « Scores coop » du menu Divers l'affiche (`0x4011E1`). Après un game over, `0x401FB4` relance une partie à deux.
 
-**Remake** : à faire.
+**Remake** (`src/game/game.ts`, `src/game/coop.test.ts`) : porté tel quel, sauf :
+- le J2 joue au clavier (← →, Ctrl) ou par l'ordinateur ; le joystick et le menu 7 ne sont pas portés, leurs quadrants ne font que le son ;
+- le clavier du J2 accélère comme celui du J1 (§4.4), au lieu de la vitesse fixe `[0x41B7D6]` ;
+- dans une partie à deux au clavier, les flèches et Ctrl sont au J2 : le J1 joue à la souris, et tire au bouton, à Espace ou à Entrée ;
+- le J2 a ses couleurs de l'original (raquette, explosion, décollage, arrivée, canons), tout le reste celles du J1, comme dans l'original ;
+- les tables coop suivent celles du solo : une par monde et par difficulté sur le web (`brick-blaster.scores.coop.<monde>.<difficulté>`), une seule pour le .exe (`brick-blaster.scores.coop`) .
 
 ## 5. Configuration du gameplay (`blaster.cfg` décompressé) — vérifié
 
@@ -818,7 +823,7 @@ tant qu'un des 4 coins touche une indestructible (0x40252D, même test qu'au §4
 - Démarrage (`0x401058`) : `media.gif` (`0x401B98`, 200 ticks ou une touche), puis `credit_b.gif` (`0x401BD5`, 150 ticks), puis le menu. Aucun FLC : `intro.flc` joue dans les crédits (`0x407078`), `Blaster.flc` sur l'écran de fin (`0x407143`).
 
 **Remake.**
-- Démo, coop, duel, scores coop : le quadrant joue le son et ne fait rien, comme le quadrant vide. Les menus 3 et 7 sont inaccessibles en solo, donc non portés. Pas de veille.
+- Démo, duel et joystick : le quadrant joue le son et ne fait rien, comme le quadrant vide. Le menu 3 est porté pour la coop (§4.6), le menu 7 non. Pas de veille.
 - Le curseur suit la position réelle de la souris, sans Pointer Lock. Le verrouillage est demandé au lancement de la partie et libéré au retour.
 - Les flèches déplacent le curseur entre les quadrants et les barres, et une barre se règle avec gauche et droite. Seuls Entrée, Espace et Ctrl valident, sinon les flèches valideraient aussi.
 - Ajout : une barre de sensibilité de la souris (0,1 à 3), en miroir en x 134, avec le cadre 72 × 19 (`0x17F2`) que `menu.gif` contient sans s'en servir. Elle affiche « souris » à la place du titre au survol.
