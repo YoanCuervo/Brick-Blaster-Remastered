@@ -894,7 +894,7 @@ describe("large and small paddles (0x4033A9, 0x4034B0)", () => {
   it("unsticks the balls when leaving the large paddle, not the small one", () => {
     const g = caught("large_ship");
     g.tick(idle);
-    g.bonus.active = bonusByKey("reverse");
+    g.bonus.active = g.bonus.seats[0] = bonusByKey("reverse");
     g.balls[0]!.stuckOffset = 12;
     g.tick(idle);
     expect(g.paddle.w).toBe(74);
@@ -903,7 +903,7 @@ describe("large and small paddles (0x4033A9, 0x4034B0)", () => {
 
     const s = caught("small_ship");
     s.tick(idle);
-    s.bonus.active = bonusByKey("reverse");
+    s.bonus.active = s.bonus.seats[0] = bonusByKey("reverse");
     s.balls[0]!.stuckOffset = 12;
     s.tick(idle);
     expect(s.paddle.w).toBe(74);
@@ -913,7 +913,7 @@ describe("large and small paddles (0x4033A9, 0x4034B0)", () => {
   it("goes straight from large to small on the same tick", () => {
     const g = caught("large_ship");
     g.tick(idle);
-    g.bonus.active = bonusByKey("small_ship");
+    g.bonus.active = g.bonus.seats[0] = bonusByKey("small_ship");
     g.tick(idle);
     expect(g.paddle.w).toBe(38);
     expect(g.sounds).toContain("small");
@@ -1061,7 +1061,7 @@ describe("points x2 (0x406310)", () => {
     expect(g.player.score).toBe(start + 60);
     g.tick(idle);
     expect(g.player.score).toBe(start + 60 + 180);
-    g.bonus.active = bonusByKey("malus");
+    g.bonus.active = g.bonus.seats[0] = bonusByKey("malus");
     g.tick(idle);
     expect(g.player.score).toBe(start + 60 + 180 - 240);
   });
@@ -1091,12 +1091,12 @@ describe("points x2 (0x406310)", () => {
   it("is cancelled by a lasting bonus, not by an instant one (0x406370)", () => {
     const g = caught("night");
     g.tick(idle);
-    g.bonus.active = bonusByKey("bonus");
+    g.bonus.active = g.bonus.seats[0] = bonusByKey("bonus");
     g.tick(idle);
     expect(g.doubled).toBe(true);
     g.flash.on = false;
     g.flash.shown = 5;
-    g.bonus.active = bonusByKey("reverse");
+    g.bonus.active = g.bonus.seats[0] = bonusByKey("reverse");
     g.tick(idle);
     expect(g.doubled).toBe(false);
     expect(g.screenFade).toBe(0);
@@ -1106,7 +1106,7 @@ describe("points x2 (0x406310)", () => {
   it("flickers off for one tick when caught again, then back on", () => {
     const g = caught("night");
     g.tick(idle);
-    g.bonus.active = bonusByKey("night");
+    g.bonus.active = g.bonus.seats[0] = bonusByKey("night");
     g.tick(idle);
     expect(g.doubled).toBe(false);
     expect(g.bonus.active?.key).toBe("night");

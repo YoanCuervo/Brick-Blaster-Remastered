@@ -8,6 +8,7 @@ import {
   forDifficulty,
 } from "../data/config";
 import { CAPSULE_H, CAPSULE_W } from "../render/atlas";
+import type { Seat } from "./ball";
 import type { Paddle } from "./paddle";
 
 /** Capsule of bonus 0 (0x40528A); the code of a bonus is its sprite address. */
@@ -17,7 +18,7 @@ export interface BonusDef {
   readonly key: BonusKey;
   /** [+0x10]: sprite address, also the id stored as active bonus. */
   readonly code: number;
-  /** [+0x00]: `collision` is only enabled in duel (0x4052FC), so one player never gets it. */
+  /** [+0x00]: `collision` is only enabled with two players (0x4052FC), see drawBonus. */
   readonly enabled: boolean;
 }
 
@@ -51,6 +52,7 @@ export function drawBonus(
   config: Pick<GameConfig, "timeBetweenOption" | "bonusFreq">,
   difficulty: Difficulty,
   rng: Rng,
+  twoPlayers = false,
 ): BonusDef | null {
   if (draw.ticks < forDifficulty(config.timeBetweenOption, difficulty)) return null;
   draw.ticks = 0;
@@ -60,7 +62,7 @@ export function drawBonus(
     while (i === draw.last);
     draw.last = i;
     const bonus = BONUSES[i]!;
-    if (!bonus.enabled) return null;
+    if (!bonus.enabled && !(twoPlayers && bonus.key === "collision")) return null;
     const freq = forDifficulty(config.bonusFreq[bonus.key], difficulty);
     if (freq === 0) continue;
     if (freq > 1 && rng.rand(freq - 1) !== 0) return null;
@@ -112,28 +114,45 @@ export function isCaught(c: Capsule, paddle: Pick<Paddle, "x" | "w">): boolean {
   return c.x >= paddle.x && c.x + CAPSULE_W <= paddle.x + paddle.w;
 }
 
+export interface Catch {
+  bonus: BonusDef;
+  /** The paddle that caught it, [0x415796]. */
+  seat: Seat;
+}
+
 /**
  * 0x405452, also run during the wait loops (0x402072); only mode 3 can catch (0x4054D2).
+ * Player 1's paddle is tested first, then player 2's (0x40551D): in coop a capsule has no owner.
  * Returns the bonuses caught this tick. A missed capsule goes silently: the sound slot
  * 0x41B9FF is never loaded (probable).
  */
+export function catchCapsules(
+  capsules: Capsule[],
+  paddles: readonly Pick<Paddle, "x" | "w">[],
+  canCatch: boolean,
+): Catch[] {
+  const caught: Catch[] = [];
+  for (const c of capsules) {
+    if (c.state !== CapsuleState.Falling) continue;
+    c.y += CAPSULE_DY;
+    if (c.y < CATCH_Y) continue;
+    const seat = canCatch && c.y <= CATCH_Y + CAPSULE_H ? paddles.findIndex((p) => isCaught(c, p)) : -1;
+    if (seat >= 0) {
+      c.state = CapsuleState.Gone;
+      caught.push({ bonus: c.bonus!, seat: seat as Seat });
+    }
+    if (c.y + CAPSULE_H + CAPSULE_DY >= SCREEN_BOTTOM_Y) c.state = CapsuleState.Gone;
+  }
+  return caught;
+}
+
+/** One paddle: the bonuses caught this tick. */
 export function updateCapsules(
   capsules: Capsule[],
   paddle: Pick<Paddle, "x" | "w">,
   canCatch: boolean,
 ): BonusDef[] {
-  const caught: BonusDef[] = [];
-  for (const c of capsules) {
-    if (c.state !== CapsuleState.Falling) continue;
-    c.y += CAPSULE_DY;
-    if (c.y < CATCH_Y) continue;
-    if (canCatch && c.y <= CATCH_Y + CAPSULE_H && isCaught(c, paddle)) {
-      c.state = CapsuleState.Gone;
-      caught.push(c.bonus!);
-    }
-    if (c.y + CAPSULE_H + CAPSULE_DY >= SCREEN_BOTTOM_Y) c.state = CapsuleState.Gone;
-  }
-  return caught;
+  return catchCapsules(capsules, [paddle], canCatch).map((c) => c.bonus);
 }
 
 /** Ticks a bonus lasts [0x411CA4], 10 s at 60 Hz (0x4055E5). */
@@ -144,6 +163,13 @@ export const MESSAGE_END_TICKS = 0x1f4;
 export interface ActiveBonus {
   /** [0x411C70] */
   active: BonusDef | null;
+  /**
+   * [player + 8], 0x41574E and 0x415776: the bonus each player caught last. Paddle size, shots
+   * and reverse read it, so in coop a lasting bonus stays with the player who caught it.
+   */
+  seats: [BonusDef | null, BonusDef | null];
+  /** [0x415796]: the player who caught the last capsule. */
+  picker: Seat;
   /** [0x411C74] */
   previous: BonusDef | null;
   /** [0x411CA4] */
@@ -155,13 +181,30 @@ export interface ActiveBonus {
 }
 
 export function createActiveBonus(): ActiveBonus {
-  return { active: null, previous: null, timer: 0, label: null, icon: null };
+  return {
+    active: null,
+    seats: [null, null],
+    picker: 0,
+    previous: null,
+    timer: 0,
+    label: null,
+    icon: null,
+  };
 }
 
-/** 0x4055AE: a new bonus replaces the active one. */
-export function catchBonus(state: ActiveBonus, bonus: BonusDef): void {
+/** Every routine that empties [0x411C70] empties both players' slots with it (0x405EC4…). */
+export function clearActive(state: ActiveBonus): void {
+  state.active = null;
+  state.seats[0] = null;
+  state.seats[1] = null;
+}
+
+/** 0x4055AE: a new bonus replaces the active one, and the catcher's slot (0x4055DC). */
+export function catchBonus(state: ActiveBonus, bonus: BonusDef, seat: Seat = 0): void {
   state.previous = state.active;
   state.active = bonus;
+  state.seats[seat] = bonus;
+  state.picker = seat;
   state.timer = BONUS_TICKS;
   state.icon = bonus.code;
 }
@@ -186,7 +229,7 @@ export function stepBonusTimer(state: ActiveBonus): TimerEvent {
     return "messageEnd";
   }
   if (state.timer !== 0) return "none";
-  state.active = null;
+  clearActive(state);
   clearIcon(state);
   return "expired";
 }
@@ -240,5 +283,7 @@ export const EXTRA_BALLS: Partial<Record<BonusKey, number>> = {
 
 /** Score units of a caught capsule (0x40565D) and of the two score bonuses. */
 export const CAPSULE_UNITS = 2;
+/** 0x406464: ghost brings 10 balls with two players. */
+export const TWO_PLAYER_GHOSTS = 0xa;
 export const BONUS_UNITS = 8;
 export const MALUS_UNITS = 0xc;

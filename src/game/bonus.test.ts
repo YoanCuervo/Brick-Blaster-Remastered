@@ -10,6 +10,8 @@ import {
   MESSAGE_END_TICKS,
   bonusByKey,
   catchBonus,
+  catchCapsules,
+  clearActive,
   createActiveBonus,
   createBonusDraw,
   createCapsules,
@@ -60,6 +62,47 @@ describe("bonus table (0x4125D4)", () => {
 
   it("disables collision only", () => {
     expect(BONUSES.filter((b) => !b.enabled).map((b) => b.key)).toEqual(["collision"]);
+  });
+
+  it("drops collision with two players only (0x4052FC)", () => {
+    const solo = drawBonus(ready(), config(), Difficulty.Easy, new ScriptedRng([23]));
+    expect(solo).toBeNull();
+    const two = drawBonus(ready(), config(), Difficulty.Easy, new ScriptedRng([23]), true);
+    expect(two?.key).toBe("collision");
+  });
+});
+
+describe("two players (§4.6)", () => {
+  it("tests player 1's paddle first, then player 2's (0x40551D)", () => {
+    const p1 = { x: 300, w: 74 };
+    const p2 = { x: 150, w: 74 };
+    const caps = createCapsules();
+    spawnCapsule(caps, bonusByKey("bonus"), 300, 414);
+    spawnCapsule(caps, bonusByKey("malus"), 150, 414);
+    spawnCapsule(caps, bonusByKey("night"), 30, 414);
+    expect(catchCapsules(caps, [p1, p2], true).map((c) => [c.bonus.key, c.seat])).toEqual([
+      ["bonus", 0],
+      ["malus", 1],
+    ]);
+  });
+
+  it("puts a bonus in the catcher's slot only, and clears both slots together", () => {
+    const state = createActiveBonus();
+    catchBonus(state, bonusByKey("large_ship"), 0);
+    catchBonus(state, bonusByKey("shoot"), 1);
+    expect(state.active?.key).toBe("shoot");
+    expect(state.seats.map((b) => b?.key)).toEqual(["large_ship", "shoot"]);
+    expect(state.picker).toBe(1);
+    clearActive(state);
+    expect(state.seats).toEqual([null, null]);
+  });
+
+  it("empties both slots when the timer runs out (0x405E6A)", () => {
+    const state = createActiveBonus();
+    catchBonus(state, bonusByKey("large_ship"), 1);
+    state.timer = 1;
+    expect(stepBonusTimer(state)).toBe("expired");
+    expect(state.seats).toEqual([null, null]);
   });
 });
 

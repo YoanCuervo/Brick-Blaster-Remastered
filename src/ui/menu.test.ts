@@ -53,7 +53,12 @@ describe("the world Limbes", () => {
     const m = worldMenu();
     choose(m, 2);
     expect(m.menu).toBe(MenuId.Difficulty);
-    expect(choose(m, 0)).toEqual({ kind: "play", world: "limbes", difficulty: Difficulty.Easy });
+    expect(choose(m, 0)).toEqual({
+      kind: "play",
+      world: "limbes",
+      difficulty: Difficulty.Easy,
+      partner: null,
+    });
   });
 
   it("stays an empty quadrant where it is not offered, as in the desktop version", () => {
@@ -140,7 +145,12 @@ describe("menu tree (0x4014A3)", () => {
     expect(m.menu).toBe(MenuId.World);
     choose(m, 1);
     expect(m.menu).toBe(MenuId.Difficulty);
-    expect(choose(m, 2)).toEqual({ kind: "play", world: "arcade", difficulty: Difficulty.Hard });
+    expect(choose(m, 2)).toEqual({
+      kind: "play",
+      world: "arcade",
+      difficulty: Difficulty.Hard,
+      partner: null,
+    });
   });
 
   it("maps the 3 difficulty quadrants in order", () => {
@@ -188,9 +198,8 @@ describe("menu tree (0x4014A3)", () => {
 
   it.each([
     ["demo", MenuId.Main, [], 1],
-    ["coop", MenuId.Players, [0], 1],
     ["duel", MenuId.Players, [0], 2],
-    ["coop scores", MenuId.Misc, [2], 1],
+    ["joystick", MenuId.Partner, [0, 1], 2],
   ] as const)("clicks and stays on %s", (_, menu, path, quadrant) => {
     const m = ready();
     for (const q of path) choose(m, q);
@@ -205,14 +214,67 @@ describe("menu tree (0x4014A3)", () => {
 
 describe("miscellaneous menu (0x4010B3)", () => {
   it.each([
-    ["scores", 0],
-    ["credits", 2],
-  ] as const)("leaves for the %s on the press", (kind, quadrant) => {
+    ["scores", 0, { kind: "scores", coop: false }],
+    ["coop scores", 1, { kind: "scores", coop: true }],
+    ["credits", 2, { kind: "credits" }],
+  ] as const)("leaves for the %s on the press", (_, quadrant, event) => {
     const m = ready();
     choose(m, 2);
     m.pointAt(centers[quadrant]!.x, centers[quadrant]!.y);
-    expect(m.tick(true, false)).toEqual({ kind });
+    expect(m.tick(true, false)).toEqual(event);
     expect(m.sounds).toEqual(["optionon"]);
+  });
+});
+
+describe("coop (0x40167E, menu 3)", () => {
+  it("goes play > coop > player 2 > world > difficulty", () => {
+    const m = ready();
+    choose(m, 0);
+    choose(m, 1);
+    expect(m.menu).toBe(MenuId.Partner);
+    choose(m, 0);
+    expect(m.menu).toBe(MenuId.World);
+    choose(m, 0);
+    expect(choose(m, 1)).toEqual({
+      kind: "play",
+      world: "space",
+      difficulty: Difficulty.Medium,
+      partner: "computer",
+    });
+  });
+
+  it("gives player 2 the keyboard from the blue quadrant", () => {
+    const m = ready();
+    choose(m, 0);
+    choose(m, 1);
+    choose(m, 1);
+    choose(m, 0);
+    expect(choose(m, 0)).toMatchObject({ partner: "keyboard" });
+  });
+
+  it("walks back through the player 2 menu (0x401640)", () => {
+    const m = ready();
+    choose(m, 0);
+    choose(m, 1);
+    choose(m, 1);
+    choose(m, 3);
+    expect(m.menu).toBe(MenuId.Partner);
+    choose(m, 3);
+    expect(m.menu).toBe(MenuId.Players);
+  });
+
+  it("forgets the coop when one player is chosen after it", () => {
+    const m = ready();
+    choose(m, 0);
+    choose(m, 1);
+    choose(m, 3);
+    choose(m, 0);
+    choose(m, 0);
+    expect(choose(m, 0)).toMatchObject({ partner: null });
+  });
+
+  it("uses the button sprite at (2, 310)", () => {
+    expect(MENUS[MenuId.Partner].sprite).toBe(310 * 640 + 2);
   });
 });
 
