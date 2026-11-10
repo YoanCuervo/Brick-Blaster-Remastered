@@ -35,7 +35,7 @@ import { MONSTER_PITCH } from "./game/monsters";
 import { PADDLE_H, type Paddle, clampPaddleX } from "./game/paddle";
 import type { ShotSystem } from "./game/shots";
 import { FireLatch } from "./input/fire";
-import { KeyState, KeyboardPaddle, keyboardSpeed } from "./input/keyboard";
+import { KeyState, KeyboardPaddle, fireOwner, keyboardSpeed } from "./input/keyboard";
 import { MouseAccumulator, bindPointerLock, lockPointer } from "./input/mouse";
 import { BRICK_H, BRICK_W, capsuleSprite, drawSprite, spriteAt } from "./render/atlas";
 import { BitmapFont } from "./render/font";
@@ -401,9 +401,7 @@ function menuEvent(event: MenuEvent | null): void {
 let showStats = false;
 const stats = { ticks: 0, frames: 0, tps: 0, fps: 0, since: performance.now() };
 
-const FIRE_KEYS = ["Space", "Enter", "ControlLeft", "ControlRight"];
-const CTRL_KEYS = ["ControlLeft", "ControlRight"];
-/** In a coop game at the keyboard, Ctrl and the arrows belong to player 2. */
+/** In a coop game at the keyboard, Space and the arrows belong to player 2. */
 const keyboardPartner = () => scene === "game" && game.partner === "keyboard";
 const ARROWS: Record<string, Arrow> = {
   ArrowLeft: "left",
@@ -416,6 +414,7 @@ let escapePressed = false;
 /** [ebp] holds the last key until the main loop looks at it (0x401EF9, 0x401F37). */
 let gameKey: string | null = null;
 let anyKeyPressed = false;
+const heldFireKeys = new Map<string, FireLatch>();
 
 window.addEventListener("keydown", (e) => {
   // A held arrow keeps moving the bars.
@@ -435,14 +434,18 @@ window.addEventListener("keydown", (e) => {
   anyKeyPressed = true;
   if (!typing && e.code === "KeyF") void screen.toggleFullscreen();
   if (!typing && e.code === "KeyS") showStats = !showStats;
-  if (CTRL_KEYS.includes(e.code) && keyboardPartner()) fire2.press();
-  else if (FIRE_KEYS.includes(e.code)) fire.press();
+  const owner = fireOwner(e.code, keyboardPartner());
+  if (owner !== null) {
+    // Released on the latch it pressed, even if the game ended in between.
+    heldFireKeys.set(e.code, owner === 2 ? fire2 : fire);
+    heldFireKeys.get(e.code)!.press();
+  }
   if (e.code === "Escape" && scene === "menu") escapePressed = true;
   if ((e.code === "Escape" || e.code === "KeyP") && scene === "game") gameKey = e.code;
 });
 window.addEventListener("keyup", (e) => {
-  if (CTRL_KEYS.includes(e.code)) fire2.release();
-  if (FIRE_KEYS.includes(e.code)) fire.release();
+  heldFireKeys.get(e.code)?.release();
+  heldFireKeys.delete(e.code);
 });
 
 function updateGame(): void {

@@ -24,6 +24,18 @@ export function heldSpeed(baseSpeed: number, heldTicks: number): number {
   return Math.min(baseSpeed + heldTicks, Math.max(baseSpeed, KEY_MAX_SPEED));
 }
 
+const FIRE_KEYS = ["Space", "Enter", "ControlLeft", "ControlRight"];
+
+/**
+ * Which player a fire key belongs to, or null for any other key. Not in the original, where
+ * player 2 fires with Ctrl (0x407023): in a coop game at the keyboard, Space is player 2's,
+ * next to the arrows, and Ctrl stays with player 1 beside the mouse button.
+ */
+export function fireOwner(code: string, keyboardPartner: boolean): 1 | 2 | null {
+  if (!FIRE_KEYS.includes(code)) return null;
+  return keyboardPartner && code === "Space" ? 2 : 1;
+}
+
 /** Keyboard paddle control for player 1: one call per tick. */
 export class KeyboardPaddle {
   private dir = 0;
