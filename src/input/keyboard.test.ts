@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { KEY_MAX_SPEED, KeyboardPaddle, heldSpeed, keyboardDx, keyboardSpeed } from "./keyboard";
+import {
+  KEY_MAX_SPEED,
+  KeyboardPaddle,
+  fireOwner,
+  heldSpeed,
+  keyboardDx,
+  keyboardSpeed,
+} from "./keyboard";
 
 describe("keyboard paddle control (0x406BB1)", () => {
   it("moves left or right by the speed", () => {
@@ -53,5 +60,25 @@ describe("keyboard acceleration (remake)", () => {
       ticks++;
     }
     expect(ticks).toBeLessThan(40);
+  });
+});
+
+describe("fire keys (remake)", () => {
+  it("gives Space, Enter and Ctrl to player 1 without a keyboard partner", () => {
+    for (const code of ["Space", "Enter", "ControlLeft", "ControlRight"]) {
+      expect(fireOwner(code, false)).toBe(1);
+    }
+  });
+
+  it("gives Space to player 2 in a coop game at the keyboard, Ctrl and Enter to player 1", () => {
+    expect(fireOwner("Space", true)).toBe(2);
+    expect(fireOwner("ControlLeft", true)).toBe(1);
+    expect(fireOwner("ControlRight", true)).toBe(1);
+    expect(fireOwner("Enter", true)).toBe(1);
+  });
+
+  it("ignores any other key", () => {
+    expect(fireOwner("KeyA", true)).toBeNull();
+    expect(fireOwner("ArrowLeft", false)).toBeNull();
   });
 });

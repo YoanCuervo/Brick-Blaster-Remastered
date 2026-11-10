@@ -580,9 +580,9 @@ Une balle collée suit la raquette qui la tient (`+0x91`, `0x403D97`). Celle du 
 **Fin de partie.** Hors duel, le game over (`0x408AD9`) et l'écran de félicitations (`0x408710`, `final_text`) sont ceux du solo. Les meilleurs scores vont dans la **table coop** dès que `[0x411015]` vaut 2 (`0x408C2E`, `0x408528`), avec le score commun. « Scores coop » du menu Divers l'affiche (`0x4011E1`). Après un game over, `0x401FB4` relance une partie à deux.
 
 **Remake** (`src/game/game.ts`, `src/game/coop.test.ts`) : porté tel quel, sauf :
-- le J2 joue au clavier (← →, Ctrl) ou par l'ordinateur ; le joystick et le menu 7 ne sont pas portés, leurs quadrants ne font que le son ;
+- le J2 joue au clavier (← →, Espace) ou par l'ordinateur ; le joystick et le menu 7 ne sont pas portés, leurs quadrants ne font que le son ;
 - le clavier du J2 accélère comme celui du J1 (§4.4), au lieu de la vitesse fixe `[0x41B7D6]` ;
-- dans une partie à deux au clavier, les flèches et Ctrl sont au J2 : le J1 joue à la souris, et tire au bouton, à Espace ou à Entrée ;
+- dans une partie à deux au clavier, les flèches et Espace sont au J2, qui tire donc à Espace au lieu de Ctrl, à côté des flèches : le J1 joue à la souris, et tire au bouton, à Ctrl ou à Entrée ;
 - le J2 a ses couleurs de l'original (raquette, explosion, décollage, arrivée, canons), tout le reste celles du J1, comme dans l'original ;
 - les tables coop suivent celles du solo : une par monde et par difficulté sur le web (`brick-blaster.scores.coop.<monde>.<difficulté>`), une seule pour le .exe (`brick-blaster.scores.coop`) .
 
