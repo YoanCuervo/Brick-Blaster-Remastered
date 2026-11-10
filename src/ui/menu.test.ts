@@ -53,7 +53,12 @@ describe("the world Limbes", () => {
     const m = worldMenu();
     choose(m, 2);
     expect(m.menu).toBe(MenuId.Difficulty);
-    expect(choose(m, 0)).toEqual({ kind: "play", world: "limbes", difficulty: Difficulty.Easy });
+    expect(choose(m, 0)).toEqual({
+      kind: "play",
+      world: "limbes",
+      difficulty: Difficulty.Easy,
+      partner: null,
+    });
   });
 
   it("stays an empty quadrant where it is not offered, as in the desktop version", () => {
@@ -140,7 +145,12 @@ describe("menu tree (0x4014A3)", () => {
     expect(m.menu).toBe(MenuId.World);
     choose(m, 1);
     expect(m.menu).toBe(MenuId.Difficulty);
-    expect(choose(m, 2)).toEqual({ kind: "play", world: "arcade", difficulty: Difficulty.Hard });
+    expect(choose(m, 2)).toEqual({
+      kind: "play",
+      world: "arcade",
+      difficulty: Difficulty.Hard,
+      partner: null,
+    });
   });
 
   it("maps the 3 difficulty quadrants in order", () => {
@@ -173,6 +183,13 @@ describe("menu tree (0x4014A3)", () => {
     expect(m.menu).toBe(MenuId.Main);
   });
 
+  it("starts the demo from the blue quadrant, without waiting for the release (0x401576)", () => {
+    const m = ready();
+    m.pointAt(centers[1]!.x, centers[1]!.y);
+    expect(m.tick(true, false)).toEqual({ kind: "demo" });
+    expect(m.sounds).toEqual(["optionon"]);
+  });
+
   it("quits from the orange quadrant of the main menu", () => {
     const m = ready();
     expect(choose(m, 3)).toEqual({ kind: "quit" });
@@ -187,10 +204,8 @@ describe("menu tree (0x4014A3)", () => {
   });
 
   it.each([
-    ["demo", MenuId.Main, [], 1],
-    ["coop", MenuId.Players, [0], 1],
     ["duel", MenuId.Players, [0], 2],
-    ["coop scores", MenuId.Misc, [2], 1],
+    ["joystick", MenuId.Partner, [0, 1], 2],
   ] as const)("clicks and stays on %s", (_, menu, path, quadrant) => {
     const m = ready();
     for (const q of path) choose(m, q);
@@ -205,14 +220,67 @@ describe("menu tree (0x4014A3)", () => {
 
 describe("miscellaneous menu (0x4010B3)", () => {
   it.each([
-    ["scores", 0],
-    ["credits", 2],
-  ] as const)("leaves for the %s on the press", (kind, quadrant) => {
+    ["scores", 0, { kind: "scores", coop: false }],
+    ["coop scores", 1, { kind: "scores", coop: true }],
+    ["credits", 2, { kind: "credits" }],
+  ] as const)("leaves for the %s on the press", (_, quadrant, event) => {
     const m = ready();
     choose(m, 2);
     m.pointAt(centers[quadrant]!.x, centers[quadrant]!.y);
-    expect(m.tick(true, false)).toEqual({ kind });
+    expect(m.tick(true, false)).toEqual(event);
     expect(m.sounds).toEqual(["optionon"]);
+  });
+});
+
+describe("coop (0x40167E, menu 3)", () => {
+  it("goes play > coop > player 2 > world > difficulty", () => {
+    const m = ready();
+    choose(m, 0);
+    choose(m, 1);
+    expect(m.menu).toBe(MenuId.Partner);
+    choose(m, 0);
+    expect(m.menu).toBe(MenuId.World);
+    choose(m, 0);
+    expect(choose(m, 1)).toEqual({
+      kind: "play",
+      world: "space",
+      difficulty: Difficulty.Medium,
+      partner: "computer",
+    });
+  });
+
+  it("gives player 2 the keyboard from the blue quadrant", () => {
+    const m = ready();
+    choose(m, 0);
+    choose(m, 1);
+    choose(m, 1);
+    choose(m, 0);
+    expect(choose(m, 0)).toMatchObject({ partner: "keyboard" });
+  });
+
+  it("walks back through the player 2 menu (0x401640)", () => {
+    const m = ready();
+    choose(m, 0);
+    choose(m, 1);
+    choose(m, 1);
+    choose(m, 3);
+    expect(m.menu).toBe(MenuId.Partner);
+    choose(m, 3);
+    expect(m.menu).toBe(MenuId.Players);
+  });
+
+  it("forgets the coop when one player is chosen after it", () => {
+    const m = ready();
+    choose(m, 0);
+    choose(m, 1);
+    choose(m, 3);
+    choose(m, 0);
+    choose(m, 0);
+    expect(choose(m, 0)).toMatchObject({ partner: null });
+  });
+
+  it("uses the button sprite at (2, 310)", () => {
+    expect(MENUS[MenuId.Partner].sprite).toBe(310 * 640 + 2);
   });
 });
 
@@ -450,5 +518,31 @@ describe("keyboard (remake)", () => {
     m.arrow("right");
     for (let i = 0; i < FADE_STEPS + 1; i++) tick(m);
     expect(m.x).toBe(260);
+  });
+});
+
+describe("idle (0x4013D0)", () => {
+  it("starts the demo after 600 ticks without a cursor move, from any menu", () => {
+    const m = ready();
+    choose(m, 2);
+    expect(m.menu).toBe(MenuId.Misc);
+    m.pointAt(10, 10);
+    let n = 0;
+    let event = null;
+    while (!event && n < 1000) {
+      event = m.tick(false, false);
+      n++;
+    }
+    expect(event).toEqual({ kind: "demo" });
+    expect(n).toBe(600);
+  });
+
+  it("counts again from a cursor move", () => {
+    const m = ready();
+    // ready() has already counted one tick.
+    for (let i = 0; i < 598; i++) expect(m.tick(false, false)).toBeNull();
+    m.pointAt(200, 100);
+    for (let i = 0; i < 599; i++) expect(m.tick(false, false)).toBeNull();
+    expect(m.tick(false, false)).toEqual({ kind: "demo" });
   });
 });

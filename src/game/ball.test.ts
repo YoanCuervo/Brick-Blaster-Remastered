@@ -3,6 +3,8 @@ import {
   BALL_SPRITE,
   type Ball,
   BallState,
+  P2_GHOST_DEATH,
+  P2_IRON_GHOST_DEATH,
   type BrickProbe,
   MAX_BALLS,
   accelerate,
@@ -13,6 +15,7 @@ import {
   createBall,
   extraBallSpeed,
   flipX,
+  ghostContact,
   lostCheck,
   makeGhosts,
   makeIron,
@@ -722,5 +725,64 @@ describe("anti-loop of a monster (0x4051EC)", () => {
     const b = { ...createBall(0), monster: true };
     antiLoop(b);
     expect(b.loopCount).toBe(0);
+  });
+});
+
+describe("player 2's paddle (0x40476A, §4.6)", () => {
+  it("sticks a ball to player 2 with its own magnet bit (0x4048E0)", () => {
+    const p2 = createPaddle(203);
+    const b = createBall(1500);
+    b.x = 220;
+    b.y = 0x1a0 - 9;
+    b.dx = 2;
+    b.dy = 3;
+    expect(paddleBounce(b, p2, { on: true }, 1)).toBe(true);
+    expect(b.stuckTo).toBe(1);
+    expect(b.dy).toBe(-3);
+  });
+
+  it("follows the paddle holding it and leaves on that player's fire (0x403D97)", () => {
+    const p1 = createPaddle(363);
+    const p2 = createPaddle(203);
+    const magnet2 = { on: true };
+    const b = createBall(1500, 1);
+    b.x = 220;
+    b.y = 0x1a0 - 9;
+    b.dx = -3;
+    b.dy = -4;
+    stickToPaddle(b, p2, 1);
+    const probe = { hit: () => false };
+    updateBall(b, p1, probe, 100, { fire: true, magnet: { on: true }, second: { paddle: p2, magnet: magnet2, fire: false } });
+    const offset = b.stuckOffset!;
+    expect(b.x).toBe(203 + offset);
+    p2.x = 250;
+    updateBall(b, p1, probe, 100, { magnet: { on: true }, second: { paddle: p2, magnet: magnet2, fire: true } });
+    expect(magnet2.on).toBe(false);
+    expect(b.stuckOffset).toBeNull();
+    expect(b.x).toBe(250 + offset - 3);
+  });
+
+  it("puts out a blue ghost ball in gold on player 2, a green one in green (0x4047BF)", () => {
+    const ghost = createBall(1500);
+    ghost.ghost = true;
+    ghost.anim.first = ghost.anim.frame = 0x1692;
+    ghostContact(ghost, 1);
+    expect(ghost.anim.first).toBe(P2_IRON_GHOST_DEATH);
+    const green = createBall(1500);
+    green.anim.first = green.anim.frame = 0x169b;
+    ghostContact(green, 1);
+    expect(green.anim.first).toBe(P2_GHOST_DEATH);
+  });
+
+  it("turns only the catcher's balls to ghosts, their first one in play aside (0x403EE5)", () => {
+    const balls = [createBall(1500, 0), createBall(1500, 1), createBall(1500, 1)];
+    makeGhosts(balls, 1);
+    expect(balls.map((b) => b.ghost)).toEqual([false, false, true]);
+  });
+
+  it("gives the extra balls to the catcher (0x40242F)", () => {
+    const balls: ReturnType<typeof createBall>[] = [];
+    addBalls(balls, 2, createPaddle(203), emptyLevel, 1500, new Rng(1), 1);
+    expect(balls.map((b) => b.owner)).toEqual([1, 1]);
   });
 });

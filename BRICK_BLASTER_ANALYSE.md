@@ -151,7 +151,7 @@ Durées réelles en jeu (s), à 13 208 Hz (§4.5) : 0.30, 0.56, 1.63, 0.51, 0.64
 
 **Capsules** (vérifié dans le code et sur l'image, 01/11/2026). 26 × 24 (`0x40527C`), une image par rangée : le pas d'animation (`+0x71 = 0x3E66`) donne 25 lignes, mais `+0x61 = 1` fait que la capsule n'est **jamais animée**. Les 3 rangées ont des rôles distincts :
 - **y = 752** (`0x75801 + 0x1A × n`) : la capsule qui tombe, en solo et pour le joueur 1.
-- **y = 777** (+`0x3E80`) : la capsule du joueur 2 en coop (`0x405405`), teinte verte.
+- **y = 777** (+`0x3E80`) : la capsule du joueur 2 en duel (`0x4053EA`, `0x405405`), teinte verte. En coop, toutes les capsules sont bleues (§4.6).
 - **y = 802** (+`0x7D00`, `0x4055EF`) : l'icône du bonus actif dans le HUD. Même dessin que la première rangée, mais son cadre utilise les index 112..127 au lieu de 96..111. Ces index n'existent que là dans la planche, ce qui permet de les faire clignoter seuls (§5.2).
 - `0x81381` (y = 827) est un sprite vide : c'est lui qui « efface » une capsule ou l'icône.
 
@@ -163,9 +163,9 @@ Durées réelles en jeu (s), à 13 208 Hz (§4.5) : 0.30, 0.56, 1.63, 0.51, 0.64
 | Explosion (mêmes tailles) | `0x1C701`, `0x1C7D5`, `0x1C778` | `0x89081`, `0x89155`, `0x890F8` | `0x4030DC`..`0x403162` |
 | Départ (warp) | `0x891E5`, `0xE1C81`, `0x8929F` | `0xCDDE5`, `0xE1D01`, `0xCDE9F` | `0x4032B4`..`0x40333A` |
 | Arrivée | `0x89242` | `0xCDE42` | `0x40329D` |
-| Balle : normale, fantôme, fer, fer fantôme | `0x1680`, `0x1692`, `0`, `0x12` | + 9 (verte, ou dorée pour le fer) | `0x4038E4`, `0x403998` |
-| Vies | `0x277` | `0x18F7` (+`0x1680`, rangée verte) | `0x405B81` |
-| Capsules | `0x75801 + 0x1A × n` | +`0x3E80` (rangée verte) | `0x405405` |
+| Balle : normale, fantôme, fer, fer fantôme | `0x1680`, `0x1692`, `0`, `0x12` | + 9 (verte, ou dorée pour le fer), en duel seulement (§4.6) | `0x4038E4`, `0x403998` |
+| Vies | `0x277` | `0x18F7` (+`0x1680`, rangée verte), en duel | `0x405B81` |
+| Capsules | `0x75801 + 0x1A × n` | +`0x3E80` (rangée verte), en duel | `0x405405` |
 
 **Extinction de la balle du joueur 2**. Dans l'original, une balle fantôme du joueur 2 s'éteint comme une balle de fer bleue : `0x40466B` ne compare qu'à `0x1692`, donc `0x169B` part en `0x2E`. Le jeu affiche aujourd'hui les couleurs du joueur 1 partout. La table de `src/render/skin.ts`, gardée pour un futur choix de skin, s'écarte de l'original en gardant la couleur de la balle : verte en `0x16AE + 0x46`, dorée en `0x2E + 0x46`. La planche range ces 5 images à 70 px de celles du joueur 1, avec exactement les mêmes pixels ; à 60 px, on tomberait sur l'anneau intact et on perdrait la dernière image.
 
@@ -546,6 +546,46 @@ Le rebond sur la raquette joue `wall` (`0x4046E0`), l'accélération `speedup` (
 
 **Remake** : le tick de chargement du fond est affiché comme le fond nu à la palette 31, ce qui revient au noir. La raquette reste figée pendant les animations, puisque l'original la remplace par l'objet animé (probable). Le tir est le bouton de souris, Espace, Entrée ou Ctrl : Espace ne relance donc pas la partie, contrairement à l'original. Un clic plus court qu'un tick est mémorisé jusqu'au tick suivant.
 
+### 4.6 Mode coopératif (vérifié dans le code, 06/11/2026)
+
+**Variables.** `[0x411015]` = nombre de joueurs (1 ou 2), `[0x41101D]` = 1 en coop, `[0x411019]` = 1 en duel : le quadrant bleu du menu 2 écrit le premier (`0x40167E`), le rose le second (`0x40169E`). Le contrôle du J2 est dans `[0x411011]` : 8 ordinateur, `0x10` clavier, `0x20` joystick (`0x4016C1`, `0x4016D0`, `0x4015AA`), et `[0x41B7D2]` vaut 0 en joystick analogique, 1 en numérique (`0x4015D2`, `0x4015EB`). Au lancement (`0x40114C`), `[0x411035]`, `[0x411039]` et `[0x41103D]` passent à 0, puis tous trois à 1 si le J2 est l'ordinateur. `[0x411035]` veut dire « l'ordinateur joue », `[0x41103D]` « le J1 reste humain ». La démo ne met que `[0x411035]` (`0x401124`).
+
+**Structure d'un joueur** (`0x28` octets, J1 en `0x415746`, J2 en `0x41576E`) : `+0` sa raquette (`0x413CDC`, `0x413F60`), `+4` l'adresse de son score dans la planche, `+8` **son bonus actif**, `+0x0C` le côté du prochain mini tir, `+0x10` le verrou du tir, `+0x14` le score, `+0x20` les vies en réserve, `+0x24` le seuil de la prochaine vie. `[0x415796]` désigne le joueur qui a pris la dernière capsule. Chaque objet garde son propriétaire en `+0x9D`.
+
+**Score et vies communs.** Hors duel, toutes les routines de score (`0x40841D` en `0x408436`, `0x4083D2` en `0x4083D3`), de vie (`0x405F71`, `0x405FC4`, `0x404A50`) et de vie supplémentaire (`0x40600B`) prennent le J1. La vie supplémentaire du J2 (`0x40605B`), ses vies (`0x405BF9`) et son score à l'écran (`0x408383`, `0x405A86`) n'existent qu'en duel. Le HUD de la coop est celui du solo. Les couleurs du J2 aussi sont propres au duel : balle +9 (`0x4038D3`, `0x403983`) et capsule verte (`0x4053EA`). En coop, toutes les balles et toutes les capsules sont bleues, et une capsule n'a pas de propriétaire.
+
+**Seconde raquette** (`0x4026E4`, objet `0x413F60`). Mêmes valeurs que celle du J1 (74 × 25, y 416, bornes 112..454, 4 images, délai 5), sprite `0xAA00`. Grande et petite (`0x4035AC`, `0x4036C0`) : mêmes tailles, mêmes sons, sprites `0xAB28` et `0xABFA`. Ses 3 canons suivent (`0x413FE1`), aux mêmes positions relatives, avec leurs propres images : mini gauche `0x3F5F6`, mini droit `0x3F612`, gros `0x4413E` (`0x40624C`, `0x406124`). Au départ de chaque manche (`0x40256C`), J1 est en x = `0x140 + 0x50 − 0x25` = 363 et J2 en `0x140 − 0x50 − 0x25` = 203 : **le J2 est à gauche**. Les deux raquettes arrivent (`0x404BC5`), décollent (`0x404C14`) et explosent (`0x404C88`, en coop seulement) ensemble, avec les sprites du J2 du §3.5. Les attentes portent sur la raquette du J2, à la même cadence.
+
+**Balles et service.** Chaque manche (`0x4037C9`, `0x403866`) crée la balle 0 au J1 et la balle 1 au J2, puis `0x404FBE` les pose au centre de leur raquette et les colle toutes deux (bits 0 et 1 de `[0x41104D]`). Pendant l'attente, chacune suit sa raquette (`0x4050DA`). N'importe quel tir sert (`0x406FE1` : souris, Ctrl, bouton de joystick). Avec v = `Start_Speed + q` (§4.5), la balle 0 part en (v, −(v + 1)) et la balle 1 en (**−v**, −(v + 1)) (`0x405172`) : vers la gauche. La vitesse du clavier `[0x41B7D6]` vaut 2v, tirée de la balle 1 (`0x4051D3`).
+
+Une balle collée suit la raquette qui la tient (`+0x91`, `0x403D97`). Celle du J1 part au bouton de souris (`0x407065`), celle du J2 à son tir (`0x407023` : Ctrl au clavier, n'importe quel bouton au joystick), et chaque départ n'éteint que le bit de sa raquette (`0x403DB3`, `0x403DC8`). Servir au clic laisse donc la balle du J2 sur sa raquette jusqu'à son propre tir. L'ordinateur lâche aussitôt (`0x403E71`).
+
+**Rebonds.** Chaque balle teste la raquette du J1 puis celle du J2 (`0x404610`, `0x40476A`), sans condition de propriétaire hors duel, avec la même règle (§4.2). Le J2 colle avec le bit 1 (`0x4048E0`). Un rebond sur le J1 rend `dy` négatif : pas de second rebond dans le même tick. Une balle fantôme qui touche le J2 s'éteint avec le sprite `0x16F4` si elle vaut `0x169B` (balle fantôme verte du duel), sinon `0x74` (`0x4047BF`). En coop, elle vaut toujours `0x1692` : elle s'éteint en doré, avec les images de la balle de fer fantôme du J2.
+
+**Vie perdue** (`0x404A38`). Le jeu compte les balles à l'état 1 ou −3, de tous les propriétaires hors duel. La vie est perdue s'il n'en reste aucune ou, en coop, **moins de 2** (`0x404A96`). Avec les deux balles du service, la première balle perdue coûte une vie. Les deux raquettes explosent, puis la manche repart avec deux balles.
+
+**Bonus.** Le ramassage (`0x4054D2`) teste la raquette du J1, puis celle du J2, avec la même règle (§5.2). Celui qui prend la capsule devient `[0x415796]`, et le bonus va dans `[0x411C70]` et dans **son** emplacement `+8` (`0x4055DC`). Tout ce qui vide le bonus actif (bonus instantanés, fin du minuteur, vie perdue, manche, `night`…) vide aussi les deux emplacements. L'aimant (`0x4063E6`) remet le bonus précédent `[0x411C74]` dans les trois, et n'allume que le bit du ramasseur.
+- **Par joueur**, lus dans l'emplacement `+8` : grande et petite raquette (`0x4033D6`, `0x4034CD` ; `0x4035E6`, `0x4036EA`), tirs et canons (`0x402835`, `0x402BFB`, mis en place pour le ramasseur en `0x4060BD` et `0x406195`), inversion (`0x406E12` pour la souris du J1, `0x406BBE` et `0x406C98` pour le J2). Un bonus durable pris par l'un ne retire donc pas celui de l'autre : un joueur peut rester grand pendant que l'autre tire, jusqu'à ce que les emplacements soient vidés (minuteur, compté depuis la dernière capsule, ou bonus instantané). Le gros tir vide le bonus actif et l'emplacement du tireur seulement (`0x40299E`, `0x402D5B`).
+- **Liés au ramasseur** : les balles supplémentaires naissent au-dessus de sa raquette et lui appartiennent (`0x40242F`). `ghost` donne **10 balles à deux joueurs** (`0x406464`), puis seules les balles du ramasseur deviennent fantômes, sauf sa première balle en jeu (`0x403ED5`, `0x403F16`).
+- **Communs** : `fast`, `slow`, `iron` et `telepod` agissent sur toutes les balles ; `night`, `next_level`, `del_monster`, `add_monster`, `death`, `new_life`, `bonus` et `malus` sur l'état commun.
+- **`collision`** (routine `0x406501`) est tirée à deux joueurs, coop comprise : `0x4052FC` met son drapeau à 1 dès que `[0x411015]` vaut 2. Elle dure comme un bonus durable. Chaque tick, sa routine écrit `[0x411041]` = J2.x − J1.x. Puis `0x402F9D` (mode 3, deux joueurs) empêche les raquettes de se croiser : J2 à droite (écart ≥ 0), J2.xmin = J1.x + J1.l et J1.xmax = J2.x − J1.l ; J2 à gauche, J1.xmin = J2.x + J2.l et J2.xmax = J1.x − J2.l. Sans le bonus, les bornes reviennent à 112 et 528 − l à chaque tick. Elles s'appliquent au déplacement (`0x406EB1`, `0x406BEF`) et avant le dessin (`0x40687F`, le minimum testé d'abord).
+
+**Contrôles du J2** (`0x406D17`, avant la souris du J1, sauf en modes 4 et 8) :
+- **Clavier** (`0x406BB1`) : ← et → déplacent de `[0x41B7D6]` par tick, puis blocage aux bornes. Le tir est Ctrl (scancode `0x1D`, `0x407023`).
+- **Ordinateur** (`0x404F8B`, en mode 3 seulement) : x = balle 1.x − l/2, puis blocage aux bornes. Il suit l'emplacement 1, quelle que soit la balle qui l'occupe, et ne bouge pas pendant le service. Il lâche ses balles collées aussitôt, et tire quand le compteur `[0x406565]` dépasse 10, sans verrou (`0x402CCC`) ; ce compteur avance à chaque tick (`0x406555`) et revient à 0 à chaque tir, soit un tir tous les 11 ticks. Le J1 sert.
+- **Joystick** (`0x406C28`) : en analogique, x = (axe + 1000) × 416 / 2000 + 112 − l/2, en miroir (528 − x) sous inversion ; en numérique, ± la vitesse du clavier au-delà de ±800. Tir : n'importe lequel des 16 boutons.
+
+**Ordre de la boucle** (`0x401DFB`) : vie supplémentaire J1 puis J2, grande et petite raquette J1 puis J2, tirs J1 (`0x402828`) puis J2 (`0x402BE1`), monstres, `0x406370`, `collision` (`0x402F9D`), entrée J2 puis J1 (`0x406D17`), service, balles…
+
+**Fin de partie.** Hors duel, le game over (`0x408AD9`) et l'écran de félicitations (`0x408710`, `final_text`) sont ceux du solo. Les meilleurs scores vont dans la **table coop** dès que `[0x411015]` vaut 2 (`0x408C2E`, `0x408528`), avec le score commun. « Scores coop » du menu Divers l'affiche (`0x4011E1`). Après un game over, `0x401FB4` relance une partie à deux.
+
+**Remake** (`src/game/game.ts`, `src/game/coop.test.ts`) : porté tel quel, sauf :
+- le J2 joue au clavier (← →, Espace) ou par l'ordinateur ; le joystick et le menu 7 ne sont pas portés, leurs quadrants ne font que le son ;
+- le clavier du J2 accélère comme celui du J1 (§4.4), au lieu de la vitesse fixe `[0x41B7D6]` ;
+- dans une partie à deux au clavier, les flèches et Espace sont au J2, qui tire donc à Espace au lieu de Ctrl, à côté des flèches : le J1 joue à la souris, et tire au bouton, à Ctrl ou à Entrée ;
+- le J2 a ses couleurs de l'original (raquette, explosion, décollage, arrivée, canons), tout le reste celles du J1, comme dans l'original ;
+- les tables coop suivent celles du solo : une par monde et par difficulté sur le web (`brick-blaster.scores.coop.<monde>.<difficulté>`), une seule pour le .exe (`brick-blaster.scores.coop`) .
+
 ## 5. Configuration du gameplay (`blaster.cfg` décompressé) — vérifié
 
 Texte brut, format `Clé : (valeur) ; commentaire`. Les triplets correspondent à **(facile, moyen, difficile)**.
@@ -606,7 +646,7 @@ Difficulté courante en `[0x41100D]` : 1 = facile, 2 = moyen, 4 = difficile.
 
 | Offset | Champ |
 |---|---|
-| `+0x00` | actif (1/0). Seule `collision` est à 0 : elle n'est activée qu'en **mode duel** (`0x4052FC`). |
+| `+0x00` | actif (1/0). Seule `collision` est à 0 : elle n'est activée qu'**à deux joueurs**, coop comprise (`0x4052FC`, §4.6). |
 | `+0x04/08/0C` | `Freq_Option_*` facile / moyen / difficile |
 | `+0x10` | code du bonus = adresse de son sprite (`0x75801 + 0x1A × n`). Sert aussi d'identifiant d'« état actif ». |
 | `+0x14` | routine d'effet |
@@ -626,7 +666,7 @@ f = table[i].freq[diff]
 if f == 0: recommencer le tirage        // bonus désactivé : on en tire un autre
 if f > 1 and rand(0..f-1) != 0: return  // probabilité 1/f, sinon aucun bonus
 lâcher une capsule au coin haut-gauche de la brique, chute 2 px/tick
-(en coop : capsule à la couleur du joueur dont la balle a cassé la brique)
+(en duel : capsule à la couleur du joueur dont la balle a cassé la brique, §4.6)
 ```
 
 - **`Freq_Option_* = f` veut dire « 1 chance sur f »** une fois le bonus tiré au sort. La probabilité qu'une brique cassée lâche le bonus `i` vaut donc ≈ `1/24 × 1/f`. Une valeur plus haute rend le bonus plus rare : l'hypothèse de départ était juste. `0` désactive le bonus.
@@ -657,7 +697,7 @@ lâcher une capsule au coin haut-gauche de la brique, chute 2 px/tick
 | Bonus | Routine | Effet |
 |---|---|---|
 | `3_ball`, `6_ball`, `9_ball`, `20_ball` | `0x405EBA`, `0x405EE3`, `0x405F0C`, `0x405F35` | `0x40240E` avec 1, 3, 6, 20 balles |
-| `ghost` | `0x40645F` | 20 balles (10 en duel), puis toutes les balles du joueur passent fantômes (`0x403ED5`, sprite +0x12, drapeau `+0x99`), sauf la première à l'état 1 (`0x403F16`). Voir plus bas |
+| `ghost` | `0x40645F` | 20 balles (10 à deux joueurs, `0x406464`), puis toutes les balles du joueur passent fantômes (`0x403ED5`, sprite +0x12, drapeau `+0x99`), sauf la première à l'état 1 (`0x403F16`). Voir plus bas |
 | `death` | `0x405F5E` | son `death`, −1 vie **seulement s'il en reste en réserve** : jamais de game over |
 | `new_life` | `0x405FB1` | son `newlife`, +1 vie (plafond 19) |
 | `bonus` (« +100 pts ») | `0x40649B` | **8 unités** avec le bonus de difficulté : 80/90/100 points, ×2 sous « points ×2 » |
@@ -744,7 +784,7 @@ tant qu'un des 4 coins touche une indestructible (0x40252D, même test qu'au §4
 | ghost | fantôme | 20 balles dont toutes sauf une fantômes (§5.2) |
 | bonus | +100 pts | 8 unités : 80/90/100 points |
 | malus | −100 pts | −120 points |
-| collision | collision | (en duel : les balles entrent en collision ? à vérifier) |
+| collision | collision | à deux joueurs : les raquettes ne peuvent plus se croiser (§4.6) |
 
 ### Menus (vérifié dans le code, 01/11/2026)
 
@@ -779,11 +819,13 @@ tant qu'un des 4 coins touche une indestructible (0x40252D, même test qu'au §4
 - Lancement (`0x40119A`) : musique du monde, le menu restant figé `volume + 1` ticks, fondu de sortie (`0x401D18`), puis la partie (§4.5).
 - Retour : Échap (`0x401FB3`) ou fin du dernier niveau (`0x401C87`) ressortent de `0x401D18`. Musique `love` (`0x4011B4`), puis menu principal.
 - Quitter (`0x4012AA`) : fondu de sortie, avec les volumes qui baissent de `[0x41B7A4]` = 2 par tick tant qu'ils restent positifs (`0x40663C`).
-- Veille : 600 ticks sans mouvement remettent la difficulté à moyen et lancent la démo (`0x401423`).
+- Veille : 600 ticks sans mouvement remettent la difficulté à moyen et lancent la démo (`0x401423`), depuis n'importe quel menu. Le compteur repart de 600 quand le curseur bouge (`0x401805`) ou sur un appui, même hors quadrant (`0x401464`).
+- Quadrant démo : il renvoie 4, qui tombe dans le cas par défaut (`0x401576` : difficulté moyenne, sans attendre le relâchement), et la boucle principale lance la démo (`0x4010D4`). Voir Démo.
 - Démarrage (`0x401058`) : `media.gif` (`0x401B98`, 200 ticks ou une touche), puis `credit_b.gif` (`0x401BD5`, 150 ticks), puis le menu. Aucun FLC : `intro.flc` joue dans les crédits (`0x407078`), `Blaster.flc` sur l'écran de fin (`0x407143`).
 
 **Remake.**
-- Démo, coop, duel, scores coop : le quadrant joue le son et ne fait rien, comme le quadrant vide. Les menus 3 et 7 sont inaccessibles en solo, donc non portés. Pas de veille.
+- Duel et joystick : le quadrant joue le son et ne fait rien, comme le quadrant vide. Le menu 3 est porté pour la coop (§4.6), le menu 7 non.
+- La démo et la veille sont portées. Seules les touches de validation remettent la veille à zéro : les autres ne valident rien dans le remake.
 - Le curseur suit la position réelle de la souris, sans Pointer Lock. Le verrouillage est demandé au lancement de la partie et libéré au retour.
 - Les flèches déplacent le curseur entre les quadrants et les barres, et une barre se règle avec gauche et droite. Seuls Entrée, Espace et Ctrl valident, sinon les flèches valideraient aussi.
 - Ajout : une barre de sensibilité de la souris (0,1 à 3), en miroir en x 134, avec le cadre 72 × 19 (`0x17F2`) que `menu.gif` contient sans s'en servir. Elle affiche « souris » à la place du titre au survol.
@@ -791,6 +833,37 @@ tant qu'un des 4 coins touche une indestructible (0x40252D, même test qu'au §4
 - Échap en partie, souris verrouillée : le navigateur s'en sert d'abord pour libérer la souris, un second appui revient au menu.
 - La pulsation ne touche que le bouton et le logo : 20 pixels de `title.gif` de ces couleurs, hors du bouton, ne pulsent pas. La phase repart de 0 à chaque visite, elle n'est pas partagée avec l'icône de bonus. Le tick perdu par `0x408602` à chaque changement de texte n'est pas reproduit.
 - Musique et sensibilité sont gardées dans `localStorage` (`brick-blaster.settings`).
+
+### Démo (vérifié dans le code, 06/11/2026)
+
+Drapeaux : `[0x411035]` = 1 sans `[0x41103D]` (le joueur 1 est l'ordinateur), `[0x411039]` = 0 (à 1, c'est le mode « test » d'une touche de triche, sans fin).
+
+**Lancement** (`0x4010E4`). `[0x411015]` = `rand(1) + 1` joueurs, puis le monde `rand(1)` : le chiffre est écrit dans le nom du set (`[0x41100C]`), du fond (`0x41B7E8`) et de la palette (`0x41B80B`). Mode 3, `[0x411004]` = 800, puis `0x401D18` comme une partie, mais **sans changer de musique**. Dans `0x401D18`, le niveau est tiré parmi tout le set, `rand(nombre − 1) + 1` (`0x401D7C`), et le texte « demo » s'affiche (`0x401D8D`).
+
+**Niveaux vides.** Le nombre de niveaux `[0x411C5C]` n'est compté qu'au démarrage, sur `lv0` (`0x401062`), et sert aussi à `lv1`. Un set plus court que `lv0` fait tirer un emplacement vide `0xFF` : c'est le plantage de §8.
+
+**Jeu.**
+- Raquette (`0x404F64`, appelée par `0x406EAC` après le déplacement de la souris) : `x = balle1.x − largeur / 2`, quel que soit l'état de la balle 1, puis bornes. Si la souris a rendu x négatif, le suivi saute ce tick.
+- Manche (`0x4037F0`) : ni « pret ? » ni mode 2. La balle 1 passe à l'état 1 avec `dx = 3`, `dy = −4`, sans tenir compte du niveau ni de la difficulté. Le mode reste 3 : la balle collée part au tick suivant.
+- Après une vie perdue, le mode vaut 6 : le service (`0x405093`) a lieu, sans attendre le tir (`0x40511C`), à la vitesse du niveau, et efface « pret ? ».
+- Aimant : une balle collée repart aussitôt (`0x403E27`).
+- Canons : ils tirent seuls quand le compteur de rafraîchissements `[0x406561]` (+1 à chaque appel de `0x40653C`) dépasse 10, puis il repart de 0 : un tir tous les 11 ticks, sans verrou (`0x40290F`).
+- Après le dernier niveau, retour au niveau 1 (`0x401C79`), sans « pret ? » (`0x401CF6`).
+- Bonus, vies, score et pause (P) fonctionnent comme en partie.
+
+**Fin** (`0x401F41`, à chaque tour complet de la boucle principale, donc ni pendant les animations, ni pendant les fondus, ni en pause) :
+- un tir tenu (`0x406FE1` : bouton, Ctrl ou joystick), Espace (`0x401F79`) ou Échap (`0x401EF9`) : attente du relâchement, puis retour au menu ;
+- `[0x411004]` tombe à 0 : retour au menu sans attente, après **800 tours** (13,3 s) ;
+- la souris qui bouge ne compte pas.
+
+Le retour passe par `0x40107B` : menu principal, avec ses fondus. Aucun score n'est enregistré. Un game over (presque impossible en 800 tours, la raquette rattrapant toujours la balle 1) suit le chemin d'une partie : écran des scores, puis `0x401FCE` efface les drapeaux et une vraie partie commence au niveau de départ, avec la musique du menu.
+
+**Remake** (`src/game/demo.ts`) :
+- un seul joueur tant que la coop n'existe pas ;
+- le niveau est tiré parmi ceux du monde choisi, jamais un emplacement vide ;
+- le .exe tire espace ou arcade, la version navigateur tire aussi Limbes, que son menu propose ;
+- le compteur des canons part de 0 au lancement de la démo ;
+- un clic, Entrée, Espace, Ctrl ou Échap l'arrête ; la souris n'est pas verrouillée pendant la démo.
 
 ### Écrans et meilleurs scores (vérifié dans le code, 01/11/2026)
 
@@ -928,13 +1001,13 @@ Graphismes, sons, musiques et niveaux appartiennent à Eclipse / leurs auteurs (
 - ~~Effet exact du garde-fou « monstre bloqué en haut »~~ : résolu, il n'en a aucun (§4.3).
 - ~~Logique cadencée exactement à 50 Hz ?~~ : résolu, non : 60 ticks par seconde (§4.2), cadence adoptée par le remake. Mesure sur l'original : jamais de tick à 20 ms (§4.2).
 - Le jeu plante dès qu'il perd le plein écran (Alt+Tab, Impr. écran) : comparer le remake à l'original demandera un outil de fenêtrage (DxWnd).
-- La démo plante si le set de niveaux contient des emplacements vides (`0xFF`) parmi ceux qu'elle tire au sort : un set de test doit remplir 40 emplacements.
+- La démo plante si le set de niveaux contient des emplacements vides (`0xFF`) parmi ceux qu'elle tire au sort : un set de test doit remplir 40 emplacements. Cause trouvée : le nombre de niveaux vient de `lv0` seul (Démo). Le remake tire dans le set du monde choisi.
 - ~~Correspondance entre noms de fichiers `.mod` et titres de modules~~ : résolu, par le répertoire de l'exe (§3.3).
 - ~~Sortie de l'original en stéréo ou non~~ : résolu, il la demande (§4.5).
 - ~~Quel set de niveaux correspond à quel monde~~ : résolu, espace = lv0, arcade = lv1 (§4).
 - ~~Rôle de `0x408AD9` et retour au menu~~ : résolu (§4.5, Menus).
 - ~~Contenu de `blaster.scr` une fois déchiffré~~ : résolu (Écrans et meilleurs scores). Les `.usr` restent sans importance pour le remake.
-- Routine d'effet restante : `collision`, qui ne concerne que le duel.
+- ~~Routine d'effet restante : `collision`~~ : résolu, elle bloque les raquettes l'une contre l'autre, en coop comme en duel (§4.6).
 - ~~Capsules pendant le décollage de fin de niveau~~ : résolu et porté (§5.2).
 - Balle enfermée : à vitesse maximale, une balle en angle raide a |dx| = 14 et ne peut plus passer en rasant (§4.2). Entre deux rangées d'indestructibles, elle peut boucler sans jamais revenir à la raquette, et l'anti-boucle ne l'en sort pas. Observé dans le remake au niveau 9 d'arcade (2 parties automatiques sur 117) : seul Échap en sort. Le portage suit `0x4051E3`, mais le cas n'a pas été reproduit dans l'original.
 - Rôle de l'octet patché à l'offset 28850.

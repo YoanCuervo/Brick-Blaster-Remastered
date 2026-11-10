@@ -4,6 +4,9 @@ import {
   PADDLE_LARGE,
   PADDLE_SMALL,
   PADDLE_X_MIN,
+  PLAYER1_START_X,
+  PLAYER2_START_X,
+  clampPaddleX,
   createPaddle,
   movePaddle,
   paddleMaxX,
@@ -28,7 +31,7 @@ describe("paddle (0x4025B0)", () => {
 
   it("follows the paddle width for the right bound", () => {
     const p = createPaddle();
-    p.w = 0x26;
+    setPaddleSize(p, PADDLE_SMALL);
     movePaddle(p, 1000);
     expect(p.x).toBe(528 - 0x26);
   });
@@ -73,5 +76,27 @@ describe("paddle sizes and animation (0x4025B0, 0x4033F3, 0x4034FB)", () => {
     expect(p.x).toBe(454);
     movePaddle(p, 0);
     expect(p.x).toBe(0x210 - 105);
+  });
+});
+
+describe("two paddles (§4.6)", () => {
+  it("starts player 1 right and player 2 left of the centre (0x40256C)", () => {
+    expect(PLAYER1_START_X).toBe(363);
+    expect(PLAYER2_START_X).toBe(203);
+  });
+
+  it("clamps to the lower bound first when the bounds cross (0x40687F)", () => {
+    const p = createPaddle(300);
+    p.xMin = 350;
+    p.xMax = 320;
+    expect(clampPaddleX(p, 300)).toBe(350);
+    expect(clampPaddleX(p, 400)).toBe(320);
+  });
+
+  it("gets the play area back with each size (0x4025F7)", () => {
+    const p = createPaddle();
+    p.xMin = 300;
+    setPaddleSize(p, PADDLE_LARGE);
+    expect([p.xMin, p.xMax]).toEqual([112, 528 - 105]);
   });
 });

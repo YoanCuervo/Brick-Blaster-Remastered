@@ -18,8 +18,10 @@ Projet personnel, qui alimentera un portfolio. Pas d'échéance.
 - Partie solo complète, avec toutes les règles décodées de l'original (analyse §4 et §5) :
   - 5 comportements de briques pour 6 valeurs (normale, 4 coups sous 2 valeurs, fantôme, indestructible, téléporteur) ;
   - rebond sur la raquette à 2 angles, accélération progressive, anti-boucle infinie ;
-  - 23 bonus en solo sur les 24 de la table, `collision` ne servant qu'en duel (tirage exact, un seul actif à la fois, durée 600 ticks) ;
+  - 23 bonus en solo sur les 24 de la table, `collision` ne servant qu'à deux joueurs (tirage exact, un seul actif à la fois, durée 600 ticks) ;
   - monstres, score, vies, vie supplémentaire.
+- Mode coopératif à deux joueurs, avec les règles décodées de l'original (analyse §4.6) : score et vies communs, une balle par joueur, vie perdue dès qu'il reste moins de 2 balles, bonus durables propres à chaque joueur, `collision`, joueur 2 au clavier (flèches et Espace) ou joué par l'ordinateur, table des scores coop. Le joueur 1 garde la souris et tire au bouton, à Ctrl ou à Entrée ; ses flèches et Espace passent au joueur 2 dans une partie au clavier. Le joueur 2 a ses couleurs de l'original (raquette et canons). Écarts assumés : son clavier accélère comme celui du joueur 1, et il tire à Espace, à côté des flèches, au lieu de Ctrl. Le joystick du joueur 2 (menus 3 et 7) n'est pas porté.
+- Mode démo de l'original, lancé par le quadrant du menu ou après 600 ticks sans action : la raquette suit la balle par la règle de 1999 (analyse, Démo), pas par une IA moderne.
 - Les 2 mondes d'origine (espace, arcade) et leurs 80 niveaux, 40 par monde, avec leurs fonds.
 - Contrôle à la souris (Pointer Lock, sensibilité continue réglable), plus le clavier.
 - Sons, musiques MOD d'origine, 3 difficultés.
@@ -36,10 +38,10 @@ Projet personnel, qui alimentera un portfolio. Pas d'échéance.
 
 | Élément | Statut |
 |---|---|
-| Mode 2 joueurs (coop et duel) | Abandonné en V1. Remplacé en V2 par la section en ligne et un mode multijoueur. |
+| Mode duel | Plus tard : toutes ses règles sont maintenant décodées, `collision` compris (analyse §4.6). |
+| Joystick du joueur 2 (menus 3 et 7) | Plus tard : décodé (analyse §4.6), non porté. |
 | Éditeur de niveaux | Plus tard, éventuellement |
-| Mode démo | **Dette technique.** Piste retenue : une vidéo ou un replay, jamais une IA. |
-| Choix du skin par le joueur (version navigateur) | **Dette technique.** Couleurs du joueur 1 ou du joueur 2 de l'original, affichage seul. La table existe (`src/render/skin.ts`, analyse §3.5), mais aucun réglage ni menu ne la propose. |
+| Choix du skin par le joueur (version navigateur) | V2, avec le site web |
 | Classement en ligne, backend, authentification | V2 |
 | Version mobile et tactile | Exclue |
 | Autres langues que le français | Exclues |
@@ -54,7 +56,7 @@ On peut finir les niveaux d'un monde, du menu jusqu'à l'écran « félicitation
 |---|---|
 | **TypeScript + Canvas 2D + Vite**, sans framework de jeu ni React | Une boucle de jeu n'a rien à gagner avec React, et un moteur (Phaser…) cacherait la physique décodée qu'on doit reproduire exactement. |
 | Rendu en **640×480 logique**, mis à l'échelle en pixels nets (`imageSmoothingEnabled = false`), plein écran optionnel | C'est la résolution des assets. |
-| **Moteur déterministe** : pas fixe à 60 Hz, hasard à graine | La cadence de l'original : un tick par rafraîchissement de son mode d'écran à 60 Hz (analyse §4.2), et non son timer de 20 ms comme on l'a d'abord cru. Le remake tournait à 50 Hz jusqu'à la recette V1. Rend possibles la démo par replay et, en V2, la vérification des scores côté serveur. |
+| **Moteur déterministe** : pas fixe à 60 Hz, hasard à graine | La cadence de l'original : un tick par rafraîchissement de son mode d'écran à 60 Hz (analyse §4.2), et non son timer de 20 ms comme on l'a d'abord cru. Le remake tournait à 50 Hz jusqu'à la recette V1. Rend possible, en V2, la vérification des scores côté serveur. |
 | **chiptune3** (libopenmpt en WebAssembly), intégré au projet et non chargé depuis un CDN | Lit les musiques MOD d'origine, fidèle et léger. Fonctionne hors ligne. |
 | **Décodeur FLC maison** | Format 8 bits simple, sans dépendance, rendu exact. |
 | **localStorage** | Meilleurs scores et réglages, sans backend. |
@@ -91,7 +93,7 @@ Ces conclusions aident au cadrage. Elles ne remplacent pas l'avis d'un juriste.
 
 - Classement en ligne : backend sur Render ou Vercel, authentification.
 - Front hébergé sur GitHub Pages.
-- Mode démo (vidéo ou replay).
-- Mode multijoueur : le joueur 2 y reprendra ses couleurs de l'original (`src/render/skin.ts`). Rien n'est codé pour l'instant.
+- Mode duel, avec les couleurs du joueur 2 de l'original pour ses balles, capsules et vies (`src/render/skin.ts`).
+- Choix du skin par le joueur, intégré au site web : couleurs du joueur 1 ou du joueur 2 de l'original, affichage seul. La table existe (`src/render/skin.ts`, analyse §3.5), aucun réglage ni menu ne la propose encore.
 - Éditeur de niveaux.
 - Passage éventuel du .exe à Tauri, si un livrable léger devient utile.
