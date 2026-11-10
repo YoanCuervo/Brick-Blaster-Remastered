@@ -21,6 +21,7 @@ Projet personnel, qui alimentera un portfolio. Pas d'échéance.
   - 23 bonus en solo sur les 24 de la table, `collision` ne servant qu'à deux joueurs (tirage exact, un seul actif à la fois, durée 600 ticks) ;
   - monstres, score, vies, vie supplémentaire.
 - Mode coopératif à deux joueurs, avec les règles décodées de l'original (analyse §4.6) : score et vies communs, une balle par joueur, vie perdue dès qu'il reste moins de 2 balles, bonus durables propres à chaque joueur, `collision`, joueur 2 au clavier (flèches et Ctrl) ou joué par l'ordinateur, table des scores coop. Le joueur 1 garde la souris ; ses flèches et Ctrl passent au joueur 2 dans une partie au clavier. Le joueur 2 a ses couleurs de l'original (raquette et canons). Écart assumé : son clavier accélère comme celui du joueur 1. Le joystick du joueur 2 (menus 3 et 7) n'est pas porté.
+- Mode démo de l'original, lancé par le quadrant du menu ou après 600 ticks sans action : la raquette suit la balle par la règle de 1999 (analyse, Démo), pas par une IA moderne.
 - Les 2 mondes d'origine (espace, arcade) et leurs 80 niveaux, 40 par monde, avec leurs fonds.
 - Contrôle à la souris (Pointer Lock, sensibilité continue réglable), plus le clavier.
 - Sons, musiques MOD d'origine, 3 difficultés.
@@ -40,8 +41,7 @@ Projet personnel, qui alimentera un portfolio. Pas d'échéance.
 | Mode duel | Plus tard : toutes ses règles sont maintenant décodées, `collision` compris (analyse §4.6). |
 | Joystick du joueur 2 (menus 3 et 7) | Plus tard : décodé (analyse §4.6), non porté. |
 | Éditeur de niveaux | Plus tard, éventuellement |
-| Mode démo | **Fait.** La démo de l'original est reproduite : la raquette suit la balle par la règle de 1999 (analyse, Démo). Ce n'est pas une IA moderne. |
-| Choix du skin par le joueur (version navigateur) | **Dette technique.** Couleurs du joueur 1 ou du joueur 2 de l'original, affichage seul. La table existe (`src/render/skin.ts`, analyse §3.5), mais aucun réglage ni menu ne la propose. |
+| Choix du skin par le joueur (version navigateur) | V2, avec le site web |
 | Classement en ligne, backend, authentification | V2 |
 | Version mobile et tactile | Exclue |
 | Autres langues que le français | Exclues |
@@ -94,5 +94,6 @@ Ces conclusions aident au cadrage. Elles ne remplacent pas l'avis d'un juriste.
 - Classement en ligne : backend sur Render ou Vercel, authentification.
 - Front hébergé sur GitHub Pages.
 - Mode duel, avec les couleurs du joueur 2 de l'original pour ses balles, capsules et vies (`src/render/skin.ts`).
+- Choix du skin par le joueur, intégré au site web : couleurs du joueur 1 ou du joueur 2 de l'original, affichage seul. La table existe (`src/render/skin.ts`, analyse §3.5), aucun réglage ni menu ne la propose encore.
 - Éditeur de niveaux.
 - Passage éventuel du .exe à Tauri, si un livrable léger devient utile.
