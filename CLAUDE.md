@@ -13,7 +13,7 @@ Scope, choices and legal: [`docs/cadrage.md`](docs/cadrage.md). Reverse-engineer
 - Desktop: Electron + electron-builder (Windows 10+ .exe).
 - Tests: Vitest, game logic only. Lint: ESLint (typescript-eslint) + Prettier.
 
-V2 (planned, scope in `docs/cadrage.md`, not started): website hosting the game. npm-workspaces monorepo (`apps/web` React + TS + Vite, `apps/api` Node + TS + Fastify, `apps/desktop` Electron, `packages/game` the current engine, `packages/contracts` web/api schemas, `infra/`), MySQL, Brevo emails, OVH VPS behind Cloudflare. The backend decides everything: every score is replayed server-side from its seed and input log, never trusted from the client.
+V2 (planned, scope in `docs/cadrage.md`, not started): website hosting the game. npm-workspaces monorepo (`apps/web` React + TS + Vite, `apps/api` Node + TS + Fastify, `apps/desktop` Electron, `packages/game` the current engine, `packages/contracts` web/api schemas, `deploy/` this project's Dockerfiles and Caddy/compose fragments; the shared server config lives in a separate infra repo), MySQL, Brevo emails, OVH VPS behind Cloudflare. The backend decides everything: every score is replayed server-side from its seed and input log, never trusted from the client.
 
 ## Commands
 

@@ -151,8 +151,10 @@ apps/
 packages/
   game/       le moteur actuel (src/ : core, game, input, render, audio, ui, data)
   contracts/  types et schémas des échanges entre web et api
-infra/        docker-compose, Caddyfile, migrations SQL, sauvegardes
+deploy/       Dockerfiles de web et api, bloc Caddy du site, fragment docker-compose
 ```
+
+Les migrations SQL vivent dans `apps/api`, avec le code qui les utilise.
 
 Le code de `apps/api` n'entre jamais dans le bundle du navigateur. Le déplacement de `src/` vers `packages/game` est la première tâche de la V2 : le .exe et la version navigateur actuelle doivent rester buildables après.
 
@@ -167,6 +169,8 @@ Un seul serveur pour ce site, le portfolio et les autres projets à venir. Tout 
 - **Domaine .fr chez OVH** : Cloudflare ne vend pas le .fr, et c'est l'extension la moins chère des deux.
 - **Sauvegardes** : celle d'OVH ne garde que 24 heures. Un dump MySQL chaque nuit est copié dans OVH Object Storage.
 - Le serveur se maintient à la main : mises à jour, pare-feu, SSH par clé uniquement. Une procédure écrite accompagnera la mise en place.
+
+Le serveur est commun à plusieurs projets : sa configuration (Caddy global, MySQL partagé, sauvegardes, durcissement, procédure) vit dans un **dépôt d'infrastructure séparé**. Ce dépôt-ci ne fournit que ce qui est propre à Brick Blaster, dans `deploy/` : les images de `apps/web` et `apps/api`, le bloc Caddy du site et le fragment docker-compose que l'infra inclut.
 
 Coûts relevés le 11/11/2026 sur les sites des fournisseurs, à revérifier à la commande (OVH annonce des hausses en 2026) :
 
