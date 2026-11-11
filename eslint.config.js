@@ -14,6 +14,9 @@ export default tseslint.config(
       "game/",
       "tools/",
       "node_modules/",
+      // Git worktrees of other branches: each holds a full copy of the repo.
+      ".claude/",
+      ".worktrees/",
     ],
   },
   js.configs.recommended,
