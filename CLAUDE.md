@@ -13,20 +13,20 @@ Scope, choices and legal: [`docs/cadrage.md`](docs/cadrage.md). Reverse-engineer
 - Desktop: Electron + electron-builder (Windows 10+ .exe).
 - Tests: Vitest, game logic only. Lint: ESLint (typescript-eslint) + Prettier.
 
-V2 (planned, scope in `docs/cadrage.md`, not started): website hosting the game. npm-workspaces monorepo (`apps/web` React + TS + Vite, `apps/api` Node + TS + Fastify, `apps/desktop` Electron, `packages/game` the current engine, `packages/contracts` web/api schemas, `deploy/` this project's Dockerfiles and Caddy/compose fragments; the shared server config lives in a separate infra repo), MySQL, Brevo emails, OVH VPS behind Cloudflare. The backend decides everything: every score is replayed server-side from its seed and input log, never trusted from the client.
+V2 (planned, scope in `docs/cadrage.md`; only the monorepo move is done): website hosting the game. npm-workspaces monorepo (`apps/web` React + TS + Vite, `apps/api` Node + TS + Fastify, `apps/desktop` Electron, `packages/game` the current engine, `packages/contracts` web/api schemas, `deploy/` this project's Dockerfiles and Caddy/compose fragments; the shared server config lives in a separate infra repo), MySQL, Brevo emails, OVH VPS behind Cloudflare. The backend decides everything: every score is replayed server-side from its seed and input log, never trusted from the client.
 
 ## Commands
 
 ```bash
 npm install
 npm run dev            # browser version on http://localhost:5173 (needs assets/)
-npm run build          # type-check + production build into dist/
-npm test               # vitest (src/**/*.test.ts)
+npm run build          # type-check + production build into packages/game/dist/, type-check of apps/desktop
+npm test               # vitest in every workspace (packages/game/src/**/*.test.ts)
 npm run lint
 npm run format         # prettier (docs *.md are excluded on purpose)
 npx vite --config tools/acceptance/vite.acceptance.config.ts   # dev server on port 5188, levels 39-40 reduced to one brick
 npm run electron:dev   # build, then run it in Electron (no HMR: use npm run dev to iterate)
-npm run electron:build # local Windows installer in release/ (holds Eclipse assets: never publish it)
+npm run electron:build # local Windows installer in release/ (holds Eclipse assets: never publish it); add -- --dir for release/win-unpacked only
 tools/.venv/Scripts/python.exe tools/extract/extract_assets.py   # regenerate assets/ from original/
 ```
 
@@ -34,17 +34,21 @@ The installer build writes an uninstaller from an unknown .exe, which Windows Co
 
 ## Layout
 
+npm workspaces: run every command from the root, which delegates to the right workspace.
+
 ```
-src/            game code (core/, game/, input/, render/, audio/, ui/, data/)
-electron/       Electron main process (compiled to dist-electron/), serves dist/ over app://
-assets/         asset pack generated from original/ (NOT versioned, served by Vite)
-src/assets/     free backgrounds and music of the browser version (versioned, credits in CREDITS.md)
+packages/game/  @brick-blaster/game: engine + browser version (index.html, vite.config.ts)
+  src/          game code (core/, game/, input/, render/, audio/, ui/, data/)
+  src/assets/   free backgrounds and music of the browser version (versioned, credits in CREDITS.md)
+apps/desktop/   @brick-blaster/desktop: Electron main process (compiled to dist-electron/); copy-game.js
+                copies packages/game/dist into apps/desktop/dist, served over app://
+assets/         asset pack generated from original/ (NOT versioned, served by Vite as publicDir)
 original/       read-only reference copy of the 1999 game (NOT versioned)
 game/           playable test copy of the original with test cfg/levels (NOT versioned)
 tools/extract/  DIET decompressor + asset extraction (Python)
 tools/re/       disassembly helpers (capstone), output in tools/re/out/
 tools/acceptance/ short-world dev config, never part of the build
-tools/limbes/   generates the Limbes backgrounds in src/assets/backgrounds
+tools/limbes/   generates the Limbes backgrounds in packages/game/src/assets/backgrounds
 tools/          make_test_cfg.py, make_test_levels.py, blaster_cfg_original.txt
 docs/           cadrage.md
 ```

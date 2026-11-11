@@ -5,8 +5,8 @@ import tseslint from "typescript-eslint";
 export default tseslint.config(
   {
     ignores: [
-      "dist/",
-      "dist-electron/",
+      "**/dist/",
+      "**/dist-electron/",
       ".cache/",
       "release/",
       "assets/",
@@ -14,6 +14,9 @@ export default tseslint.config(
       "game/",
       "tools/",
       "node_modules/",
+      // Git worktrees of other branches: each holds a full copy of the repo.
+      ".claude/",
+      ".worktrees/",
     ],
   },
   js.configs.recommended,

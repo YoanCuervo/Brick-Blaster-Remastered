@@ -145,7 +145,7 @@ Durées réelles en jeu (s), à 13 208 Hz (§4.5) : 0.30, 0.56, 1.63, 0.51, 0.64
 - Les fonds dessinent leur image centrale avec les index 0 à 15, et les décors latéraux avec 216..223 (espace) ou 229..243 (arcade). Ces décors prennent donc les couleurs du monde. Dans les GIF arcade, ces index ne contiennent que du rouge de remplissage, jamais affiché.
 - Le fond est `resource\0W_0N.gif`, avec W le chiffre du monde et N = 1 + ((niveau − 1) & 7) : les 8 fonds tournent tous les 8 niveaux.
 - Les murs sont collés sur le fond au chargement (`0x40575F`) : sprite `0x5F743` (42 × 96) 5 fois en x 70, sprite `0x50743` 5 fois en x 528, avec la transparence.
-- Conséquence : les pixels de sprites d'index 1 à 15 prennent les couleurs du **fond courant**. Dans la planche, cela concerne les index 1 et 11 (cadres de repérage, jamais affichés), 15 (35 pixels par mur, donc noirs en jeu) et 3 (219 pixels, sur les lignes y = 92 et y = 1478 : motif tramé de variantes de raquette, pas la raquette de base `0x6900`). Dans `fonte.gif`, l'index 11 est hors des rectangles de glyphe 15 × 22 : jamais affiché. Dans `monster.gif`, l'index 1 n'occupe que les lignes de la grille des cadres : jamais affiché, puisque les cadres sont lus dans les cases (§4.3). Le remake recolore donc la seule planche de sprites, une copie par fond (`src/render/recolor.ts`), à partir d'un masque des index 1..15 et des 16 couleurs de chaque fond.
+- Conséquence : les pixels de sprites d'index 1 à 15 prennent les couleurs du **fond courant**. Dans la planche, cela concerne les index 1 et 11 (cadres de repérage, jamais affichés), 15 (35 pixels par mur, donc noirs en jeu) et 3 (219 pixels, sur les lignes y = 92 et y = 1478 : motif tramé de variantes de raquette, pas la raquette de base `0x6900`). Dans `fonte.gif`, l'index 11 est hors des rectangles de glyphe 15 × 22 : jamais affiché. Dans `monster.gif`, l'index 1 n'occupe que les lignes de la grille des cadres : jamais affiché, puisque les cadres sont lus dans les cases (§4.3). Le remake recolore donc la seule planche de sprites, une copie par fond (`packages/game/src/render/recolor.ts`), à partir d'un masque des index 1..15 et des 16 couleurs de chaque fond.
 
 **Briques** (`0x404DD0`). Sprite de base selon la famille : cassable `0xEDC2`, indestructible `0x4AC9`, téléporteur `0xEE67`, fantôme `0xEE46`. On ajoute `couleur × 0x2A80` (17 lignes par teinte), et chaque impact avance de `0x21` (33 px). Taille 32 × 16. Si `[0x411000] = 4` (mode de jeu au rôle **non identifié**), une brique à plusieurs coups part de `0xEDA1` au lieu de `0xEDC2`.
 
@@ -167,7 +167,7 @@ Durées réelles en jeu (s), à 13 208 Hz (§4.5) : 0.30, 0.56, 1.63, 0.51, 0.64
 | Vies | `0x277` | `0x18F7` (+`0x1680`, rangée verte), en duel | `0x405B81` |
 | Capsules | `0x75801 + 0x1A × n` | +`0x3E80` (rangée verte), en duel | `0x405405` |
 
-**Extinction de la balle du joueur 2**. Dans l'original, une balle fantôme du joueur 2 s'éteint comme une balle de fer bleue : `0x40466B` ne compare qu'à `0x1692`, donc `0x169B` part en `0x2E`. Le jeu affiche aujourd'hui les couleurs du joueur 1 partout. La table de `src/render/skin.ts`, gardée pour un futur choix de skin, s'écarte de l'original en gardant la couleur de la balle : verte en `0x16AE + 0x46`, dorée en `0x2E + 0x46`. La planche range ces 5 images à 70 px de celles du joueur 1, avec exactement les mêmes pixels ; à 60 px, on tomberait sur l'anneau intact et on perdrait la dernière image.
+**Extinction de la balle du joueur 2**. Dans l'original, une balle fantôme du joueur 2 s'éteint comme une balle de fer bleue : `0x40466B` ne compare qu'à `0x1692`, donc `0x169B` part en `0x2E`. Le jeu affiche aujourd'hui les couleurs du joueur 1 partout. La table de `packages/game/src/render/skin.ts`, gardée pour un futur choix de skin, s'écarte de l'original en gardant la couleur de la balle : verte en `0x16AE + 0x46`, dorée en `0x2E + 0x46`. La planche range ces 5 images à 70 px de celles du joueur 1, avec exactement les mêmes pixels ; à 60 px, on tomberait sur l'anneau intact et on perdrait la dernière image.
 
 **Police** (`0x408654`, `fonte.gif` 800 × 24).
 - Table des caractères en `0x41C360` : `abcdefghijklmnopqrstuvwxyz0123456789+-#!?:.&` puis espace. **Minuscules uniquement.**
@@ -249,7 +249,7 @@ Pour le remake : reproduire ce comportement tel quel. C'est simple et fidèle.
 - Le mode d'écran demande **60 Hz** en dur (`SetDisplayMode(640, 480, 8, 0x3C, 0)`, `0x40DAF4`), et ne retombe sur le défaut du pilote que s'il échoue (`0x40DB0C`). La cadence attendue est donc **60 ticks par seconde**.
 - **Mesure (06/11/2026)** : l'original lancé sous Windows 10 (écran à 143 Hz), avec lecture de `[0x4262dc]`, l'heure `timeGetTime` du dernier tick écrite en `0x40DFD1`. Les écarts entre ticks valent 16-17 ms (60 Hz) ou 14 ms (le plancher), jamais 20 ms : le 50 Hz est exclu. Le mélange vient de Windows, qui n'applique pas toujours le 60 Hz demandé ; sur un écran de 1999 à 60 Hz, la cadence était 60. Pendant 16 s d'une mesure, rien n'a été écrit : un écran qui n'attend pas par ce service (non identifié).
 - Le timer `timeSetEvent(20 ms)` (`0x409EC1`, `0x40A07B`) ne fait tourner que l'entrée DirectInput et le mixage du son. La musique n'en dépend donc pas.
-- **Remake** : il tourne à 60 ticks par seconde comme l'original (`TICK_RATE`, `src/core/loop.ts`), un tick par image sur un écran à 60 Hz. Il a tourné à 50 jusqu'à la recette V1, soit 17 % trop lentement. Les secondes de ce document sont comptées à 60 Hz : 600 ticks font 10 s, 1952 ticks font 32,5 s.
+- **Remake** : il tourne à 60 ticks par seconde comme l'original (`TICK_RATE`, `packages/game/src/core/loop.ts`), un tick par image sur un écran à 60 Hz. Il a tourné à 50 jusqu'à la recette V1, soit 17 % trop lentement. Les secondes de ce document sont comptées à 60 Hz : 600 ticks font 10 s, 1952 ticks font 32,5 s.
 
 **Création de la balle** (`0x40225E`). Taille 9 × 9, sprite `0x1680`. Bornes : x de 112 (`0x70`) à `0x210 − 9` = 519, et y de 0 à `0x1E0 − 9` = 471. `+0x59 = 1` : la balle rebondit sur les briques (le bonus `iron_ball` le met à 0). `+0x5D = Freq_Change_Speed`. Au service, elle est posée au centre de la raquette (`0x404FDC`) : `y = raquette.y − h`, `x = raquette.x + l/2 − w/2`.
 
@@ -347,7 +347,7 @@ Niveau 1                       Niveau 2 (bas)
 - `lv1` : 40 niveaux. **Monde « arcade »** (vérifié). Le menu propose 2 mondes, « espace » et « arcade », plus un 3ᵉ emplacement vide.
 - `lv2` : 40 niveaux, version **antérieure** de lv1 (9 niveaux diffèrent : 1-4, 7-9, 16, 19 ; daté du 26/04/1999 contre 10/05/1999 pour lv1). Le jeu ne le charge jamais.
 - La config limite `Start_Level` à 1–40.
-- **Écart du remake, version navigateur uniquement** : un 3ᵉ monde, « limbes », occupe l'emplacement vide, avec 50 niveaux nouveaux (`src/data/limbesLevels.ts`) sans équivalent dans l'original. Quatre règles propres à ce monde, vérifiées par les tests : plus de 50 % de briques à 4 coups parmi les cassables imposent au moins un téléporteur ; un niveau demande au plus 200 coups ; une brique restée seule se casse en au plus 25 passages de raquette en moyenne (coups à donner divisés par la chance qu'une balle partie de la raquette l'atteigne, murs et téléporteurs seuls en place, `src/game/reach.ts`) ; un joueur simulé, sans bonus, finit chaque niveau en moins de 10 000 ticks en médiane. Mesuré avec ce même modèle, la brique la plus dure d'un niveau original demande environ 15 passages en médiane, et 8 des 80 niveaux originaux ont une brique au-delà de 25. Des téléporteurs apparaissent dès le niveau 3. Ses fonds (`src/assets/backgrounds/limbes_*`) et ses 3 musiques (`src/assets/music/`, une par tranche de 3 niveaux, contrairement à l'original) ne viennent pas de l'original ; sprites et palette d'espace, couleurs 0 à 15 de `space_1`. Le nombre de niveaux étant lu des données (`0x404E96`), les paliers de vitesse tombent aux niveaux 16, 32 et 48 (12, 24, 36 et 48 en difficile) et le compteur d'accélération descend à 667 au niveau 50 (167 en difficile).
+- **Écart du remake, version navigateur uniquement** : un 3ᵉ monde, « limbes », occupe l'emplacement vide, avec 50 niveaux nouveaux (`packages/game/src/data/limbesLevels.ts`) sans équivalent dans l'original. Quatre règles propres à ce monde, vérifiées par les tests : plus de 50 % de briques à 4 coups parmi les cassables imposent au moins un téléporteur ; un niveau demande au plus 200 coups ; une brique restée seule se casse en au plus 25 passages de raquette en moyenne (coups à donner divisés par la chance qu'une balle partie de la raquette l'atteigne, murs et téléporteurs seuls en place, `packages/game/src/game/reach.ts`) ; un joueur simulé, sans bonus, finit chaque niveau en moins de 10 000 ticks en médiane. Mesuré avec ce même modèle, la brique la plus dure d'un niveau original demande environ 15 passages en médiane, et 8 des 80 niveaux originaux ont une brique au-delà de 25. Des téléporteurs apparaissent dès le niveau 3. Ses fonds (`packages/game/src/assets/backgrounds/limbes_*`) et ses 3 musiques (`packages/game/src/assets/music/`, une par tranche de 3 niveaux, contrairement à l'original) ne viennent pas de l'original ; sprites et palette d'espace, couleurs 0 à 15 de `space_1`. Le nombre de niveaux étant lu des données (`0x404E96`), les paliers de vitesse tombent aux niveaux 16, 32 et 48 (12, 24, 36 et 48 en difficile) et le compteur d'accélération descend à 667 au niveau 50 (167 en difficile).
 
 ---
 
@@ -422,7 +422,7 @@ En résumé, un monstre est un **obstacle mobile qui perturbe la trajectoire des
 - la souris passe par Pointer Lock (`unadjustedMovement`), avec `x += movementX × 0,5 × sensibilité` et une sensibilité continue (1,0 = `Mouse_Speed 0`, 0,5 par défaut = `−1`) ;
 - le reste fractionnaire est conservé d'un tick à l'autre ;
 - le rejeu d'un tick sans mouvement n'est pas reproduit (artefact d'époque) ;
-- le joueur 1 a aussi le clavier, à la vitesse du J2 au premier tick, puis +1 px par tick d'appui continu jusqu'à 16 (au-delà de la balle la plus rapide, `|dx| < 14 + mode`) ; relâcher ou changer de sens repart de la vitesse du J2 (`src/input/keyboard.ts`) ;
+- le joueur 1 a aussi le clavier, à la vitesse du J2 au premier tick, puis +1 px par tick d'appui continu jusqu'à 16 (au-delà de la balle la plus rapide, `|dx| < 14 + mode`) ; relâcher ou changer de sens repart de la vitesse du J2 (`packages/game/src/input/keyboard.ts`) ;
 - `reverse` inverse le déplacement déjà mis à l'échelle (souris et clavier). L'original inverse avant l'arrondi `⌈d/2⌉` : l'écart est d'au plus 1 px sur un déplacement impair, et le reste fractionnaire du remake le rattrape.
 
 ### 4.5 Déroulement d'une partie (vérifié dans le code, 30/10/2026)
@@ -579,7 +579,7 @@ Une balle collée suit la raquette qui la tient (`+0x91`, `0x403D97`). Celle du 
 
 **Fin de partie.** Hors duel, le game over (`0x408AD9`) et l'écran de félicitations (`0x408710`, `final_text`) sont ceux du solo. Les meilleurs scores vont dans la **table coop** dès que `[0x411015]` vaut 2 (`0x408C2E`, `0x408528`), avec le score commun. « Scores coop » du menu Divers l'affiche (`0x4011E1`). Après un game over, `0x401FB4` relance une partie à deux.
 
-**Remake** (`src/game/game.ts`, `src/game/coop.test.ts`) : porté tel quel, sauf :
+**Remake** (`packages/game/src/game/game.ts`, `packages/game/src/game/coop.test.ts`) : porté tel quel, sauf :
 - le J2 joue au clavier (← →, Espace) ou par l'ordinateur ; le joystick et le menu 7 ne sont pas portés, leurs quadrants ne font que le son ;
 - le clavier du J2 accélère comme celui du J1 (§4.4), au lieu de la vitesse fixe `[0x41B7D6]` ;
 - dans une partie à deux au clavier, les flèches et Espace sont au J2, qui tire donc à Espace au lieu de Ctrl, à côté des flèches : le J1 joue à la souris, et tire au bouton, à Ctrl ou à Entrée ;
@@ -858,7 +858,7 @@ Drapeaux : `[0x411035]` = 1 sans `[0x41103D]` (le joueur 1 est l'ordinateur), `[
 
 Le retour passe par `0x40107B` : menu principal, avec ses fondus. Aucun score n'est enregistré. Un game over (presque impossible en 800 tours, la raquette rattrapant toujours la balle 1) suit le chemin d'une partie : écran des scores, puis `0x401FCE` efface les drapeaux et une vraie partie commence au niveau de départ, avec la musique du menu.
 
-**Remake** (`src/game/demo.ts`) :
+**Remake** (`packages/game/src/game/demo.ts`) :
 - un seul joueur tant que la coop n'existe pas ;
 - le niveau est tiré parmi ceux du monde choisi, jamais un emplacement vide ;
 - le .exe tire espace ou arcade, la version navigateur tire aussi Limbes, que son menu propose ;
@@ -927,13 +927,13 @@ Résultat dans `assets/` (69 fichiers) :
 | `backgrounds/palettes.json` | `{"space_1": [[r, g, b] × 16], …}` : couleurs 0..15 de chaque fond en jeu (0 et 15 en noir), pour recolorer les sprites (§3.5) |
 | `sprites/` | `sprite_sheet` 640×1900, `font` 800×24, `menu` 640×1220, `monsters` 930×220 ; `space/`, `arcade/` : `sprite_sheet`, `font`, `monsters` avec la palette du monde, index 0 transparent ; `sprite_sheet_low` : masque en niveaux de gris (valeur = index 1..15 de la planche, 0 ailleurs) ; `sprite_sheet_flash` : masque des index 112..127 (cadres des icônes de bonus) ; `menu` a son index 0 transparent ; `menu_index` : masque des index de `menu` (pulsation du survol) ; `menu_font` : police sous la palette du menu |
 | `credits/` | `credit_1..6`, et `credit_N_text` (couleurs `0xE0..0xFF`) |
-| `sounds/` | 17 WAV 8 bits mono, en-tête 8 363 Hz repris du 8SVX mais joués à 13 208 Hz (§4.5). 8SVX signé converti en non signé. Le volume VHDR n'y est pas : il est dans `src/audio/rules.ts` |
+| `sounds/` | 17 WAV 8 bits mono, en-tête 8 363 Hz repris du 8SVX mais joués à 13 208 Hz (§4.5). 8SVX signé converti en non signé. Le volume VHDR n'y est pas : il est dans `packages/game/src/audio/rules.ts` |
 | `music/` | `love`, `starr`, `the_last`, `hunting_in_lacanau`, `rain_in_the_brain` (`.mod`, au format tracker d'origine, sans les 2 doublons) |
 | `video/` | `intro.flc` (décompressé), `blaster.flc` |
 | `levels.json` | `{"lv0": [...], "lv1": [...], "lv2": [...]}` : chaque niveau est une grille 30 × 13 d'octets bruts (0 = vide, encodage §4) |
 | `palettes/`, `icon/` | copies |
 
-Le jeu lit les modules tels quels (§4.5), adresse les sprites dans la planche (§3.5) et décode les FLC lui-même (`src/data/flc.ts`).
+Le jeu lit les modules tels quels (§4.5), adresse les sprites dans la planche (§3.5) et décode les FLC lui-même (`packages/game/src/data/flc.ts`).
 
 ---
 

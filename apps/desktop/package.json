@@ -1,0 +1,35 @@
+{
+  "name": "@brick-blaster/desktop",
+  "productName": "Brick Blaster Remastered",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Faithful remake of Brick Blaster (Eclipse, 1999)",
+  "type": "module",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "start": "node copy-game.js && tsc && electron .",
+    "dist": "node copy-game.js && tsc && electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "45.2.1",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "com.yoancuervo.brickblaster",
+    "directories": {
+      "output": "../../release"
+    },
+    "files": [
+      "dist/**",
+      "dist-electron/**",
+      "!**/node_modules/**"
+    ],
+    "npmRebuild": false,
+    "publish": null,
+    "win": {
+      "target": "nsis",
+      "icon": "../../assets/icon/blaster_256.png"
+    }
+  }
+}

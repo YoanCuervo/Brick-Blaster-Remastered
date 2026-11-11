@@ -2,9 +2,10 @@
 // the game. It only overrides what blaster.cfg and the level files already decide, 40 levels
 // included (§4.5), and `npm run build` never reads this file.
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import type { Plugin } from "vite";
 import { mergeConfig } from "vite";
-import base from "../../vite.config.ts";
+import base from "../../packages/game/vite.config.ts";
 
 const LEVEL_COUNT = 40;
 const START_LEVEL = LEVEL_COUNT - 1;
@@ -50,6 +51,7 @@ function shortWorld(): Plugin {
 }
 
 export default mergeConfig(base, {
+  root: fileURLToPath(new URL("../../packages/game", import.meta.url)),
   server: { port: 5188, strictPort: true },
   plugins: [shortWorld()],
 });

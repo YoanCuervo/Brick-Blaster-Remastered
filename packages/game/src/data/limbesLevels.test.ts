@@ -1,9 +1,13 @@
 import { existsSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { LEVEL_COLS, LEVEL_ROWS, type Level, parseLevels } from "./levels";
 import { reachChances } from "../game/reach";
 import { LIMBES_LEVELS } from "./limbesLevels";
 
+/** The asset pack sits at the repository root, never versioned. */
+const packFile = (name: string): string =>
+  fileURLToPath(new URL(`../../../../assets/${name}`, import.meta.url));
 const kindOf = (brick: number) => brick & 0x3f;
 const WALL = 0x08;
 const TELEPORTER = 0x18;
@@ -218,10 +222,10 @@ describe("the levels of Limbes", () => {
   });
 
   // The asset pack is never versioned: these run only where it has been extracted.
-  it.skipIf(!existsSync("assets/levels.json"))(
+  it.skipIf(!existsSync(packFile("levels.json")))(
     "do not repeat a figure of the original",
     () => {
-      const pack = parseLevels(JSON.parse(readFileSync("assets/levels.json", "utf8")));
+      const pack = parseLevels(JSON.parse(readFileSync(packFile("levels.json"), "utf8")));
       const originals = [...pack.lv0, ...pack.lv1, ...pack.lv2].filter((grid) =>
         grid.some((row) => row.some((brick) => kindOf(brick) !== 0)),
       );
@@ -237,8 +241,8 @@ describe("the levels of Limbes", () => {
     60_000,
   );
 
-  it.skipIf(!existsSync("assets/levels.json"))("copy no level of the original", () => {
-    const pack = parseLevels(JSON.parse(readFileSync("assets/levels.json", "utf8")));
+  it.skipIf(!existsSync(packFile("levels.json")))("copy no level of the original", () => {
+    const pack = parseLevels(JSON.parse(readFileSync(packFile("levels.json"), "utf8")));
     const originals = [...pack.lv0, ...pack.lv1, ...pack.lv2];
     const filled = (grid: Level) =>
       new Set(

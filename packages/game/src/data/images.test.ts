@@ -32,7 +32,7 @@ describe("backgroundImage (0x407430)", () => {
 
   it("finds the new backgrounds versioned, and the colours they borrow in the pack", () => {
     for (const name of LIMBES_BACKGROUNDS) {
-      expect(existsSync(`src/assets/${name}.png`), name).toBe(true);
+      expect(existsSync(new URL(`../assets/${name}.png`, import.meta.url)), name).toBe(true);
     }
     expect(IMAGE_NAMES).toContain(FREE_BACKGROUND_COLORS);
   });

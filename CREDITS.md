@@ -1,6 +1,6 @@
 # Credits
 
-Everything here ships with the browser version and is versioned in `src/assets/`. The Eclipse assets are not in this repository.
+Everything here ships with the browser version and is versioned in `packages/game/src/assets/`. The Eclipse assets are not in this repository.
 
 ## Backgrounds of Limbes
 

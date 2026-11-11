@@ -32,7 +32,7 @@ Projet personnel, qui alimentera un portfolio. Pas d'échéance.
 - Fin de partie de la version navigateur, tous mondes : 1000 points par vie restante après le dernier niveau, écart assumé avec l'original. Le .exe ne les compte pas.
 - Vitesses de la version navigateur, tous mondes : départ 3/4/5 au lieu de 2/3/4, paliers 3/3/4 au lieu de 2/3/3, accélération tous les 1000 ticks en difficile au lieu de 1500. Écart assumé avec l'original, le jeu étant trop simple. Le .exe garde `blaster.cfg`.
 - Raquette au clavier, navigateur et .exe : partie de la vitesse d'origine (2 × la vitesse de départ de `blaster.cfg`), elle gagne 1 px par tick tant que la flèche reste appuyée, jusqu'à 16 px par tick. Écart assumé : l'original ne donne le clavier qu'au joueur 2 du duel, à vitesse fixe, trop lente pour suivre la balle.
-- 3e monde « Limbes », version navigateur uniquement : 50 niveaux originaux, versionnés dans `src/data/limbesLevels.ts`. Ses 8 fonds sont des orbitales de l'hydrogène calculées par `tools/limbes/make_backgrounds.py`, 3 musiques MOD qui changent tous les 3 niveaux, ramenées par un gain au niveau de la musique d'espace (fichiers inchangés), écart assumé avec l'original (sources et licences dans `CREDITS.md`), ses sprites et sa palette ceux du monde espace. Aucune brique ne doit y rester hors d'atteinte : au plus 25 passages de raquette pour la dernière brique et moins de 10 000 ticks par niveau pour un joueur simulé (analyse, §4). Le L du bouton rose est dessiné par le code, sans image ajoutée. Le .exe garde le bouton vide.
+- 3e monde « Limbes », version navigateur uniquement : 50 niveaux originaux, versionnés dans `packages/game/src/data/limbesLevels.ts`. Ses 8 fonds sont des orbitales de l'hydrogène calculées par `tools/limbes/make_backgrounds.py`, 3 musiques MOD qui changent tous les 3 niveaux, ramenées par un gain au niveau de la musique d'espace (fichiers inchangés), écart assumé avec l'original (sources et licences dans `CREDITS.md`), ses sprites et sa palette ceux du monde espace. Aucune brique ne doit y rester hors d'atteinte : au plus 25 passages de raquette pour la dernière brique et moins de 10 000 ticks par niveau pour un joueur simulé (analyse, §4). Le L du bouton rose est dessiné par le code, sans image ajoutée. Le .exe garde le bouton vide.
 
 ## Exclusions V1
 
@@ -147,16 +147,16 @@ Arborescence cible :
 apps/
   web/        site React : accueil, profil, classement, monte le jeu
   api/        API Fastify : seule à détenir les secrets et à parler à MySQL
-  desktop/    Electron (l'actuel electron/)
+  desktop/    Electron : emballe le build de packages/game dans le .exe
 packages/
-  game/       le moteur actuel (src/ : core, game, input, render, audio, ui, data)
+  game/       le moteur et la version navigateur (src/ : core, game, input, render, audio, ui, data)
   contracts/  types et schémas des échanges entre web et api
 deploy/       Dockerfiles de web et api, bloc Caddy du site, fragment docker-compose
 ```
 
 Les migrations SQL vivent dans `apps/api`, avec le code qui les utilise.
 
-Le code de `apps/api` n'entre jamais dans le bundle du navigateur. Le déplacement de `src/` vers `packages/game` est la première tâche de la V2 : le .exe et la version navigateur actuelle doivent rester buildables après.
+Le code de `apps/api` n'entre jamais dans le bundle du navigateur. Première tâche de la V2, faite : le jeu est dans `packages/game`, qui garde pour l'instant la coquille navigateur (`main.ts`), et Electron dans `apps/desktop`. `apps/web`, `apps/api`, `packages/contracts` et `deploy/` arrivent avec leurs tâches. Pour rejouer une partie sans affichage, il faudra encore sortir de `main.ts` la boucle qui relie les entrées au moteur.
 
 ## Hébergement et budget V2
 
@@ -211,8 +211,8 @@ Ces conclusions aident au cadrage. Elles ne remplacent pas l'avis d'un juriste.
 
 ## Pistes V2 et au-delà
 
-- Mode duel, avec les couleurs du joueur 2 de l'original pour ses balles, capsules et vies (`src/render/skin.ts`).
-- Choix du skin par le joueur, intégré au site web (dette de la V2) : couleurs du joueur 1 ou du joueur 2 de l'original, affichage seul. La table existe (`src/render/skin.ts`, analyse §3.5), aucun réglage ni menu ne la propose encore.
+- Mode duel, avec les couleurs du joueur 2 de l'original pour ses balles, capsules et vies (`packages/game/src/render/skin.ts`).
+- Choix du skin par le joueur, intégré au site web (dette de la V2) : couleurs du joueur 1 ou du joueur 2 de l'original, affichage seul. La table existe (`packages/game/src/render/skin.ts`, analyse §3.5), aucun réglage ni menu ne la propose encore.
 - Éditeur de niveaux.
 - Interface d'administration du site.
 - Pack d'assets refait, pour publier le site et le .exe.
