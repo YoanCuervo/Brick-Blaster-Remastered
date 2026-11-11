@@ -33,6 +33,13 @@ import { Game, type PaddleAnim, type Partner, webConfig } from "./game/game";
 import { SPARE_LIFE_POINTS } from "./game/score";
 import { MONSTER_PITCH } from "./game/monsters";
 import { PADDLE_H, type Paddle, clampPaddleX } from "./game/paddle";
+import {
+  type GameDriver,
+  type GameEnd,
+  GameRecorder,
+  type ReplaySetup,
+  replay,
+} from "./game/replay";
 import type { ShotSystem } from "./game/shots";
 import { FireLatch } from "./input/fire";
 import { KeyState, KeyboardPaddle, fireOwner, keyboardSpeed } from "./input/keyboard";
@@ -106,6 +113,12 @@ let menu = newMenu();
 let world: World = "space";
 let difficulty: Difficulty = Difficulty.Easy;
 let game!: Game;
+/** What the main loop calls: the game itself, or its recorder in a solo game. */
+let driver!: GameDriver;
+let recorder: GameRecorder | null = null;
+let replaySetup: ReplaySetup | null = null;
+/** Game ends seen in the recorded chain, for the replay check of the dev server. */
+let recordedEnds = 0;
 /** Player 2 of the last game, null alone: the scores follow it. */
 let partner: Partner | null = null;
 /** 0x401142: the demo keeps the menu module, and so does the game a demo can turn into. */
@@ -203,15 +216,13 @@ function startGame(event: Extract<MenuEvent, { kind: "play" }>): void {
     const levels = assets.levels[WORLD_LEVELS[world]];
     const lifePoints = desktop ? 0 : SPARE_LIFE_POINTS;
     const rules = desktop ? assets.config : webConfig(assets.config, event.difficulty);
-    game = new Game(
-      rules,
-      levels,
-      event.difficulty,
-      new Rng(Date.now()),
-      lifePoints,
-      false,
-      partner,
-    );
+    const seed = Date.now() >>> 0;
+    game = new Game(rules, levels, event.difficulty, new Rng(seed), lifePoints, false, partner);
+    // Only a solo game can be replayed: the coop of the website is not online.
+    recorder = partner === null ? new GameRecorder(game, seed) : null;
+    driver = recorder ?? game;
+    replaySetup = { config: rules, levels, difficulty: event.difficulty, spareLifePoints: lifePoints };
+    recordedEnds = 0;
     const speed = keyboardSpeed(forDifficulty(assets.config.startSpeed, event.difficulty));
     keyboard = new KeyboardPaddle(speed);
     // Not in the original: player 2 takes the same acceleration as the player 1 keyboard.
@@ -236,6 +247,8 @@ function startDemo(): void {
     const lifePoints = desktop ? 0 : SPARE_LIFE_POINTS;
     const rules = desktop ? assets.config : webConfig(assets.config, difficulty);
     game = new Game(rules, levels, difficulty, rng, lifePoints, true);
+    driver = game;
+    recorder = null;
     mouse.reset();
     setScene("game");
   });
@@ -451,9 +464,9 @@ window.addEventListener("keyup", (e) => {
 function updateGame(): void {
   if (game.paused) {
     // 0x4020C1: a key or fire ends the pause, the arrows and the pause key included.
-    game.tick({ paddleDx: 0, fire: false });
+    driver.tick({ paddleDx: 0, fire: false });
     const fired = fire.take();
-    if (anyKeyPressed || fire2.take() || fired) game.endPause();
+    if (anyKeyPressed || fire2.take() || fired) driver.endPause();
     gameKey = null;
     return;
   }
@@ -469,7 +482,7 @@ function updateGame(): void {
   }
   if (gameKey === "KeyP" && game.canPause) {
     gameKey = null;
-    game.startPause();
+    driver.startPause();
   }
   const moving = [...game.balls, ...game.monsterSystem.monsters, ...game.shotSystem.shots];
   prevBalls = new Map(moving.map((b) => [b, { x: b.x, y: b.y }]));
@@ -478,16 +491,40 @@ function updateGame(): void {
   const shared = game.partner === "keyboard";
   const paddleDx = mouse.take() + (shared ? 0 : keyboard.step(left, right));
   const paddle2Dx = shared ? keyboard2.step(left, right) : 0;
-  game.tick({ paddleDx, fire: fire.take(), paddle2Dx, fire2: fire2.take() });
+  driver.tick({ paddleDx, fire: fire.take(), paddle2Dx, fire2: fire2.take() });
   audio.playSounds(game.sounds);
   audio.playMusic(gameMusic());
   // 0x401F72: the end of the countdown does not wait for anything.
   if (game.demoOver) returnToMenu(false);
   if (game.scoresDue) {
     game.scoresDue = false;
+    checkReplay("gameOver");
     showGameOverScores();
   }
-  if (game.finished) showEnding();
+  if (game.finished) {
+    checkReplay("finished");
+    showEnding();
+  }
+}
+
+/** Dev server only: the recorded game must replay to the end the player just reached. */
+function checkReplay(kind: GameEnd["kind"]): void {
+  if (!import.meta.env.DEV || !recorder || !replaySetup) return;
+  recordedEnds++;
+  const seen = { kind, score: game.player.score, level: game.level };
+  try {
+    const { ends, ticks } = replay(replaySetup, recorder.log);
+    const last = ends[ends.length - 1];
+    const same =
+      ends.length === recordedEnds &&
+      last?.kind === seen.kind &&
+      last.score === seen.score &&
+      last.level === seen.level;
+    if (same) console.info(`replay check ok: ${kind}, score ${seen.score}, ${ticks} ticks`);
+    else console.warn("replay check failed", { seen, replayed: ends });
+  } catch (error: unknown) {
+    console.warn("replay check refused the log", error);
+  }
 }
 
 // Ball positions before the last tick, for drawing between ticks.
