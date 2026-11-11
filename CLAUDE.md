@@ -13,15 +13,17 @@ Scope, choices and legal: [`docs/cadrage.md`](docs/cadrage.md). Reverse-engineer
 - Desktop: Electron + electron-builder (Windows 10+ .exe).
 - Tests: Vitest, game logic only. Lint: ESLint (typescript-eslint) + Prettier.
 
-V2 (planned, scope in `docs/cadrage.md`; only the monorepo move is done): website hosting the game. npm-workspaces monorepo (`apps/web` React + TS + Vite, `apps/api` Node + TS + Fastify, `apps/desktop` Electron, `packages/game` the current engine, `packages/contracts` web/api schemas, `deploy/` this project's Dockerfiles and Caddy/compose fragments; the shared server config lives in a separate infra repo), MySQL, Brevo emails, OVH VPS behind Cloudflare. The backend decides everything: every score is replayed server-side from its seed and input log, never trusted from the client.
+V2 (scope in `docs/cadrage.md`; done so far: monorepo, replay in `packages/game/src/game/replay.ts`, API skeleton): website hosting the game. npm-workspaces monorepo (`apps/web` React + TS + Vite, `apps/api` Node + TS + Fastify, `apps/desktop` Electron, `packages/game` the current engine, `packages/contracts` web/api schemas, `deploy/` this project's Dockerfiles and Caddy/compose fragments; the shared server config lives in a separate infra repo), MySQL, Brevo emails, OVH VPS behind Cloudflare. The backend decides everything: every score is replayed server-side from its seed and input log, never trusted from the client.
 
 ## Commands
 
 ```bash
 npm install
 npm run dev            # browser version on http://localhost:5173 (needs assets/)
-npm run build          # type-check + production build into packages/game/dist/, type-check of apps/desktop
-npm test               # vitest in every workspace (packages/game/src/**/*.test.ts)
+npm run build          # type-check + build of packages/game/dist/ and apps/api/dist/, type-check of apps/desktop
+npm test               # vitest in every workspace (packages/game, apps/api)
+npm run dev:api        # API on http://127.0.0.1:3000, rebuilt and restarted on change (needs apps/api/.env)
+npm run migrate        # apply apps/api/migrations/*.sql to the database of apps/api/.env
 npm run lint
 npm run format         # prettier (docs *.md are excluded on purpose)
 npx vite --config tools/acceptance/vite.acceptance.config.ts   # dev server on port 5188, levels 39-40 reduced to one brick
@@ -42,6 +44,8 @@ packages/game/  @brick-blaster/game: engine + browser version (index.html, vite.
   src/assets/   free backgrounds and music of the browser version (versioned, credits in CREDITS.md)
 apps/desktop/   @brick-blaster/desktop: Electron main process (compiled to dist-electron/); copy-game.js
                 copies packages/game/dist into apps/desktop/dist, served over app://
+apps/api/       @brick-blaster/api: Fastify + MySQL, bundled by Vite into dist/server.js and dist/migrate.js
+                (Node cannot run the game sources as they are); migrations/NNNN_name.sql, applied in order
 assets/         asset pack generated from original/ (NOT versioned, served by Vite as publicDir)
 original/       read-only reference copy of the 1999 game (NOT versioned)
 game/           playable test copy of the original with test cfg/levels (NOT versioned)
@@ -54,6 +58,8 @@ docs/           cadrage.md
 ```
 
 Python tooling runs in `tools/.venv` (capstone, Pillow), never in the system Python.
+
+The API reads its configuration from the environment only (`apps/api/src/config.ts`): `DB_USER`, `DB_PASSWORD`, `DB_NAME` required; `DB_HOST`, `DB_PORT`, `API_HOST`, `API_PORT`, `API_TRUST_PROXY` optional. Locally they sit in `apps/api/.env`, written by the user (Claude cannot read or write `.env*`) and loaded by Node's `--env-file-if-exists`. Local MySQL 8.0 runs on this machine; Docker is only for the VPS. The MySQL tests of `apps/api` are skipped, with a warning, when no database is configured.
 
 ## Conventions
 
