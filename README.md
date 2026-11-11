@@ -90,18 +90,21 @@ Autres commandes : `npm run build` (vérification des types et build de producti
 
 ## Organisation du dépôt
 
+Le dépôt est un monorepo (workspaces npm) : les commandes se lancent toutes depuis la racine.
+
 ```
-src/
-  core/       boucle à pas fixe, générateur à graine
-  game/       règles du jeu : balle, briques, bonus, monstres, score
-  input/      souris, clavier, tir
-  render/     sprites, police, palettes, fondus, écran
-  audio/      sons et musique
-  ui/         menus, réglages, scores, films, transitions
-  data/       lecture des formats d'origine (niveaux, images, FLC, WAV, palette)
-electron/     processus principal de la version Windows
-tools/        extraction des assets, désassemblage, génération des fonds de Limbes
-docs/         cadrage du projet
+packages/game/      le jeu : moteur et version navigateur
+  src/
+    core/           boucle à pas fixe, générateur à graine
+    game/           règles du jeu : balle, briques, bonus, monstres, score
+    input/          souris, clavier, tir
+    render/         sprites, police, palettes, fondus, écran
+    audio/          sons et musique
+    ui/             menus, réglages, scores, films, transitions
+    data/           lecture des formats d'origine (niveaux, images, FLC, WAV, palette)
+apps/desktop/       processus principal de la version Windows (Electron)
+tools/              extraction des assets, désassemblage, génération des fonds de Limbes
+docs/               cadrage du projet
 ```
 
 ## Méthode de travail

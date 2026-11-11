@@ -8,9 +8,9 @@ from pathlib import Path
 from PIL import Image
 
 WIDTH, HEIGHT = 640, 480
-# PADDLE_X_MIN and PLAY_RIGHT of src/game/paddle.ts.
+# PADDLE_X_MIN and PLAY_RIGHT of packages/game/src/game/paddle.ts.
 PLAY_LEFT, PLAY_RIGHT = 112, 528
-OUT = Path(__file__).resolve().parents[2] / "src" / "assets" / "backgrounds"
+OUT = Path(__file__).resolve().parents[2] / "packages" / "game" / "src" / "assets" / "backgrounds"
 
 
 def laguerre(n, a, x):

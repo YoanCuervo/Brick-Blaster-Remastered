@@ -1,5 +1,6 @@
 // Whole games from the first level to the end, with a test-side player: V1 end criterion.
 import { existsSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { Rng } from "../core/rng";
 import {
@@ -201,12 +202,14 @@ describe("the levels of Limbes, one by one", () => {
 });
 
 // The asset pack is never versioned: these run only where it has been extracted.
-const packed = existsSync("assets/levels.json") && existsSync("assets/config.json");
+const packFile = (name: string): string =>
+  fileURLToPath(new URL(`../../../../assets/${name}`, import.meta.url));
+const packed = existsSync(packFile("levels.json")) && existsSync(packFile("config.json"));
 
 describe.skipIf(!packed)("the original levels", () => {
   const read = (file: string): unknown => JSON.parse(readFileSync(file, "utf8"));
-  const config = packed ? parseConfig(read("assets/config.json")) : testConfig;
-  const sets = packed ? parseLevels(read("assets/levels.json")) : null;
+  const config = packed ? parseConfig(read(packFile("config.json"))) : testConfig;
+  const sets = packed ? parseLevels(read(packFile("levels.json"))) : null;
 
   for (const world of ["space", "arcade"] as const) {
     for (const difficulty of DIFFICULTIES) {

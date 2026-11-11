@@ -12,7 +12,7 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
     "rootDir": ".",
-    "outDir": "../dist-electron"
+    "outDir": "dist-electron"
   },
   "include": ["main.ts"]
 }
