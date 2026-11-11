@@ -90,7 +90,7 @@ La V2 est un site web qui accueille le jeu. Simplicité et sécurité priment : 
 
 Chaque partie, quel que soit le monde, est envoyée au serveur et donne une ligne : monde, difficulté, score, niveau atteint, durée, date. Une ligne de compteurs par joueur est mise à jour à chaque partie : parties jouées, temps de jeu total, meilleur score par monde et par difficulté, niveau maximal atteint, briques cassées, vies perdues. La modale affiche ces compteurs et l'historique des dernières parties.
 
-Le journal d'entrées d'une partie pèse de 20 à 100 Ko. Il est supprimé après validation, sauf pour les scores du top 1000 du Limbes, gardés pour pouvoir les revérifier.
+Le journal d'entrées note ce que le moteur reçoit à chaque tick (déplacement de la raquette, tir, pause), les ticks identiques regroupés (`packages/game/src/game/replay.ts`). Mesure sur une partie de test de 24 382 ticks (6 min 46 s) : 65 Ko de JSON, 4,7 Ko une fois compressé. Une souris humaine bouge presque à chaque tick : il faut compter jusqu'à environ 3 octets de JSON par tick avant compression, soit environ 0,6 Mo par heure de jeu. Le serveur refuse tout journal qu'un joueur ne peut pas produire : pause là où le jeu l'interdit, entrée pendant une pause, déplacement non entier ou démesuré, entrée après la fin, plus de 10 heures de jeu. Le journal est supprimé après validation, sauf pour les scores du top 1000 du Limbes, gardés pour pouvoir les revérifier.
 
 ### Comptes
 
@@ -156,7 +156,7 @@ deploy/       Dockerfiles de web et api, bloc Caddy du site, fragment docker-com
 
 Les migrations SQL vivent dans `apps/api`, avec le code qui les utilise.
 
-Le code de `apps/api` n'entre jamais dans le bundle du navigateur. Première tâche de la V2, faite : le jeu est dans `packages/game`, qui garde pour l'instant la coquille navigateur (`main.ts`), et Electron dans `apps/desktop`. `apps/web`, `apps/api`, `packages/contracts` et `deploy/` arrivent avec leurs tâches. Pour rejouer une partie sans affichage, il faudra encore sortir de `main.ts` la boucle qui relie les entrées au moteur.
+Le code de `apps/api` n'entre jamais dans le bundle du navigateur. Première tâche de la V2, faite : le jeu est dans `packages/game`, qui garde pour l'instant la coquille navigateur (`main.ts`), et Electron dans `apps/desktop`. `apps/web`, `apps/api`, `packages/contracts` et `deploy/` arrivent avec leurs tâches. Le rejeu sans affichage est fait (`packages/game/src/game/replay.ts`) : `main.ts` passe chaque partie solo par un enregistreur, et le serveur de développement rejoue chaque fin de partie pour vérifier qu'il retrouve le même score. Reste à trancher avec l'API : après un game over, l'original enchaîne une nouvelle partie dans le même moteur, le hasard continuant là où il s'était arrêté. Pour une graine fournie par le serveur à chaque partie, il faudra pouvoir resemer le moteur à ce moment-là.
 
 ## Hébergement et budget V2
 
