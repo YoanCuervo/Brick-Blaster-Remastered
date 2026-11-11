@@ -1,0 +1,18 @@
+{
+  "name": "@brick-blaster/api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Brick Blaster website API",
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit && vite build",
+    "dev": "node scripts/dev.ts",
+    "start": "node --env-file-if-exists=.env dist/server.js",
+    "migrate": "vite build && node --env-file-if-exists=.env dist/migrate.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "fastify": "^5.12.8",
+    "mysql2": "^3.24.6"
+  }
+}
