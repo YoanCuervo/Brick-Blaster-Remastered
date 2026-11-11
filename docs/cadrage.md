@@ -1,6 +1,6 @@
 # Cadrage — Brick Blaster Remastered
 
-> Validé le 30/10/2026. Référence technique du jeu d'origine : [`BRICK_BLASTER_ANALYSE.md`](../BRICK_BLASTER_ANALYSE.md).
+> V1 validée le 30/10/2026, V2 cadrée le 11/11/2026. Référence technique du jeu d'origine : [`BRICK_BLASTER_ANALYSE.md`](../BRICK_BLASTER_ANALYSE.md).
 
 ## Objectif
 
@@ -9,7 +9,7 @@ Remake **fidèle** de Brick Blaster (Eclipse, 1999) : mêmes règles, mêmes ass
 ## Utilisateurs
 
 - **V1** : le porteur du projet seul, en local sur sa machine.
-- **V2** : des joueurs publics, avec un classement en ligne partagé.
+- **V2** : des joueurs publics, sur un site web qui accueille le jeu, avec des comptes et un classement en ligne partagé.
 
 Projet personnel, qui alimentera un portfolio. Pas d'échéance.
 
@@ -65,6 +65,125 @@ On peut finir les niveaux d'un monde, du menu jusqu'à l'écran « félicitation
 | **ESLint** (typescript-eslint) + **Prettier** | Configuration standard. |
 | Aucun backend, aucune base de données, aucune API externe | Inutiles en V1. |
 
+## Périmètre V2
+
+La V2 est un site web qui accueille le jeu. Simplicité et sécurité priment : le front ne fait qu'afficher, le back contrôle tout (droits, validation de chaque requête, validation de chaque score). Site en français uniquement, pour ordinateur : sur mobile, une page explique que le jeu demande une souris et un clavier.
+
+### Parcours
+
+- **Accueil** : présentation du jeu, deux actions, « Essayer » et « S'inscrire », et « Se connecter » dans la navigation. Un joueur déjà connecté est envoyé directement sur son profil.
+- **Essayer** : une seule partie, verrouillée en monde espace, difficulté moyenne. À la fin, le joueur voit sa table des scores mais ne peut y inscrire son score qu'après inscription. S'il refuse, il retourne à l'accueil, seul chemin pour rejouer. S'il s'inscrit, son score entre dans sa table espace / moyen, puis il arrive sur son profil.
+- **Profil** (connecté uniquement) : trois entrées, « Jouer », « Stats », « Télécharger ». Le joueur y change son pseudo et son avatar.
+  - **Jouer** : le jeu complet de la version navigateur, à une différence près : le quadrant coop est remplacé par le mode **PvP**, une partie solo sur le Limbes dont le score entre dans le classement en ligne. Ce n'est pas un duel en réseau.
+  - **Stats** : une modale avec toutes les statistiques du joueur.
+  - **Télécharger** : le .exe de la V1, qui garde son mode coop.
+
+### Scores et classements
+
+- **Espace et arcade** : tables privées par monde et par difficulté, visibles du seul joueur, stockées sur le serveur et liées au compte. Elles remplacent les tables locales de la version navigateur.
+- **Limbes (PvP)** : un classement en ligne par difficulté, partagé entre tous les joueurs. Un joueur peut y avoir plusieurs entrées. La base garde les 1000 meilleurs scores de chaque difficulté, le site affiche le top 100.
+- **Survol d'un joueur** dans le classement : avatar, pseudo, meilleur score, parties jouées. Le reste du profil reste privé.
+- Le nom affiché dans une table est le pseudo du compte.
+- **Tout score est rejoué par le serveur** avant d'être enregistré, essai compris : le serveur fournit la graine au lancement, le client renvoie le journal de ses entrées tick par tick, le serveur rejoue la partie avec le moteur et ne retient que son propre résultat. Un score envoyé seul est refusé. La partie d'essai est rattachée à une session anonyme et expire si le joueur ne s'inscrit pas.
+
+### Stats
+
+Chaque partie, quel que soit le monde, est envoyée au serveur et donne une ligne : monde, difficulté, score, niveau atteint, durée, date. Une ligne de compteurs par joueur est mise à jour à chaque partie : parties jouées, temps de jeu total, meilleur score par monde et par difficulté, niveau maximal atteint, briques cassées, vies perdues. La modale affiche ces compteurs et l'historique des dernières parties.
+
+Le journal d'entrées d'une partie pèse de 20 à 100 Ko. Il est supprimé après validation, sauf pour les scores du top 1000 du Limbes, gardés pour pouvoir les revérifier.
+
+### Comptes
+
+- Inscription par email et mot de passe, réservée aux 15 ans et plus (case déclarative : en dessous, le RGPD demande l'accord des parents).
+- Email vérifié par un lien avant la première connexion. Mot de passe oublié : un lien de réinitialisation envoyé à l'adresse du compte. Pas de double authentification.
+- Pseudo : 15 caractères au plus, la limite de la table des scores du jeu (analyse, Écrans et meilleurs scores), unique sans tenir compte de la casse, filtré contre les insultes, modifiable.
+- Avatar choisi parmi une galerie prédéfinie : aucun envoi d'image, donc aucun contenu à modérer.
+- Réglages (souris, son…) enregistrés sur le compte et recopiés en localStorage.
+- Le joueur peut exporter ses données et supprimer son compte.
+
+### Sécurité
+
+| Mesure | Détail |
+|---|---|
+| Mots de passe | Hachés en argon2id, jamais journalisés. |
+| Session | Stockée côté serveur dans MySQL. Le cookie ne porte qu'un identifiant aléatoire : `HttpOnly`, `Secure`, `SameSite=Strict`. Expire après 7 jours d'inactivité, 30 jours au plus. Toutes les sessions sont révoquées au changement de mot de passe. Pas de jeton lisible par le front. |
+| Validation | Chaque route de l'API valide son entrée contre un schéma (types, longueurs, champs en trop rejetés). Toute autorisation se décide côté serveur. |
+| Limitation de débit | Nombre de requêtes par IP et par minute plafonné sur l'inscription, la connexion, le mot de passe oublié et l'envoi de parties. |
+| Verrouillage progressif | Après 5 échecs de connexion sur un compte, délai croissant (1, 5, puis 15 minutes). Jamais de blocage définitif, qui permettrait de bloquer le compte d'un autre. |
+| Messages neutres | « Identifiants invalides », « si ce compte existe, un email a été envoyé » : impossible de savoir quels emails sont inscrits. |
+| Captcha | Aucun : les captchas courants sont des services tiers avec traceurs. |
+| Anti-triche | Rejeu serveur de chaque partie (voir Scores et classements). Les rejeux tournent dans un worker, avec un plafond de rejeux simultanés. |
+| Secrets | Uniquement sur le serveur, jamais dans le dépôt ni dans le front. |
+
+### Exclusions V2
+
+| Élément | Statut |
+|---|---|
+| Choix du skin par le joueur | Dette technique, plus tard dans la V2 |
+| Interface d'administration (bannir, supprimer un score, renommer) | Plus tard |
+| Duel en temps réel en réseau | Exclu : le PvP est un classement |
+| Mode coop sur le site | Exclu : remplacé par le PvP, gardé dans le .exe |
+| Envoi d'images de profil | Exclu : avatars prédéfinis |
+| Double authentification | Exclue |
+| Version mobile, autres langues | Exclues |
+
+### Critère de fin de la V2
+
+Un visiteur essaie le jeu, s'inscrit, retrouve son score d'essai, joue au jeu complet, entre dans le classement du Limbes, consulte ses stats et télécharge le .exe, sur le site en ligne en HTTPS. Aucun score forgé à la main n'est accepté. `/conform-cnil` a été passé sans point bloquant.
+
+## Stack et choix techniques V2
+
+| Choix | Justification |
+|---|---|
+| **Monorepo**, workspaces npm | Le serveur a besoin du moteur du jeu pour rejouer les parties : un seul dépôt partage ce code sans publication de paquet. Les workspaces npm évitent un outil de plus. |
+| **React + TypeScript + Vite** pour le site | Les pages du site (accueil, profil, classement, modales). Le jeu reste en Canvas 2D sans React : le site ne fait que le monter dans une page. |
+| **Node + TypeScript + Fastify** pour l'API | Fastify valide chaque requête contre un schéma avant qu'elle n'atteigne le code, ce qui sert directement « le back contrôle tout ». Une seule langue sur tout le projet. |
+| **MySQL** | Comptes, sessions, parties, tables de scores, compteurs. Les migrations SQL sont versionnées. |
+| **Brevo** (emails transactionnels) | Vérification de l'email et réinitialisation du mot de passe. Société française, données dans l'UE, offre gratuite de 300 emails par jour (logo Brevo dans les emails). |
+
+Arborescence cible :
+
+```
+apps/
+  web/        site React : accueil, profil, classement, monte le jeu
+  api/        API Fastify : seule à détenir les secrets et à parler à MySQL
+  desktop/    Electron (l'actuel electron/)
+packages/
+  game/       le moteur actuel (src/ : core, game, input, render, audio, ui, data)
+  contracts/  types et schémas des échanges entre web et api
+deploy/       Dockerfiles de web et api, bloc Caddy du site, fragment docker-compose
+```
+
+Les migrations SQL vivent dans `apps/api`, avec le code qui les utilise.
+
+Le code de `apps/api` n'entre jamais dans le bundle du navigateur. Le déplacement de `src/` vers `packages/game` est la première tâche de la V2 : le .exe et la version navigateur actuelle doivent rester buildables après.
+
+## Hébergement et budget V2
+
+Un seul serveur pour ce site, le portfolio et les autres projets à venir. Tout est servi sous un même domaine (`/` pour le site, `/api` pour l'API), ce qui permet le cookie `SameSite=Strict` sans CORS.
+
+- **VPS OVHcloud VPS-1** (2 vCores, 4 Go de RAM, 40 Go NVMe, trafic illimité, France) avec Docker Compose. Estimation de mémoire avec le portfolio et 2 à 3 autres petites API : environ 1,5 Go sur 4. On montera en VPS-2 seulement si le besoin apparaît.
+- **Caddy** en reverse proxy : HTTPS automatique, et il sert lui-même les fronts statiques. Aucun Node ne tourne pour un front.
+- **Un seul MySQL** pour tous les projets, une base par projet, réglé pour une petite machine.
+- **Cloudflare** (offre gratuite) devant le serveur : DNS, anti-DDoS, cache des assets du jeu, IP du serveur masquée.
+- **Domaine .fr chez OVH** : Cloudflare ne vend pas le .fr, et c'est l'extension la moins chère des deux.
+- **Sauvegardes** : celle d'OVH ne garde que 24 heures. Un dump MySQL chaque nuit est copié dans OVH Object Storage.
+- Le serveur se maintient à la main : mises à jour, pare-feu, SSH par clé uniquement. Une procédure écrite accompagnera la mise en place.
+
+Le serveur est commun à plusieurs projets : sa configuration (Caddy global, MySQL partagé, sauvegardes, durcissement, procédure) vit dans un **dépôt d'infrastructure séparé**. Ce dépôt-ci ne fournit que ce qui est propre à Brick Blaster, dans `deploy/` : les images de `apps/web` et `apps/api`, le bloc Caddy du site et le fragment docker-compose que l'infra inclut.
+
+Coûts relevés le 11/11/2026 sur les sites des fournisseurs, à revérifier à la commande (OVH annonce des hausses en 2026) :
+
+| Poste | Prix | Par an |
+|---|---|---|
+| VPS-1 OVHcloud | 3,81 € HT, soit 4,57 € TTC par mois | 54,84 € |
+| Domaine .fr OVH | 4,99 € HT la 1re année, puis 7,79 € HT | ≈ 6 € puis ≈ 9,35 € TTC |
+| OVH Object Storage | ≈ 0,014 € HT par Go et par mois, sortie gratuite | < 1 € |
+| Cloudflare, Brevo | offres gratuites | 0 € |
+| **Total** | | **≈ 61 € la 1re année, ≈ 64 € ensuite** |
+
+Non confirmé au moment du relevé : frais d'installation et remise d'engagement du VPS, à contrôler au panier.
+
 ## Assets et droits
 
 Graphismes, sons, musiques et niveaux appartiennent à Eclipse et à leurs auteurs.
@@ -72,12 +191,13 @@ Graphismes, sons, musiques et niveaux appartiennent à Eclipse et à leurs auteu
 - **Le dépôt ne contient aucun asset.** Le jeu charge le pack `assets/`, généré par `tools/extract/` à partir de `original/`. Ni l'un ni l'autre n'est versionné. Le code peut donc être publié sans risque.
 - **Usage local** : assets d'origine.
 - **Version publique** : assets autorisés par Eclipse, ou pack d'assets refait, sans toucher au code.
+- **V2** : décision du 11/11/2026, on développe le site comme si les droits étaient acquis. Un pack d'assets refait remplacera celui d'Eclipse plus tard. Tant que ce n'est pas fait, ni le site ni le .exe ne sont mis en ligne publiquement.
 
 ## Variables d'environnement et secrets
 
 - **V1** : aucun secret. Rien à configurer.
 - Tout ce qui est dans le front (y compris `VITE_*`) est public : **jamais de secret côté front**.
-- **V2** : les secrets (base de données, signature des jetons) vivent uniquement côté backend, dans l'interface de l'hébergeur. La triche se combat en faisant rejouer la partie par le serveur (replay déterministe), pas avec un secret.
+- **V2** : les secrets (accès MySQL, clé Brevo) vivent uniquement sur le serveur, dans des fichiers d'environnement non versionnés lus par `apps/api`. La session ne repose sur aucun jeton signé : son identifiant aléatoire est vérifié en base. La triche se combat en faisant rejouer la partie par le serveur (replay déterministe), pas avec un secret.
 
 ## Obligations légales
 
@@ -85,15 +205,15 @@ Graphismes, sons, musiques et niveaux appartiennent à Eclipse et à leurs auteu
 |---|---|---|
 | Accessibilité | **Aucune obligation**, bonne pratique | Particulier, ni secteur public, ni grande entreprise (RGAA), ni service aux consommateurs (European Accessibility Act). On visera tout de même des menus utilisables au clavier et des contrastes lisibles. |
 | RGPD | **Ne s'applique pas en V1** | Aucune donnée personnelle ne quitte la machine. Le nom des meilleurs scores reste dans le navigateur. |
-| RGPD en V2 | **S'appliquera** | Le classement en ligne traitera un pseudo, voire des comptes, et le serveur verra des adresses IP dans ses journaux. Il faudra lancer `/conform-cnil` avant la mise en ligne. Pas de bandeau cookies tant qu'aucun traceur non exempté n'est ajouté. |
+| RGPD en V2 | **S'applique** | Comptes (email, pseudo, mot de passe haché), parties et stats, adresses IP dans les journaux. Inscription à partir de 15 ans. Export et suppression du compte par le joueur. Sous-traitants : OVHcloud (France), Brevo (France, UE), Cloudflare (États-Unis, transfert hors UE à mentionner). Le seul cookie est celui de session, strictement nécessaire : pas de bandeau tant qu'aucun traceur non exempté n'est ajouté. `/conform-cnil` avant la mise en ligne. |
 
 Ces conclusions aident au cadrage. Elles ne remplacent pas l'avis d'un juriste.
 
 ## Pistes V2 et au-delà
 
-- Classement en ligne : backend sur Render ou Vercel, authentification.
-- Front hébergé sur GitHub Pages.
 - Mode duel, avec les couleurs du joueur 2 de l'original pour ses balles, capsules et vies (`src/render/skin.ts`).
-- Choix du skin par le joueur, intégré au site web : couleurs du joueur 1 ou du joueur 2 de l'original, affichage seul. La table existe (`src/render/skin.ts`, analyse §3.5), aucun réglage ni menu ne la propose encore.
+- Choix du skin par le joueur, intégré au site web (dette de la V2) : couleurs du joueur 1 ou du joueur 2 de l'original, affichage seul. La table existe (`src/render/skin.ts`, analyse §3.5), aucun réglage ni menu ne la propose encore.
 - Éditeur de niveaux.
+- Interface d'administration du site.
+- Pack d'assets refait, pour publier le site et le .exe.
 - Passage éventuel du .exe à Tauri, si un livrable léger devient utile.
