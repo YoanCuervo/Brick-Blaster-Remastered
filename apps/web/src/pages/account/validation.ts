@@ -1,8 +1,5 @@
 /** Client-side checks only, for quick feedback: the API validates every field again. */
 
-/** Limit of the game's high score table, where the pseudo is displayed. */
-export const PSEUDO_MAX = 15;
-const PSEUDO_PATTERN = /^[A-Za-z0-9_-]{3,15}$/;
 const PASSWORD_MIN = 12;
 // Deliberately loose: the verification link is the real check.
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -15,10 +12,6 @@ export function checkEmail(value: string): string | null {
 
 export function checkPassword(value: string): string | null {
   return value.length >= PASSWORD_MIN ? null : PASSWORD_RULE;
-}
-
-export function checkPseudo(value: string): string | null {
-  return PSEUDO_PATTERN.test(value) ? null : "3 à 15 caractères : lettres, chiffres, - ou _.";
 }
 
 export function checkConfirmation(password: string, confirmation: string): string | null {
