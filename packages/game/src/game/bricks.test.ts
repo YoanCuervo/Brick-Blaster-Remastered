@@ -30,7 +30,13 @@ describe("createGrid (0x404D08)", () => {
     const g = createGrid(level([0x21, 0x24, 0x27, 0x11, 0x08, 0x18, 0x61]));
     expect(Array.from(g.cells.slice(0, 8))).toEqual([1, 4, 4, 1, 0x0c, 0x1c, 1, 0]);
     expect(Array.from(g.frames.slice(0, 7))).toEqual([
-      0xedc2, 0xedc2, 0xedc2, 0xee46, 0x4ac9, 0xee67, 0xedc2 + 0x2a80,
+      0xedc2,
+      0xedc2,
+      0xedc2,
+      0xee46,
+      0x4ac9,
+      0xee67,
+      0xedc2 + 0x2a80,
     ]);
     expect(g.cells.length).toBe(GRID_CELLS);
   });

@@ -37,7 +37,13 @@ const GIVE_UP_AT = 2000;
  * game, scoresDue cleared once seen. Follows the lowest falling ball, except while giving up.
  */
 function record(): { log: ReplayLog; ends: GameEnd[]; ticks: number } {
-  const game = new Game(setup.config, setup.levels, setup.difficulty, new Rng(SEED), SPARE_LIFE_POINTS);
+  const game = new Game(
+    setup.config,
+    setup.levels,
+    setup.difficulty,
+    new Rng(SEED),
+    SPARE_LIFE_POINTS,
+  );
   const recorder = new GameRecorder(game, SEED);
   const ends: GameEnd[] = [];
   let ticks = 0;
@@ -117,8 +123,8 @@ describe("a recorded game", () => {
 describe("a forged log", () => {
   const ops = recorded.log.ops;
   const firstPause = ops.findIndex((op) => op[0] === "p");
-  const forged = (change: Partial<ReplayLog>) =>
-    () => replay(setup, { ...recorded.log, ...change } as ReplayLog);
+  const forged = (change: Partial<ReplayLog>) => () =>
+    replay(setup, { ...recorded.log, ...change } as ReplayLog);
   const withOps = (o: unknown[]) => forged({ ops: o as ReplayOp[] });
 
   it("is refused for a bad header", () => {

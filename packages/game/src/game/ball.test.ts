@@ -752,11 +752,18 @@ describe("player 2's paddle (0x40476A, §4.6)", () => {
     b.dy = -4;
     stickToPaddle(b, p2, 1);
     const probe = { hit: () => false };
-    updateBall(b, p1, probe, 100, { fire: true, magnet: { on: true }, second: { paddle: p2, magnet: magnet2, fire: false } });
+    updateBall(b, p1, probe, 100, {
+      fire: true,
+      magnet: { on: true },
+      second: { paddle: p2, magnet: magnet2, fire: false },
+    });
     const offset = b.stuckOffset!;
     expect(b.x).toBe(203 + offset);
     p2.x = 250;
-    updateBall(b, p1, probe, 100, { magnet: { on: true }, second: { paddle: p2, magnet: magnet2, fire: true } });
+    updateBall(b, p1, probe, 100, {
+      magnet: { on: true },
+      second: { paddle: p2, magnet: magnet2, fire: true },
+    });
     expect(magnet2.on).toBe(false);
     expect(b.stuckOffset).toBeNull();
     expect(b.x).toBe(250 + offset - 3);

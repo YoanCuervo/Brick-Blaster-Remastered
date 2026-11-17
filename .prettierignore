@@ -1,10 +1,11 @@
-assets/
-original/
-game/
-tools/
+# Root folders only: an unanchored `game/` would also skip packages/game.
+/assets/
+/original/
+/game/
+/tools/
+/release/
 dist/
 dist-electron/
 .cache/
-release/
 # Hand-written docs: keep their layout
 *.md

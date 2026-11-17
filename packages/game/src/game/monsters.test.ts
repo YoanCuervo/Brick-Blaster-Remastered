@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { Rng } from "../core/rng";
 import { spriteAt } from "../render/atlas";
-import { type Ball, BallState, type BrickProbe, clampToBounds, createBall, stepBallAnim } from "./ball";
+import {
+  type Ball,
+  BallState,
+  type BrickProbe,
+  clampToBounds,
+  createBall,
+  stepBallAnim,
+} from "./ball";
 import {
   BLAST_SIZE,
   BLAST_SPRITE,

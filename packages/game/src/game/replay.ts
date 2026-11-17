@@ -68,7 +68,11 @@ export class GameRecorder implements GameDriver {
   }
 
   get log(): ReplayLog {
-    return { version: REPLAY_VERSION, seed: this.seed >>> 0, ops: this.ops.map((op) => [...op]) as ReplayOp[] };
+    return {
+      version: REPLAY_VERSION,
+      seed: this.seed >>> 0,
+      ops: this.ops.map((op) => [...op]) as ReplayOp[],
+    };
   }
 }
 
