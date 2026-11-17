@@ -10,6 +10,7 @@ export const ROUTES = {
   play: "/jouer",
   leaderboard: "/classement",
   legal: "/mentions-legales",
+  terms: "/conditions",
   privacy: "/confidentialite",
   styleGuide: "/charte",
 } as const;

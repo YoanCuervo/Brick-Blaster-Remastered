@@ -144,7 +144,7 @@ export function StyleGuide() {
             </label>
             <label className="check check-primary">
               <input type="checkbox" defaultChecked />
-              <span>J'ai 15 ans ou plus (bleu, inscription)</span>
+              <span>Case cochée (bleu)</span>
             </label>
           </Block>
 
