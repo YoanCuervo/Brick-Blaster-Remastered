@@ -1,0 +1,56 @@
+.trial {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding-top: 8px;
+}
+
+.trial-mode {
+  font-size: 13.2px;
+}
+
+.trial-end {
+  width: min(560px, 100%);
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.trial-end-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.trial-end .tbl tbody tr.me th {
+  padding: 6px 0;
+}
+
+.trial-end-name {
+  width: 200px;
+  min-height: 36px;
+  border-color: var(--green);
+}
+
+.trial-end-rank {
+  width: 60px;
+}
+
+.trial-end-submit {
+  align-self: flex-end;
+}
+
+.trial-modal-head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.trial-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}

@@ -1,0 +1,40 @@
+.game-frame {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.game-frame-card {
+  padding: 10px;
+}
+
+.game-frame-screen {
+  width: 640px;
+  height: 480px;
+  overflow: hidden;
+  background: #050505;
+}
+.game-frame-screen:fullscreen {
+  width: 100%;
+  height: 100%;
+}
+
+.game-frame-bar {
+  width: 660px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.game-frame-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.game-frame-actions {
+  display: inline-flex;
+  gap: 10px;
+}

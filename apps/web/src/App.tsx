@@ -1,13 +1,17 @@
 import type { ReactElement } from "react";
+import { useMediaQuery } from "./hooks/useMediaQuery";
+import { Home } from "./pages/Home";
+import { MobileNotice } from "./pages/MobileNotice";
 import { NotFound } from "./pages/NotFound";
 import { Placeholder } from "./pages/Placeholder";
 import { StyleGuide } from "./pages/StyleGuide";
+import { Trial } from "./pages/trial/Trial";
 import { usePath } from "./router";
 import { ROUTES } from "./routes";
 
 const PAGES: Record<string, () => ReactElement> = {
-  [ROUTES.home]: () => <Placeholder title="Accueil" />,
-  [ROUTES.trial]: () => <Placeholder title="Partie d'essai" />,
+  [ROUTES.home]: () => <Home />,
+  [ROUTES.trial]: () => <Trial />,
   [ROUTES.signUp]: () => <Placeholder title="Inscription" />,
   [ROUTES.signIn]: () => <Placeholder title="Connexion" />,
   [ROUTES.forgotPassword]: () => <Placeholder title="Mot de passe oublié" />,
@@ -22,9 +26,16 @@ const PAGES: Record<string, () => ReactElement> = {
 // The style guide is a review tool: it never ships in the production build.
 if (import.meta.env.DEV) PAGES[ROUTES.styleGuide] = () => <StyleGuide />;
 
+// Legal pages stay readable on every device.
+const ALWAYS_AVAILABLE: readonly string[] = [ROUTES.legal, ROUTES.privacy];
+
 export function App() {
   const path = usePath();
+  // The game needs a mouse or trackpad: a width check would let tablets through.
+  const hasFinePointer = useMediaQuery("(any-pointer: fine)");
   // Tolerate a trailing slash: /profil/ shows the profile.
-  const page = PAGES[path.length > 1 ? path.replace(/\/+$/, "") : path];
+  const route = path.length > 1 ? path.replace(/\/+$/, "") : path;
+  if (!hasFinePointer && !ALWAYS_AVAILABLE.includes(route)) return <MobileNotice />;
+  const page = PAGES[route];
   return page ? page() : <NotFound />;
 }

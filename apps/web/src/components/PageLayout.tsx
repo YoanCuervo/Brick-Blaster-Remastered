@@ -10,16 +10,24 @@ interface PageLayoutProps {
   /** Right side of the top bar; `false` hides the whole bar (forms carry their own wordmark). */
   actions?: ReactNode | false;
   footer?: boolean;
+  /** Extra class on the page root, for page-specific spacing. */
+  className?: string;
   children: ReactNode;
 }
 
-export function PageLayout({ title, actions, footer = true, children }: PageLayoutProps) {
+export function PageLayout({
+  title,
+  actions,
+  footer = true,
+  className,
+  children,
+}: PageLayoutProps) {
   useEffect(() => {
     document.title = `${title} · Brick Blaster Remastered`;
   }, [title]);
 
   return (
-    <div className="page">
+    <div className={className ? `page ${className}` : "page"}>
       <Backdrop />
       {actions !== false && (
         <header className="topbar">
