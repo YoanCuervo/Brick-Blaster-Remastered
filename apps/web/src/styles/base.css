@@ -128,21 +128,12 @@ button {
 .wordmark {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
   min-height: 44px;
-  font: 700 19.8px/28px var(--font-display);
-  text-transform: uppercase;
-  color: var(--text);
-  text-decoration: none;
 }
-.wordmark i {
-  display: inline-block;
-  width: 28px;
-  height: 14px;
-  background: var(--blue);
-}
-.wordmark:hover {
-  color: var(--orange);
+.wordmark img {
+  display: block;
+  width: auto;
+  height: 72px;
 }
 
 .footer {

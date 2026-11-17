@@ -54,6 +54,9 @@
   gap: 16px;
   padding: 40px 44px;
 }
+.auth-card .wordmark {
+  align-self: center;
+}
 .auth-body {
   flex: 1;
   display: flex;
