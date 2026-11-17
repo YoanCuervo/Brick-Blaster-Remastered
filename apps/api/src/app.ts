@@ -1,12 +1,16 @@
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from "fastify";
 import type { Db } from "./db";
+import { authRoutes } from "./routes/auth";
+import type { AccountDeps } from "./routes/deps";
 import { healthRoutes } from "./routes/health";
+import { meRoutes } from "./routes/me";
 
 /** Requests carry small JSON only; replay logs will raise this on their own route. */
 export const BODY_LIMIT = 16 * 1024;
 
 export interface AppOptions {
   db: Db;
+  accounts: AccountDeps;
   trustProxy?: boolean;
   logger?: FastifyServerOptions["logger"];
 }
@@ -41,11 +45,21 @@ export function buildApp(options: AppOptions): FastifyInstance {
     }
     return res.code(code).send({ error: ERRORS[code] });
   });
+  // Besides SameSite=Strict and JSON-only bodies: a write from another site is refused outright.
+  app.addHook("onRequest", async (req, res) => {
+    if (req.method === "GET" || req.method === "HEAD") return;
+    const origin = req.headers.origin;
+    if (origin !== undefined && origin !== options.accounts.siteUrl) {
+      return res.code(403).send({ error: "forbidden" });
+    }
+  });
   app.setNotFoundHandler((_req, res) => res.code(404).send({ error: "not_found" }));
 
   app.register(
     async (api) => {
       healthRoutes(api, options.db);
+      authRoutes(api, options.accounts);
+      meRoutes(api, options.accounts);
     },
     { prefix: "/api" },
   );

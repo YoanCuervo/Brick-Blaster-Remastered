@@ -19,6 +19,8 @@ describe("the API configuration", () => {
       host: "127.0.0.1",
       port: 3000,
       trustProxy: false,
+      siteUrl: "http://localhost:5174",
+      mail: { transport: "log" },
       db: {
         host: "127.0.0.1",
         port: 3306,
@@ -69,5 +71,51 @@ describe("the API configuration", () => {
     } catch (error: unknown) {
       expect((error as Error).message).not.toContain("hunter2");
     }
+  });
+
+  it("keeps the origin of the site only", () => {
+    expect(loadConfig({ ...minimal, SITE_URL: "http://localhost:5174/" }).siteUrl).toBe(
+      "http://localhost:5174",
+    );
+    expect(problemsOf({ ...minimal, SITE_URL: "ftp://exemple.fr" })).toEqual([
+      "SITE_URL must be an http(s) URL",
+    ]);
+  });
+
+  it("sends emails through Brevo when it has a key", () => {
+    const config = loadConfig({
+      ...minimal,
+      SITE_URL: "https://brickblaster.fr",
+      BREVO_API_KEY: "xkeysib-test",
+      MAIL_FROM: "noreply@brickblaster.fr",
+    });
+    expect(config.mail).toEqual({
+      transport: "brevo",
+      apiKey: "xkeysib-test",
+      from: "noreply@brickblaster.fr",
+    });
+    expect(problemsOf({ ...minimal, BREVO_API_KEY: "xkeysib-test" })).toEqual([
+      "MAIL_FROM is required",
+    ]);
+    expect(problemsOf({ ...minimal, BREVO_API_KEY: "k", MAIL_FROM: "noreply" })).toEqual([
+      "MAIL_FROM must be an email address",
+    ]);
+  });
+
+  it("writes emails to the log on a local site only, and wants HTTPS elsewhere", () => {
+    expect(problemsOf({ ...minimal, SITE_URL: "https://brickblaster.fr" })).toEqual([
+      "BREVO_API_KEY is required when SITE_URL is not local",
+    ]);
+    expect(
+      problemsOf({
+        ...minimal,
+        SITE_URL: "http://brickblaster.fr",
+        BREVO_API_KEY: "k",
+        MAIL_FROM: "a@b.fr",
+      }),
+    ).toEqual(["SITE_URL must use https"]);
+    expect(loadConfig({ ...minimal, SITE_URL: "http://127.0.0.1:5174" }).mail.transport).toBe(
+      "log",
+    );
   });
 });

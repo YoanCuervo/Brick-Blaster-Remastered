@@ -21,8 +21,11 @@ export function connectionOptions(config: DbConfig): mysql.ConnectionOptions {
   };
 }
 
-export function createDb(config: DbConfig): Db {
-  const pool = mysql.createPool({ ...connectionOptions(config), connectionLimit: 5 });
+export function createPool(config: DbConfig): mysql.Pool {
+  return mysql.createPool({ ...connectionOptions(config), connectionLimit: 5 });
+}
+
+export function createDb(pool: mysql.Pool): Db {
   return {
     async ping() {
       await pool.query("SELECT 1");

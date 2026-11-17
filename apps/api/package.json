@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@brick-blaster/contracts": "*",
     "fastify": "^5.12.8",
     "mysql2": "^3.24.6"
   }
