@@ -57,6 +57,7 @@ tools/extract/  DIET decompressor + asset extraction (Python)
 tools/re/       disassembly helpers (capstone), output in tools/re/out/
 tools/acceptance/ short-world dev config, never part of the build
 tools/limbes/   generates the Limbes backgrounds in packages/game/src/assets/backgrounds
+tools/logo/     make_logo.py: website logos (apps/web/src/assets/logo) from logo-source.png
 tools/          make_test_cfg.py, make_test_levels.py, blaster_cfg_original.txt
 docs/           cadrage.md
 ```
