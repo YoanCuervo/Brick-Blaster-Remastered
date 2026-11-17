@@ -4,6 +4,9 @@
   "private": true,
   "description": "Brick Blaster engine and browser version",
   "type": "module",
+  "exports": {
+    "./mount": "./src/mount.ts"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
