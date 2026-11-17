@@ -1,11 +1,10 @@
-import { DEMO_ACCOUNT, EXPIRED_RESET_TOKEN, TAKEN_PSEUDOS } from "../fixtures/account";
+import { DEMO_ACCOUNT, EXPIRED_RESET_TOKEN } from "../fixtures/account";
 
 /*
  * Fake account API: same signatures and answers as the future `/api` routes, backed by
  * fixtures. Only this file changes when the auth routes exist.
  */
 
-export type SignUpResult = { ok: true } | { ok: false; error: "pseudo-taken" };
 export type SignInResult =
   | { ok: true }
   | { ok: false; error: "invalid" }
@@ -23,18 +22,10 @@ let lockedUntil = 0;
 
 const latency = () => new Promise((resolve) => setTimeout(resolve, 300));
 
-export async function signUp(input: {
-  email: string;
-  password: string;
-  pseudo: string;
-}): Promise<SignUpResult> {
+/** Always succeeds: an email already registered gets a notice, never an error on screen. */
+export const signUp: (input: { email: string; password: string }) => Promise<void> = async () => {
   await latency();
-  const pseudo = input.pseudo.toLowerCase();
-  if (TAKEN_PSEUDOS.some((taken) => taken.toLowerCase() === pseudo)) {
-    return { ok: false, error: "pseudo-taken" };
-  }
-  return { ok: true };
-}
+};
 
 export async function signIn(input: { email: string; password: string }): Promise<SignInResult> {
   await latency();
