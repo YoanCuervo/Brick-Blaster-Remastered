@@ -23,24 +23,44 @@ export function logicalPoint(
  * 640×480 canvas displayed at an integer multiple, centered, with crisp pixels.
  * The drawing buffer stays 640×480: scaling is done by CSS only.
  */
+export interface ScreenOptions {
+  /** Sizes the canvas to the window; false when the page hosting it does. */
+  autoFit?: boolean;
+  /** Removes the listeners when aborted. */
+  signal?: AbortSignal;
+  /** What toggleFullscreen() shows fullscreen; the whole document by default. */
+  fullscreenTarget?: HTMLElement;
+}
+
 export class Screen {
   readonly ctx: CanvasRenderingContext2D;
   private scale = 1;
+  private readonly autoFit: boolean;
+  private readonly fullscreenTarget: HTMLElement;
 
-  constructor(readonly canvas: HTMLCanvasElement) {
+  constructor(
+    readonly canvas: HTMLCanvasElement,
+    options: ScreenOptions = {},
+  ) {
     canvas.width = SCREEN_WIDTH;
     canvas.height = SCREEN_HEIGHT;
     const ctx = canvas.getContext("2d", { alpha: false });
     if (!ctx) throw new Error("2D context unavailable");
     ctx.imageSmoothingEnabled = false;
     this.ctx = ctx;
+    this.autoFit = options.autoFit ?? true;
+    this.fullscreenTarget = options.fullscreenTarget ?? document.documentElement;
 
+    if (!this.autoFit) return;
     this.fit();
-    window.addEventListener("resize", () => this.fit());
-    document.addEventListener("fullscreenchange", () => this.fit());
+    const { signal } = options;
+    window.addEventListener("resize", () => this.fit(), { signal });
+    document.addEventListener("fullscreenchange", () => this.fit(), { signal });
   }
 
   get currentScale(): number {
+    // Sized by the host page: the scale is whatever the canvas is displayed at.
+    if (!this.autoFit) return this.canvas.getBoundingClientRect().width / SCREEN_WIDTH || 1;
     return this.scale;
   }
 
@@ -52,11 +72,11 @@ export class Screen {
 
   toLogical(clientX: number, clientY: number): { x: number; y: number } {
     const { left, top } = this.canvas.getBoundingClientRect();
-    return logicalPoint(clientX, clientY, left, top, this.scale);
+    return logicalPoint(clientX, clientY, left, top, this.currentScale);
   }
 
   async toggleFullscreen(): Promise<void> {
     if (document.fullscreenElement) await document.exitFullscreen();
-    else await document.documentElement.requestFullscreen();
+    else await this.fullscreenTarget.requestFullscreen();
   }
 }

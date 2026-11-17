@@ -8,7 +8,12 @@ export class GameAudio {
   private readonly sfx: Sfx;
   private readonly music_: Music;
 
-  constructor(sounds: Record<SoundName, Uint8Array>, base = import.meta.env.BASE_URL) {
+  /** Aborting `signal` closes the audio context for good. */
+  constructor(
+    sounds: Record<SoundName, Uint8Array>,
+    signal?: AbortSignal,
+    base = import.meta.env.BASE_URL,
+  ) {
     const ctx = new AudioContext();
     this.sfx = new Sfx(ctx, sounds);
     this.music_ = new Music(ctx, base, (channels) => this.sfx.setModuleChannels(channels));
@@ -18,13 +23,18 @@ export class GameAudio {
       unlocked = true;
       void ctx.resume();
     };
-    window.addEventListener("keydown", unlock);
-    window.addEventListener("pointerdown", unlock);
+    window.addEventListener("keydown", unlock, { signal });
+    window.addEventListener("pointerdown", unlock, { signal });
     // The game stands still in a hidden tab: the music waits with it.
-    document.addEventListener("visibilitychange", () => {
-      if (!unlocked) return;
-      void (document.hidden ? ctx.suspend() : ctx.resume());
-    });
+    document.addEventListener(
+      "visibilitychange",
+      () => {
+        if (!unlocked) return;
+        void (document.hidden ? ctx.suspend() : ctx.resume());
+      },
+      { signal },
+    );
+    signal?.addEventListener("abort", () => void ctx.close());
   }
 
   playMusic(name: MusicName): void {

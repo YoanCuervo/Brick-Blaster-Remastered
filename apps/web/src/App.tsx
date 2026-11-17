@@ -5,8 +5,10 @@ import { ResetPassword } from "./pages/account/ResetPassword";
 import { SignIn } from "./pages/account/SignIn";
 import { SignUp } from "./pages/account/SignUp";
 import { Home } from "./pages/Home";
+import { LeaderboardPage } from "./pages/leaderboard/Leaderboard";
 import { MobileNotice } from "./pages/MobileNotice";
 import { NotFound } from "./pages/NotFound";
+import { Play } from "./pages/play/Play";
 import { Placeholder } from "./pages/Placeholder";
 import { ProfilePage } from "./pages/profile/Profile";
 import { StyleGuide } from "./pages/StyleGuide";
@@ -22,8 +24,8 @@ const PAGES: Record<string, () => ReactElement> = {
   [ROUTES.forgotPassword]: () => <ForgotPassword />,
   [ROUTES.resetPassword]: () => <ResetPassword />,
   [ROUTES.profile]: () => <ProfilePage />,
-  [ROUTES.play]: () => <Placeholder title="Jouer" />,
-  [ROUTES.leaderboard]: () => <Placeholder title="Classement des Limbes" />,
+  [ROUTES.play]: () => <Play />,
+  [ROUTES.leaderboard]: () => <LeaderboardPage />,
   [ROUTES.legal]: () => <Placeholder title="Mentions légales" />,
   [ROUTES.terms]: () => <Placeholder title="Conditions d'utilisation" />,
   [ROUTES.privacy]: () => <Placeholder title="Politique de confidentialité" />,
