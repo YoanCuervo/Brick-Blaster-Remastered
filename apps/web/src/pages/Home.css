@@ -1,0 +1,92 @@
+.home .topbar {
+  padding: 12px 56px;
+}
+.home .page-main {
+  padding: 0 56px 16px;
+}
+.home .footer {
+  padding: 4px 56px;
+}
+
+/* Centred, not stretched: the cards keep the height of their content. */
+.home-grid {
+  margin: auto 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.home-hero {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 48px;
+}
+
+/* As wide as the title and centred, so the air is the same on both sides of the card. */
+.home-hero-content {
+  width: fit-content;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Text and buttons span the title width without widening the block. */
+.home-pitch,
+.home-actions,
+.home-note {
+  width: 0;
+  min-width: 100%;
+}
+
+.home-title {
+  margin: 0;
+  /* « REMASTERED » is 6.48 em wide: below 8em the size follows the card so the word never splits. */
+  font: 700 min(8em, 15cqi) / 1.13 var(--font-display);
+  text-transform: uppercase;
+}
+
+.home-pitch {
+  margin: -16px 0 0;
+  font-size: 16.9px;
+  line-height: 27px;
+}
+
+.home-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.home-note {
+  margin: 0;
+  font-size: 13.2px;
+}
+
+.home-art {
+  margin: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #050505;
+}
+
+@media (max-width: 900px) {
+  .home .topbar,
+  .home .page-main,
+  .home .footer {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .home-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .home-hero {
+    padding: 32px 24px;
+  }
+  .home-art {
+    aspect-ratio: 4 / 3;
+  }
+}

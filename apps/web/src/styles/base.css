@@ -147,6 +147,7 @@ button {
 
 .footer {
   display: flex;
+  justify-content: flex-end;
   gap: 24px;
   padding: 12px 40px;
   font-size: 12.2px;
