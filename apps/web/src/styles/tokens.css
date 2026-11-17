@@ -1,0 +1,30 @@
+/* Charter E (canvas "version E"): each colour has a single role. */
+:root {
+  --black: #000000;
+  --surface: #111111;
+  --text: #ffffff;
+  --text-muted: #d6d6d6;
+  --text-subtle: #a3a3a3;
+  --line: #5a5a5a;
+  --field-border: #8a8a8a;
+
+  /* Solo, primary buttons, sign-up checkbox; white text. */
+  --blue: #315edb;
+  /* Selected or hovered (active tab, hovered row, active field, replay button), success; black text. */
+  --green: #3cc677;
+  /* Multi, danger buttons. */
+  --pink: #d22961;
+  --pink-hover: #a81d4b;
+  /* Alerts and errors. */
+  --red: #ff4141;
+  /* Scores, records, table rules, focus ring. */
+  --orange: #f7972f;
+
+  --card-bg: linear-gradient(160deg, #121213 0%, #070708 42%, #050505 60%, #0d0d0e 100%);
+  --card-border: #a8a8ac;
+  --card-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09), inset 0 -1px 0 rgba(0, 0, 0, 0.6);
+  --scrim: rgba(0, 0, 0, 0.8);
+
+  --font-display: "Quantico", "Arial Narrow", sans-serif;
+  --font-sans: "Poppins", "Segoe UI", sans-serif;
+}
