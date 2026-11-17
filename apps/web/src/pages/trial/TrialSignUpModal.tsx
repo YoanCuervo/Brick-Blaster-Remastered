@@ -26,6 +26,9 @@ export function TrialSignUpModal({ open, onClose }: TrialSignUpModalProps) {
           S'inscrire
         </Link>
       </div>
+      <p className="subtle" style={{ margin: 0, fontSize: 11.3 }}>
+        « Non merci » ramène à l'accueil ; le score est perdu.
+      </p>
     </Modal>
   );
 }
