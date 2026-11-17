@@ -1,5 +1,9 @@
 import type { ReactElement } from "react";
 import { useMediaQuery } from "./hooks/useMediaQuery";
+import { ForgotPassword } from "./pages/account/ForgotPassword";
+import { ResetPassword } from "./pages/account/ResetPassword";
+import { SignIn } from "./pages/account/SignIn";
+import { SignUp } from "./pages/account/SignUp";
 import { Home } from "./pages/Home";
 import { MobileNotice } from "./pages/MobileNotice";
 import { NotFound } from "./pages/NotFound";
@@ -12,14 +16,15 @@ import { ROUTES } from "./routes";
 const PAGES: Record<string, () => ReactElement> = {
   [ROUTES.home]: () => <Home />,
   [ROUTES.trial]: () => <Trial />,
-  [ROUTES.signUp]: () => <Placeholder title="Inscription" />,
-  [ROUTES.signIn]: () => <Placeholder title="Connexion" />,
-  [ROUTES.forgotPassword]: () => <Placeholder title="Mot de passe oublié" />,
-  [ROUTES.resetPassword]: () => <Placeholder title="Nouveau mot de passe" />,
+  [ROUTES.signUp]: () => <SignUp />,
+  [ROUTES.signIn]: () => <SignIn />,
+  [ROUTES.forgotPassword]: () => <ForgotPassword />,
+  [ROUTES.resetPassword]: () => <ResetPassword />,
   [ROUTES.profile]: () => <Placeholder title="Profil" />,
   [ROUTES.play]: () => <Placeholder title="Jouer" />,
   [ROUTES.leaderboard]: () => <Placeholder title="Classement des Limbes" />,
   [ROUTES.legal]: () => <Placeholder title="Mentions légales" />,
+  [ROUTES.terms]: () => <Placeholder title="Conditions d'utilisation" />,
   [ROUTES.privacy]: () => <Placeholder title="Politique de confidentialité" />,
 };
 
@@ -27,7 +32,7 @@ const PAGES: Record<string, () => ReactElement> = {
 if (import.meta.env.DEV) PAGES[ROUTES.styleGuide] = () => <StyleGuide />;
 
 // Legal pages stay readable on every device.
-const ALWAYS_AVAILABLE: readonly string[] = [ROUTES.legal, ROUTES.privacy];
+const ALWAYS_AVAILABLE: readonly string[] = [ROUTES.legal, ROUTES.terms, ROUTES.privacy];
 
 export function App() {
   const path = usePath();
