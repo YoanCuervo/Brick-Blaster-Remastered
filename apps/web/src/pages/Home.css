@@ -12,27 +12,44 @@
 .home-grid {
   margin: auto 0;
   display: grid;
-  grid-template-columns: min-content minmax(0, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
 .home-hero {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 48px;
+}
+
+/* As wide as the title and centred, so the air is the same on both sides of the card. */
+.home-hero-content {
+  width: fit-content;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 20px;
-  padding: 48px;
+}
+
+/* Text and buttons span the title width without widening the block. */
+.home-pitch,
+.home-actions,
+.home-note {
+  width: 0;
+  min-width: 100%;
 }
 
 .home-title {
   margin: 0;
-  /* The card is as wide as « REMASTERED »; the vw cap keeps room for the art on small screens. */
-  font: 700 min(8em, 7.5vw) / 1.13 var(--font-display);
+  /* « REMASTERED » is 6.48 em wide: below 8em the size follows the card so the word never splits. */
+  font: 700 min(8em, 15cqi) / 1.13 var(--font-display);
   text-transform: uppercase;
 }
 
 .home-pitch {
-  margin: 0;
-  max-width: 520px;
+  margin: -16px 0 0;
   font-size: 16.9px;
   line-height: 27px;
 }
@@ -41,7 +58,6 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
-  max-width: 560px;
 }
 
 .home-note {
@@ -69,9 +85,6 @@
   }
   .home-hero {
     padding: 32px 24px;
-  }
-  .home-title {
-    font-size: min(8em, 11vw);
   }
   .home-art {
     aspect-ratio: 4 / 3;
