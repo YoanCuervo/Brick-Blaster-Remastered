@@ -43,7 +43,14 @@ function play(
 ): Run {
   const game = new Game(config, levels, difficulty, new Rng(seed));
   const player = new Rng(seed ^ 0x5a5a5a);
-  const run: Run = { finished: false, level: 1, gameOvers: 0, stalls: 0, longestLevel: 0, score: 0 };
+  const run: Run = {
+    finished: false,
+    level: 1,
+    gameOvers: 0,
+    stalls: 0,
+    longestLevel: 0,
+    score: 0,
+  };
   let level = 0;
   let levelTicks = 0;
   let aim = 0.5;

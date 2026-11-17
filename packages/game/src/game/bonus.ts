@@ -136,7 +136,8 @@ export function catchCapsules(
     if (c.state !== CapsuleState.Falling) continue;
     c.y += CAPSULE_DY;
     if (c.y < CATCH_Y) continue;
-    const seat = canCatch && c.y <= CATCH_Y + CAPSULE_H ? paddles.findIndex((p) => isCaught(c, p)) : -1;
+    const seat =
+      canCatch && c.y <= CATCH_Y + CAPSULE_H ? paddles.findIndex((p) => isCaught(c, p)) : -1;
     if (seat >= 0) {
       c.state = CapsuleState.Gone;
       caught.push({ bonus: c.bonus!, seat: seat as Seat });

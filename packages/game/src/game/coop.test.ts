@@ -1,13 +1,7 @@
 // Coop mode of the original (§4.6).
 import { describe, expect, it } from "vitest";
 import { Rng } from "../core/rng";
-import {
-  BONUS_KEYS,
-  Difficulty,
-  type GameConfig,
-  STATUS_KEYS,
-  type Triplet,
-} from "../data/config";
+import { BONUS_KEYS, Difficulty, type GameConfig, STATUS_KEYS, type Triplet } from "../data/config";
 import { LEVEL_COLS, LEVEL_ROWS, type Level } from "../data/levels";
 import { FADE_STEPS } from "../render/fade";
 import { BallState, createBall } from "./ball";

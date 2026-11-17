@@ -818,7 +818,8 @@ export class Game {
 
   /** 0x404A38: balls still in play (state 1 or −3), whoever owns them outside a duel. */
   private ballsInPlay(): number {
-    return this.balls.filter((b) => b.state === BallState.Active || b.state === BallState.Lost).length;
+    return this.balls.filter((b) => b.state === BallState.Active || b.state === BallState.Lost)
+      .length;
   }
 
   /** A shot (type 7) is not moved by a teleporter but still counts as a hit (0x4023AA). */
