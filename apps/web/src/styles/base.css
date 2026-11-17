@@ -1,0 +1,479 @@
+/* Shared classes of the charter E mockups. Sizes are the calibrated ones of the E files. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--black);
+  color: var(--text);
+  font: 400 14.1px/22px var(--font-sans);
+}
+
+:focus-visible {
+  outline: 3px solid var(--orange);
+  outline-offset: 3px;
+}
+
+a,
+button {
+  transition:
+    background-color 180ms ease,
+    color 180ms ease;
+}
+
+.page {
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.page-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 0 40px 32px;
+}
+
+/* Grey diagonal stripes in pure CSS: the graphic designer's image is licensed with attribution only. */
+.bge {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+  background: var(--black);
+}
+.bge i {
+  position: absolute;
+  inset: 0;
+}
+.bge .s1 {
+  background: linear-gradient(
+    135deg,
+    transparent 0 4%,
+    rgba(255, 255, 255, 0.075) 4.1%,
+    rgba(255, 255, 255, 0.02) 9%,
+    transparent 13%,
+    transparent 17%,
+    rgba(255, 255, 255, 0.05) 17.1%,
+    transparent 24%,
+    transparent 31%,
+    rgba(255, 255, 255, 0.09) 31.1%,
+    rgba(255, 255, 255, 0.025) 37%,
+    transparent 42%,
+    transparent 48%,
+    rgba(255, 255, 255, 0.06) 48.1%,
+    transparent 55%,
+    transparent 61%,
+    rgba(255, 255, 255, 0.08) 61.1%,
+    rgba(255, 255, 255, 0.02) 67%,
+    transparent 71%,
+    transparent 77%,
+    rgba(255, 255, 255, 0.05) 77.1%,
+    transparent 84%,
+    transparent 89%,
+    rgba(255, 255, 255, 0.07) 89.1%,
+    transparent 96%
+  );
+  -webkit-mask-image: linear-gradient(200deg, rgba(0, 0, 0, 0.35) 10%, #000 70%);
+  mask-image: linear-gradient(200deg, rgba(0, 0, 0, 0.35) 10%, #000 70%);
+}
+.bge .s2 {
+  background: linear-gradient(
+    135deg,
+    transparent 0 10%,
+    rgba(255, 255, 255, 0.05) 10.05%,
+    transparent 11.5%,
+    transparent 26%,
+    rgba(255, 255, 255, 0.04) 26.05%,
+    transparent 27.8%,
+    transparent 43%,
+    rgba(255, 255, 255, 0.05) 43.05%,
+    transparent 44.6%,
+    transparent 69%,
+    rgba(255, 255, 255, 0.045) 69.05%,
+    transparent 70.8%,
+    transparent 83%,
+    rgba(255, 255, 255, 0.04) 83.05%,
+    transparent 84.4%
+  );
+  -webkit-mask-image: radial-gradient(ellipse 80% 90% at 25% 85%, #000 30%, transparent 90%);
+  mask-image: radial-gradient(ellipse 80% 90% at 25% 85%, #000 30%, transparent 90%);
+}
+.bge .s3 {
+  background: radial-gradient(ellipse 55% 45% at 80% 8%, rgba(0, 0, 0, 0.75), transparent 75%);
+}
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--card-shadow);
+  border-radius: 0;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 16px 40px;
+}
+
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  font: 700 19.8px/28px var(--font-display);
+  text-transform: uppercase;
+  color: var(--text);
+  text-decoration: none;
+}
+.wordmark i {
+  display: inline-block;
+  width: 28px;
+  height: 14px;
+  background: var(--blue);
+}
+.wordmark:hover {
+  color: var(--orange);
+}
+
+.footer {
+  display: flex;
+  gap: 24px;
+  padding: 12px 40px;
+  font-size: 12.2px;
+}
+.footer a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--text-muted);
+}
+.footer a:hover {
+  color: var(--orange);
+}
+
+.h1 {
+  margin: 0;
+  font: 700 48.6px/60px var(--font-display);
+  text-transform: uppercase;
+}
+.h2 {
+  margin: 0;
+  font: 700 27.4px/38px var(--font-display);
+}
+.label {
+  margin: 0;
+  font: 700 15.2px/24px var(--font-display);
+  color: var(--text);
+}
+.label-gold {
+  color: var(--orange);
+}
+.muted {
+  color: var(--text-muted);
+}
+.subtle {
+  color: var(--text-subtle);
+}
+.gold {
+  color: var(--orange);
+  font-weight: 700;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.link {
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: var(--orange);
+  text-underline-offset: 3px;
+}
+.link:hover {
+  color: var(--orange);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 24px;
+  border: 0;
+  border-radius: 0;
+  font: 700 16.7px/24px var(--font-display);
+  text-decoration: none;
+  cursor: pointer;
+}
+.btn-lg {
+  min-height: 60px;
+  padding: 0 28px;
+  font-size: 19.8px;
+  line-height: 28px;
+}
+.btn-xl {
+  min-height: 76px;
+  font-size: 25.8px;
+  line-height: 34px;
+}
+.btn-primary {
+  background: var(--blue);
+  color: #ffffff;
+}
+.btn-secondary {
+  background: var(--black);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px #ffffff;
+}
+.btn-gold {
+  background: var(--orange);
+  color: #000000;
+}
+.btn-primary:hover,
+.btn-secondary:hover,
+.btn-gold:hover,
+.btn-sel {
+  background: var(--green);
+  color: #000000;
+  box-shadow: none;
+}
+.btn-danger {
+  background: var(--pink);
+  color: #ffffff;
+}
+.btn-danger:hover {
+  background: var(--pink-hover);
+  color: #ffffff;
+}
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  background: var(--black);
+  color: var(--text-subtle);
+  box-shadow: inset 0 0 0 1px var(--line);
+  cursor: not-allowed;
+}
+
+.close {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 0;
+  background: var(--black);
+  box-shadow: inset 0 0 0 1px #ffffff;
+  color: var(--text);
+  font-size: 18.8px;
+  cursor: pointer;
+}
+.close:hover {
+  background: var(--green);
+  box-shadow: none;
+  color: #000000;
+}
+
+.tab {
+  min-width: 140px;
+  min-height: 64px;
+  padding: 6px 16px;
+  border: 1px solid #ffffff;
+  border-radius: 0;
+  background: var(--black);
+  color: var(--text-muted);
+  font: 700 18.2px/24px var(--font-display);
+  cursor: pointer;
+}
+.tab:hover,
+.tab[aria-selected="true"] {
+  background: var(--green);
+  border-color: var(--green);
+  color: #000000;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.field label,
+.field .lbl {
+  font: 600 13.2px/18px var(--font-sans);
+}
+.input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 12px;
+  background: var(--black);
+  border: 1px solid var(--field-border);
+  border-radius: 0;
+  color: var(--text);
+  font: 400 14.1px/22px var(--font-sans);
+}
+.input:focus {
+  border-color: var(--green);
+  box-shadow: 0 0 0 1px var(--green);
+  outline: none;
+}
+.input::placeholder {
+  color: var(--text-subtle);
+}
+.input[aria-invalid="true"] {
+  border-color: var(--red);
+  box-shadow: 0 0 0 1px var(--red);
+}
+.hint {
+  font-size: 12.2px;
+  line-height: 18px;
+  color: var(--text-muted);
+}
+.error {
+  font: 600 13.2px/18px var(--font-sans);
+  color: var(--red);
+}
+
+.check {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  min-height: 44px;
+  font-size: 13.2px;
+}
+.check input {
+  width: 20px;
+  height: 20px;
+  margin: 1px 0 0;
+  accent-color: var(--green);
+}
+.check-primary input {
+  accent-color: var(--blue);
+}
+
+.alert {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 0;
+  font: 600 13.2px/20px var(--font-sans);
+  background: transparent;
+}
+.alert-danger {
+  color: var(--red);
+  box-shadow: inset 0 0 0 1px var(--red);
+}
+.alert-success {
+  color: var(--green);
+  box-shadow: inset 0 0 0 1px var(--green);
+}
+.alert-info {
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px #ffffff;
+}
+
+.tbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.2px;
+  font-variant-numeric: tabular-nums;
+}
+.tbl th {
+  padding: 8px 0;
+  font-size: 12.2px;
+  font-weight: 400;
+  color: var(--text-muted);
+  text-align: left;
+}
+.tbl td,
+.tbl tbody th {
+  padding: 10px 0;
+  border-top: 1px solid var(--orange);
+  text-align: left;
+}
+.tbl tbody th {
+  font-size: inherit;
+  font-weight: 600;
+  color: var(--text);
+}
+.tbl .num {
+  text-align: right;
+}
+.tbl tr.me td,
+.tbl tr.me th {
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 700;
+}
+.tbl tr.me .num {
+  color: var(--orange);
+}
+.tbl-hover tbody tr:hover td,
+.tbl-hover tbody tr:hover th {
+  background: var(--green);
+  color: #000000;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 2px;
+  margin: 0;
+}
+.stat dt {
+  font-size: 12.2px;
+  line-height: 16px;
+  color: var(--text-muted);
+}
+.stat dd {
+  margin: 0;
+  font: 700 27.4px/38px var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.av {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  border-radius: 0;
+  background: var(--blue);
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: #ffffff;
+}
+
+/* The padding sits on the body: the <dialog> itself must only be hit by scrim clicks. */
+.modal {
+  padding: 0;
+  color: var(--text);
+}
+.modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 32px;
+}
+.modal::backdrop {
+  background: var(--scrim);
+}
+
+@media (max-width: 900px) {
+  .topbar,
+  .footer {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .page-main {
+    padding: 0 16px 24px;
+  }
+}

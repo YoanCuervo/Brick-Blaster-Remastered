@@ -10,7 +10,8 @@
   ],
   "scripts": {
     "dev": "npm run dev -w @brick-blaster/game",
-    "build": "npm run build -w @brick-blaster/game && npm run typecheck -w @brick-blaster/desktop",
+    "dev:web": "npm run dev -w @brick-blaster/web",
+    "build": "npm run build -w @brick-blaster/game && npm run typecheck -w @brick-blaster/desktop && npm run build -w @brick-blaster/web",
     "preview": "npm run preview -w @brick-blaster/game",
     "electron:dev": "npm run build -w @brick-blaster/game && npm run start -w @brick-blaster/desktop",
     "electron:build": "npm run build -w @brick-blaster/game && npm run dist -w @brick-blaster/desktop --",
