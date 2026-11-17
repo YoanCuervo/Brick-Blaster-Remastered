@@ -1,0 +1,635 @@
+/* Profile, mockups ProfilDirE / ProfilDirELocal / ProfilDirEEnLigne. */
+
+/* The page fills the viewport; below the minimum height it scrolls rather than crushing the tables. */
+.profile-grid {
+  --hero-height: clamp(380px, 44vh, 470px);
+  height: 100vh;
+  min-height: 860px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 10px;
+  /* Side margins grow with the screen: 48px at 1440, 96px at 1920. */
+  padding: 10px clamp(10px, calc(10vw - 96px), 120px);
+}
+
+.profile-main {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.profile-h2 {
+  margin: 0;
+  font: 700 25.8px/34px var(--font-display);
+}
+.profile-h3 {
+  margin: 0;
+  font: 700 13.7px/20px var(--font-display);
+}
+
+/* Hero */
+
+.profile-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 10px;
+  /* One height for the three states (art, solo panel, multi panel): opening a panel moves nothing. */
+  flex: none;
+  height: var(--hero-height);
+}
+
+.profile-hero-text {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 16px;
+  min-height: 0;
+  padding: 24px;
+}
+
+/* The logo takes all the height the buttons leave in the card. */
+.profile-logo {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+}
+.profile-logo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.profile-modes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.profile-mode {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 88px;
+  padding: 0 42px;
+  border: 0;
+  border-radius: 0;
+  color: #ffffff;
+  font: 700 25.8px/34px var(--font-display);
+  text-align: left;
+  cursor: pointer;
+}
+.profile-mode small {
+  font: 400 13.2px/18px var(--font-sans);
+}
+.profile-mode-solo {
+  background: var(--blue);
+}
+.profile-mode-multi {
+  background: var(--pink);
+}
+.profile-mode:hover,
+.profile-mode[aria-expanded="true"] {
+  background: var(--green);
+  color: #000000;
+}
+
+.profile-art {
+  margin: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #050505;
+}
+
+/* Play panels */
+
+.play-panel {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px 22px;
+}
+
+.play-head,
+.play-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.play-close,
+.play-foot-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.btn.play-replay {
+  flex: none;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 64px;
+  background: var(--green);
+  color: #000000;
+  font-size: 21.3px;
+  line-height: 30px;
+}
+.btn.play-replay:hover {
+  background: #2fa862;
+}
+.play-replay small {
+  font: 400 13.2px/18px var(--font-sans);
+}
+
+.play-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  gap: 8px;
+}
+.play-grid-solo {
+  grid-template-columns: 72px repeat(3, minmax(0, 1fr));
+  grid-template-rows: auto;
+  grid-auto-rows: 1fr;
+}
+.play-grid-multi {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.play-col {
+  padding-bottom: 2px;
+  color: var(--text-muted);
+  font-size: 12.2px;
+  text-align: center;
+}
+.play-row {
+  display: flex;
+  align-items: center;
+  font: 700 12.2px/18px var(--font-display);
+}
+
+.play-cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: 44px;
+  background: var(--black);
+  box-shadow: inset 0 0 0 1px #ffffff;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  text-decoration: none;
+}
+.play-cell:hover {
+  background: var(--green);
+  box-shadow: none;
+  color: #000000;
+}
+.play-cell-ranked {
+  gap: 6px;
+  padding: 14px 10px;
+  text-align: center;
+}
+.play-go {
+  font: 700 15.2px/22px var(--font-display);
+}
+.play-rank {
+  font-size: 22.8px;
+  line-height: 30px;
+}
+.play-rec,
+.play-diff {
+  font-size: 12.2px;
+  line-height: 17px;
+}
+
+.play-note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12.2px;
+  line-height: 18px;
+}
+
+/* Stats, best scores, latest games: they share the height left under the hero. */
+
+.profile-cols {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  /* « Dernières parties » only needs room for its text and score: it gives its width up first. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(344px, 0.7fr);
+  gap: 10px;
+}
+
+.profile-section-head {
+  display: flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 4px;
+}
+.profile-section-head .profile-h2 {
+  white-space: nowrap;
+}
+
+.profile-go {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-left: -6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #ffffff;
+  cursor: pointer;
+}
+.profile-go:hover {
+  color: var(--green);
+}
+
+.profile-stats {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.profile-span {
+  grid-column: 1 / -1;
+}
+
+.profile-counter {
+  min-height: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: center;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 16px;
+  text-align: center;
+  overflow: hidden;
+}
+.profile-counter dt {
+  color: var(--text-muted);
+  font-size: 12.2px;
+  line-height: 16px;
+}
+.profile-counter dd {
+  margin: 0;
+  font: 700 clamp(22px, 3.2vh, 30.4px) / 1.3 var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.profile-best,
+.profile-recent {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* The two tables spread over the card height instead of leaving a gap under them. */
+.profile-best-card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 10px 18px;
+}
+
+.profile-tbl {
+  line-height: 18px;
+}
+.profile-tbl th {
+  padding: 2px 0;
+}
+.profile-tbl td,
+.profile-tbl tbody th {
+  padding: clamp(3px, calc(1.2vh - 6px), 7px) 0;
+  font-weight: 600;
+  color: var(--text);
+}
+.profile-tbl td.gold {
+  color: var(--orange);
+}
+
+.profile-best-split {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 2px;
+  border-top: 1px solid var(--orange);
+}
+
+.profile-inline-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+}
+
+.profile-games {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.profile-game {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 16px;
+}
+.profile-game-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 19px;
+}
+.profile-game-title {
+  font-weight: 600;
+}
+.profile-game-sub {
+  color: var(--text-muted);
+  font-size: 12.2px;
+}
+.profile-game.is-record .profile-game-sub {
+  color: var(--text);
+}
+.profile-game-score {
+  color: var(--orange);
+  font: 700 18.2px/24px var(--font-display);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.profile-empty {
+  margin: 0;
+  padding: 16px;
+}
+
+/* Side column */
+
+.profile-aside {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.profile-ident {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.profile-ident:hover {
+  border-color: var(--green);
+}
+.profile-ident:hover .profile-ident-hint {
+  color: var(--green);
+}
+.profile-ident-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
+.profile-name {
+  font: 700 27.4px/38px var(--font-display);
+  overflow-wrap: anywhere;
+}
+.profile-ident-hint {
+  margin-top: 4px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: var(--orange);
+  text-underline-offset: 3px;
+}
+
+/* Placeholder for the future chat, where the mockup kept its « friends » block. */
+.profile-chat {
+  flex: 1;
+  min-height: 110px;
+  padding: 16px 20px;
+  border: 1px dashed var(--text-subtle);
+}
+.profile-chat-title {
+  margin: 0;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.profile-chat-note {
+  margin: 4px 0 0;
+  color: var(--text-subtle);
+  font-size: 13.2px;
+}
+
+.account-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-top: 1px solid var(--orange);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.profile-row:hover {
+  color: var(--green);
+  text-decoration: underline;
+}
+/* Red on hover instead of green: leaving is the one exit of the list. */
+.profile-row-signout:hover {
+  color: var(--red);
+}
+
+.profile-tile {
+  display: flex;
+  min-height: 72px;
+  padding: 12px 16px;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+}
+a.profile-tile[href]:hover {
+  color: var(--green);
+}
+
+.profile-download {
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  line-height: 19px;
+}
+.profile-download svg {
+  flex: none;
+  width: 38px;
+  height: 38px;
+}
+.profile-download-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.profile-download-text .muted {
+  font-size: 12.2px;
+  font-weight: 400;
+}
+
+.profile-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0 16px;
+  padding: 0 4px;
+  font-size: 11.3px;
+}
+.profile-footer a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--text-muted);
+}
+.profile-footer a:hover {
+  color: var(--orange);
+}
+
+/* Modals */
+
+.avatar-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+  padding: 4px;
+}
+.avatar-choice {
+  aspect-ratio: 1 / 1;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  cursor: pointer;
+}
+.avatar-choice[aria-checked="true"] {
+  outline: 2px solid var(--green);
+  outline-offset: 3px;
+}
+.avatar-choice[aria-checked="true"]:focus-visible {
+  outline: 3px solid var(--orange);
+}
+
+.stats-counters {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+.stats-counters .stat {
+  padding-top: 10px;
+  border-top: 1px solid var(--orange);
+}
+.stats-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* The user chose red for the irreversible deletion; black text keeps the contrast. */
+.btn-delete {
+  background: var(--red);
+  color: #000000;
+}
+.btn-delete:hover {
+  background: #d93636;
+  color: #000000;
+}
+
+/*
+ * Same height as one « Dernières parties » card, so both line up: the page height minus the
+ * paddings, the hero, the section title and the four gaps between the five games.
+ */
+@media (min-width: 1280px) {
+  .profile-download {
+    flex: none;
+    height: calc((max(100vh, 860px) - 20px - var(--hero-height) - 10px - 54px - 40px) / 5);
+    min-height: 0;
+  }
+}
+
+/* Under 1280px the three lower blocks would be 220px wide: they go two plus one and the page scrolls. */
+@media (max-width: 1279px) {
+  .profile-grid {
+    height: auto;
+  }
+  .profile-cols {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .profile-recent {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 900px) {
+  .profile-grid {
+    height: auto;
+  }
+  .profile-hero {
+    height: auto;
+  }
+  .profile-grid,
+  .profile-hero,
+  .profile-cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .profile-art {
+    aspect-ratio: 4 / 3;
+  }
+  .stats-counters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

@@ -14,3 +14,9 @@ export const ROUTES = {
   privacy: "/confidentialite",
   styleGuide: "/charte",
 } as const;
+
+/**
+ * The V1 Windows installer. Null until its hosting is settled: it holds the Eclipse assets,
+ * which the repository and its CI must never publish.
+ */
+export const DOWNLOAD_URL: string | null = null;

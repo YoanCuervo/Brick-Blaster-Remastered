@@ -455,6 +455,17 @@ button {
   gap: 20px;
   padding: 32px;
 }
+.modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
 .modal::backdrop {
   background: var(--scrim);
 }

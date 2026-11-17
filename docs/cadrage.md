@@ -96,10 +96,10 @@ Le journal d'entrées note ce que le moteur reçoit à chaque tick (déplacement
 
 - Inscription par email et mot de passe, sans condition d'âge : le compte repose sur l'exécution du contrat (RGPD, art. 6.1.b), pas sur le consentement, donc la règle des 15 ans (art. 8, loi Informatique et Libertés art. 45) ne s'impose pas. À confirmer au `/conform-cnil`.
 - Email vérifié par un lien avant la première connexion. Mot de passe oublié : un lien de réinitialisation envoyé à l'adresse du compte. Pas de double authentification.
-- Pseudo : 15 caractères au plus, la limite de la table des scores du jeu (analyse, Écrans et meilleurs scores), unique sans tenir compte de la casse, filtré contre les insultes, modifiable. Il se choisit dans le profil, pas à l'inscription. Reste à décider : le nom affiché tant que le joueur n'a pas choisi de pseudo.
+- Pseudo : 15 caractères au plus, la limite de la table des scores du jeu (analyse, Écrans et meilleurs scores), unique sans tenir compte de la casse, filtré contre les insultes, modifiable. Il se choisit dans le profil, pas à l'inscription : à la création du compte, le serveur attribue un pseudo provisoire unique, « Joueur » suivi d'un numéro (par exemple `Joueur48213`), et le profil invite à le changer. Le motif « joueur » suivi de chiffres est réservé à ces pseudos provisoires. Un pseudo fait au moins 3 caractères, lettres sans accent, chiffres, espaces et ponctuation simple : le jeu ne sait écrire que l'ASCII et met les noms en minuscules (0x408D3C).
 - Avatar choisi parmi une galerie prédéfinie : aucun envoi d'image, donc aucun contenu à modérer.
 - Réglages (souris, son…) enregistrés sur le compte et recopiés en localStorage.
-- Le joueur peut exporter ses données et supprimer son compte.
+- Le joueur peut supprimer son compte depuis le profil (confirmation en saisissant « SUPPRIMER »). Pas d'export en libre-service : le droit d'accès s'exerce sur demande.
 
 ### Sécurité
 
@@ -205,7 +205,7 @@ Graphismes, sons, musiques et niveaux appartiennent à Eclipse et à leurs auteu
 |---|---|---|
 | Accessibilité | **Aucune obligation**, bonne pratique | Particulier, ni secteur public, ni grande entreprise (RGAA), ni service aux consommateurs (European Accessibility Act). On visera tout de même des menus utilisables au clavier et des contrastes lisibles. |
 | RGPD | **Ne s'applique pas en V1** | Aucune donnée personnelle ne quitte la machine. Le nom des meilleurs scores reste dans le navigateur. |
-| RGPD en V2 | **S'applique** | Comptes (email, pseudo, mot de passe haché), parties et stats, adresses IP dans les journaux. Pas de condition d'âge à l'inscription (base légale : le contrat). Export et suppression du compte par le joueur. Sous-traitants : OVHcloud (France), Brevo (France, UE), Cloudflare (États-Unis, transfert hors UE à mentionner). Le seul cookie est celui de session, strictement nécessaire : pas de bandeau tant qu'aucun traceur non exempté n'est ajouté. `/conform-cnil` avant la mise en ligne. |
+| RGPD en V2 | **S'applique** | Comptes (email, pseudo, mot de passe haché), parties et stats, adresses IP dans les journaux. Pas de condition d'âge à l'inscription (base légale : le contrat). Suppression du compte par le joueur ; droit d'accès et de portabilité sur demande. Sous-traitants : OVHcloud (France), Brevo (France, UE), Cloudflare (États-Unis, transfert hors UE à mentionner). Le seul cookie est celui de session, strictement nécessaire : pas de bandeau tant qu'aucun traceur non exempté n'est ajouté. `/conform-cnil` avant la mise en ligne. |
 
 Ces conclusions aident au cadrage. Elles ne remplacent pas l'avis d'un juriste.
 
