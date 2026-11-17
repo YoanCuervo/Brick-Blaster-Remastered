@@ -6,6 +6,8 @@ interface ModalProps {
   /** Id of the heading that names the dialog. */
   labelledBy: string;
   width?: number;
+  /** `alertdialog` for a destructive confirmation. */
+  role?: "dialog" | "alertdialog";
   children: ReactNode;
 }
 
@@ -13,7 +15,7 @@ interface ModalProps {
  * Built on the native <dialog>: showModal() gives the focus trap, the inert page behind,
  * Escape to close and the ::backdrop scrim without any library.
  */
-export function Modal({ open, onClose, labelledBy, width = 460, children }: ModalProps) {
+export function Modal({ open, onClose, labelledBy, width = 460, role, children }: ModalProps) {
   const ref = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -34,6 +36,7 @@ export function Modal({ open, onClose, labelledBy, width = 460, children }: Moda
     <dialog
       ref={ref}
       className="card modal"
+      role={role}
       aria-labelledby={labelledBy}
       style={style}
       onCancel={(event) => {

@@ -8,6 +8,7 @@ import { Home } from "./pages/Home";
 import { MobileNotice } from "./pages/MobileNotice";
 import { NotFound } from "./pages/NotFound";
 import { Placeholder } from "./pages/Placeholder";
+import { ProfilePage } from "./pages/profile/Profile";
 import { StyleGuide } from "./pages/StyleGuide";
 import { Trial } from "./pages/trial/Trial";
 import { usePath } from "./router";
@@ -20,7 +21,7 @@ const PAGES: Record<string, () => ReactElement> = {
   [ROUTES.signIn]: () => <SignIn />,
   [ROUTES.forgotPassword]: () => <ForgotPassword />,
   [ROUTES.resetPassword]: () => <ResetPassword />,
-  [ROUTES.profile]: () => <Placeholder title="Profil" />,
+  [ROUTES.profile]: () => <ProfilePage />,
   [ROUTES.play]: () => <Placeholder title="Jouer" />,
   [ROUTES.leaderboard]: () => <Placeholder title="Classement des Limbes" />,
   [ROUTES.legal]: () => <Placeholder title="Mentions légales" />,
