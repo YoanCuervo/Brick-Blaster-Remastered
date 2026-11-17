@@ -96,7 +96,7 @@ Le journal d'entrées note ce que le moteur reçoit à chaque tick (déplacement
 
 - Inscription par email et mot de passe, sans condition d'âge : le compte repose sur l'exécution du contrat (RGPD, art. 6.1.b), pas sur le consentement, donc la règle des 15 ans (art. 8, loi Informatique et Libertés art. 45) ne s'impose pas. À confirmer au `/conform-cnil`.
 - Email vérifié par un lien avant la première connexion. Mot de passe oublié : un lien de réinitialisation envoyé à l'adresse du compte. Pas de double authentification.
-- Pseudo : 15 caractères au plus, la limite de la table des scores du jeu (analyse, Écrans et meilleurs scores), unique sans tenir compte de la casse, filtré contre les insultes, modifiable.
+- Pseudo : 15 caractères au plus, la limite de la table des scores du jeu (analyse, Écrans et meilleurs scores), unique sans tenir compte de la casse, filtré contre les insultes, modifiable. Il se choisit dans le profil, pas à l'inscription. Reste à décider : le nom affiché tant que le joueur n'a pas choisi de pseudo.
 - Avatar choisi parmi une galerie prédéfinie : aucun envoi d'image, donc aucun contenu à modérer.
 - Réglages (souris, son…) enregistrés sur le compte et recopiés en localStorage.
 - Le joueur peut exporter ses données et supprimer son compte.

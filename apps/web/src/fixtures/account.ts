@@ -1,8 +1,5 @@
 /** Stand-in data for the account screens until the API has its auth routes. */
 
-/** Already registered pseudos; the check ignores case, as the server will. */
-export const TAKEN_PSEUDOS = ["NovaKrak", "Limbo", "BrickLord"];
-
 /** The one account the fake sign-in accepts. */
 export const DEMO_ACCOUNT = { email: "nova@exemple.fr", password: "motdepasse12" };
 
