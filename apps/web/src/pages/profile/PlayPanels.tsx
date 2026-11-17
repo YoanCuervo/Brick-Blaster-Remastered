@@ -1,7 +1,7 @@
 import { Fragment } from "react";
 import { DIFFICULTIES, SHOWN_RANKS, WORLDS, type Profile } from "../../fixtures/profile";
 import { Link } from "../../router";
-import { ROUTES } from "../../routes";
+import { ROUTES, playUrl } from "../../routes";
 import { difficultyName, formatScore, worldName } from "./format";
 
 interface PanelProps {
@@ -22,14 +22,13 @@ function PanelHead({ title, onClose }: { title: string; onClose: () => void }) {
   );
 }
 
-// The cells lead to the play page; task 5 passes the chosen world and difficulty to the game.
 export function SoloPanel({ profile, onClose }: PanelProps) {
   const last = profile.games.find((game) => !game.ranked);
   return (
     <div id="play-panel" className="card play-panel" role="region" aria-labelledby="play-title">
       <PanelHead title="Partie solo" onClose={onClose} />
       {last && (
-        <Link className="btn play-replay" to={ROUTES.play}>
+        <Link className="btn play-replay" to={playUrl(last.world, last.difficulty)}>
           Rejouer : {worldName(last.world)}, {difficultyName(last.difficulty)}
           <small>Ta dernière partie, lancée tout de suite</small>
         </Link>
@@ -50,7 +49,7 @@ export function SoloPanel({ profile, onClose }: PanelProps) {
                 <Link
                   key={d}
                   className="play-cell"
-                  to={ROUTES.play}
+                  to={playUrl(world.id, d)}
                   aria-label={`Jouer ${world.name}, ${difficultyName(d)}, record ${record === null ? "aucun" : formatScore(record)}`}
                 >
                   <span className="play-go">Jouer</span>
@@ -76,7 +75,7 @@ export function MultiPanel({ profile, onClose }: PanelProps) {
     <div id="play-panel" className="card play-panel" role="region" aria-labelledby="play-title">
       <PanelHead title="Limbes classé" onClose={onClose} />
       {last && (
-        <Link className="btn play-replay" to={ROUTES.play}>
+        <Link className="btn play-replay" to={playUrl("limbes", last.difficulty, true)}>
           Rejouer : Limbes classé, {difficultyName(last.difficulty)}
           <small>Ta dernière partie en ligne, lancée tout de suite</small>
         </Link>
@@ -89,7 +88,7 @@ export function MultiPanel({ profile, onClose }: PanelProps) {
             <Link
               key={d}
               className="play-cell play-cell-ranked"
-              to={ROUTES.play}
+              to={playUrl("limbes", d, true)}
               aria-label={`Jouer Limbes classé, ${name}, ${rank === null ? "pas encore classé" : `rang ${rank} sur ${SHOWN_RANKS}`}`}
             >
               <span className="play-diff">{name}</span>
