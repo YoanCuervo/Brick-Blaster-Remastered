@@ -1,15 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { BODY_LIMIT, buildApp } from "./app";
-import type { Db } from "./db";
-
-const db = (up: boolean): Db => ({
-  ping: () => (up ? Promise.resolve() : Promise.reject(new Error("ECONNREFUSED 127.0.0.1:3306"))),
-  close: () => Promise.resolve(),
-});
+import { BODY_LIMIT } from "./app";
+import { SITE_URL, testApp } from "./testing/testApp";
 
 /** The app plus a route with a strict body, standing in for the routes to come. */
 function appWithEcho(up = true) {
-  const app = buildApp({ db: db(up) });
+  const { app } = testApp({ dbUp: up });
   app.post(
     "/api/echo",
     {
@@ -89,5 +84,21 @@ describe("a request", () => {
     const res = await appWithEcho().inject({ method: "GET", url: "/api/boom" });
     expect(res.statusCode).toBe(500);
     expect(res.body).toBe(JSON.stringify({ error: "internal" }));
+  });
+});
+
+describe("a write from another origin", () => {
+  const post = (origin?: string) =>
+    appWithEcho().inject({
+      method: "POST",
+      url: "/api/echo",
+      payload: { name: "blaster" },
+      headers: origin ? { origin } : {},
+    });
+
+  it("is refused, while the site's own origin and no origin go through", async () => {
+    expect((await post("https://evil.example")).statusCode).toBe(403);
+    expect((await post(SITE_URL)).statusCode).toBe(200);
+    expect((await post()).statusCode).toBe(200);
   });
 });
