@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { requestPasswordReset } from "../../api/account";
+import { GENERIC_ERROR } from "../../api/http";
 import { AuthLayout } from "../../components/AuthLayout";
 import { TextField } from "../../components/TextField";
 import { Link } from "../../router";
@@ -11,6 +12,7 @@ export function ForgotPassword() {
   const [submitted, setSubmitted] = useState(false);
   const [pending, setPending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   const emailError = submitted ? checkEmail(email) : null;
 
@@ -24,9 +26,11 @@ export function ForgotPassword() {
       return;
     }
     setPending(true);
-    await requestPasswordReset(email.trim());
+    setFailed(false);
+    const reply = await requestPasswordReset(email.trim());
     setPending(false);
-    setSent(true);
+    if (reply.ok) setSent(true);
+    else setFailed(true);
   }
 
   return (
@@ -51,6 +55,11 @@ export function ForgotPassword() {
         {sent && (
           <p className="alert alert-success" role="status">
             Si ce compte existe, un email a été envoyé.
+          </p>
+        )}
+        {failed && (
+          <p className="alert alert-danger" role="alert">
+            {GENERIC_ERROR}
           </p>
         )}
       </form>

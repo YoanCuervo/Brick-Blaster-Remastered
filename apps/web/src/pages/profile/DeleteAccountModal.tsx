@@ -1,10 +1,11 @@
 import { useState } from "react";
+import { DELETE_CONFIRMATION as CONFIRMATION } from "@brick-blaster/contracts";
+import { GENERIC_ERROR } from "../../api/http";
 import { deleteAccount } from "../../api/profile";
 import { Modal } from "../../components/Modal";
 import { navigate } from "../../router";
 import { ROUTES } from "../../routes";
-
-const CONFIRMATION = "SUPPRIMER";
+import { sessionLost } from "./session";
 
 interface DeleteAccountModalProps {
   open: boolean;
@@ -14,13 +15,17 @@ interface DeleteAccountModalProps {
 export function DeleteAccountModal({ open, onClose }: DeleteAccountModalProps) {
   const [typed, setTyped] = useState("");
   const [pending, setPending] = useState(false);
+  const [failed, setFailed] = useState(false);
   const confirmed = typed.trim() === CONFIRMATION;
 
   async function remove() {
     if (!confirmed || pending) return;
     setPending(true);
-    await deleteAccount();
-    navigate(ROUTES.home, { replace: true });
+    setFailed(false);
+    const reply = await deleteAccount();
+    setPending(false);
+    if (reply.ok) navigate(ROUTES.home, { replace: true });
+    else if (!sessionLost(reply)) setFailed(true);
   }
 
   return (
@@ -53,6 +58,11 @@ export function DeleteAccountModal({ open, onClose }: DeleteAccountModalProps) {
             onChange={(event) => setTyped(event.target.value)}
           />
         </div>
+        {failed && (
+          <p className="alert alert-danger" role="alert">
+            {GENERIC_ERROR}
+          </p>
+        )}
         <div className="modal-actions">
           <button className="btn btn-secondary" type="button" onClick={onClose}>
             Annuler

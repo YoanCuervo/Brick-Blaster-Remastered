@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { signIn } from "../../api/account";
+import { resendVerification, signIn } from "../../api/account";
+import { GENERIC_ERROR } from "../../api/http";
 import { AuthLayout } from "../../components/AuthLayout";
 import { TextField } from "../../components/TextField";
 import { Link, navigate } from "../../router";
@@ -9,7 +10,11 @@ import { checkEmail } from "./validation";
 /** Query flag set by the reset-password screen after a successful change. */
 export const RESET_DONE_QUERY = "?reset=done";
 
-type Failure = { kind: "invalid" } | { kind: "locked"; seconds: number };
+type Failure =
+  | { kind: "invalid" }
+  | { kind: "locked"; seconds: number }
+  | { kind: "unverified"; email: string; resend: "idle" | "pending" | "sent" | "failed" }
+  | { kind: "error" };
 
 export function SignIn() {
   const [email, setEmail] = useState("");
@@ -37,12 +42,31 @@ export function SignIn() {
       return;
     }
     setPending(true);
-    const result = await signIn({ email: email.trim(), password });
+    const reply = await signIn({ email: email.trim(), password });
     setPending(false);
-    if (result.ok) navigate(ROUTES.profile);
-    else if (result.error === "locked")
-      setFailure({ kind: "locked", seconds: result.retryAfterSeconds });
-    else setFailure({ kind: "invalid" });
+    if (reply.ok) {
+      navigate(ROUTES.profile);
+      return;
+    }
+    switch (reply.error) {
+      case "invalid_credentials":
+        setFailure({ kind: "invalid" });
+        break;
+      case "locked":
+        setFailure({ kind: "locked", seconds: reply.retryAfterSeconds ?? 60 });
+        break;
+      case "email_not_verified":
+        setFailure({ kind: "unverified", email: email.trim(), resend: "idle" });
+        break;
+      default:
+        setFailure({ kind: "error" });
+    }
+  }
+
+  async function resend(target: string) {
+    setFailure({ kind: "unverified", email: target, resend: "pending" });
+    const reply = await resendVerification(target);
+    setFailure({ kind: "unverified", email: target, resend: reply.ok ? "sent" : "failed" });
   }
 
   const minutes = Math.ceil(lockSeconds / 60);
@@ -95,6 +119,32 @@ export function SignIn() {
             Trop de tentatives. Réessaie dans {minutes} minute{minutes > 1 ? "s" : ""}.
           </p>
         )}
+        {failure?.kind === "error" && (
+          <p className="alert alert-danger" role="alert">
+            {GENERIC_ERROR}
+          </p>
+        )}
+        {failure?.kind === "unverified" &&
+          (failure.resend === "sent" ? (
+            <p className="alert alert-success" role="status">
+              Lien renvoyé. Vérifie ta boîte mail.
+            </p>
+          ) : (
+            <div className="alert alert-danger" role="alert">
+              <p style={{ margin: 0 }}>
+                Ton email n'est pas encore confirmé. Clique sur le lien reçu à l'inscription.
+                {failure.resend === "failed" && ` ${GENERIC_ERROR}`}
+              </p>
+              <button
+                className="link"
+                type="button"
+                aria-busy={failure.resend === "pending"}
+                onClick={() => void resend(failure.email)}
+              >
+                Renvoyer le lien
+              </button>
+            </div>
+          ))}
       </form>
       <p className="muted auth-small auth-center">
         Pas encore de compte ?{" "}

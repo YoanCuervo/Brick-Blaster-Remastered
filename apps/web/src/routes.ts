@@ -4,6 +4,8 @@ export const ROUTES = {
   trial: "/essai",
   signUp: "/inscription",
   signIn: "/connexion",
+  /** Path of the link in the verification email (SITE_PATHS in apps/api/src/routes/auth.ts). */
+  verifyEmail: "/verification-email",
   forgotPassword: "/mot-de-passe-oublie",
   resetPassword: "/nouveau-mot-de-passe",
   profile: "/profil",

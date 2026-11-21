@@ -1,17 +1,15 @@
+import { PASSWORD_RULE, isValidEmail, isValidPassword } from "@brick-blaster/contracts";
+
 /** Client-side checks only, for quick feedback: the API validates every field again. */
 
-const PASSWORD_MIN = 12;
-// Deliberately loose: the verification link is the real check.
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-export const PASSWORD_RULE = "12 caractères minimum.";
+export { PASSWORD_RULE };
 
 export function checkEmail(value: string): string | null {
-  return EMAIL_PATTERN.test(value.trim()) ? null : "Email invalide.";
+  return isValidEmail(value.trim()) ? null : "Email invalide.";
 }
 
 export function checkPassword(value: string): string | null {
-  return value.length >= PASSWORD_MIN ? null : PASSWORD_RULE;
+  return isValidPassword(value) ? null : PASSWORD_RULE;
 }
 
 export function checkConfirmation(password: string, confirmation: string): string | null {
