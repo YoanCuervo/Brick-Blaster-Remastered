@@ -88,6 +88,16 @@ describe.skipIf(!migrated)("the account store on MySQL", () => {
     expect(await store.getMe(a)).toEqual({ pseudo: `nova${tag}`, pseudoChosen: true, avatar: 7 });
   });
 
+  it("keeps the game settings, null until set, the sensitivity to the hundredth", async () => {
+    const id = await newUser("s");
+    expect(await store.getSettings(id)).toEqual({ musicVolume: null, mouseSensitivity: null });
+    await store.setSettings(id, { musicVolume: 64, mouseSensitivity: 0.1 + (18 / 62) * 2.9 });
+    expect(await store.getSettings(id)).toEqual({ musicVolume: 64, mouseSensitivity: 0.94 });
+    await store.setSettings(id, { musicVolume: 0, mouseSensitivity: 3 });
+    expect(await store.getSettings(id)).toEqual({ musicVolume: 0, mouseSensitivity: 3 });
+    expect(await store.getSettings(id + 1_000_000)).toBeNull();
+  });
+
   it("keeps sessions by hash, and drops them with their user", async () => {
     const id = await newUser("d");
     const idHash = randomBytes(32);

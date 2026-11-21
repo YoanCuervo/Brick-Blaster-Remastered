@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_MUSIC_VOLUME } from "../audio/rules";
 import { DEFAULT_SENSITIVITY } from "../input/mouse";
-import { SETTINGS_KEY, loadSettings, saveSettings } from "./settings";
+import { SETTINGS_KEY, adoptSettings, loadSettings, saveSettings } from "./settings";
 
 const store = (value: string | null) => ({
   value,
@@ -44,5 +44,29 @@ describe("settings", () => {
     };
     expect(loadSettings(blocked)).toEqual(defaults);
     expect(() => saveSettings(blocked, defaults)).not.toThrow();
+    expect(adoptSettings(blocked, { musicVolume: 5 })).toEqual({ ...defaults, musicVolume: 5 });
+  });
+});
+
+describe("kept settings", () => {
+  it("replace the stored ones and are stored in turn", () => {
+    const s = store(JSON.stringify({ musicVolume: 10, mouseSensitivity: 1.5 }));
+    const kept = { musicVolume: 40, mouseSensitivity: 0.94 };
+    expect(adoptSettings(s, kept)).toEqual(kept);
+    expect(loadSettings(s)).toEqual(kept);
+  });
+
+  it("leave a setting not kept, or out of range, as stored", () => {
+    const stored = { musicVolume: 10, mouseSensitivity: 1.5 };
+    const s = store(JSON.stringify(stored));
+    expect(adoptSettings(s, { musicVolume: null, mouseSensitivity: 0.5 })).toEqual({
+      musicVolume: 10,
+      mouseSensitivity: 0.5,
+    });
+    expect(adoptSettings(s, { musicVolume: 65, mouseSensitivity: 3.5 })).toEqual({
+      musicVolume: 10,
+      mouseSensitivity: 0.5,
+    });
+    expect(adoptSettings(store(null), null)).toEqual(defaults);
   });
 });

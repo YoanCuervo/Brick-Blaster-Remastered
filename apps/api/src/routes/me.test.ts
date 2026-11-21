@@ -1,3 +1,5 @@
+import * as contracts from "@brick-blaster/contracts";
+import * as engine from "@brick-blaster/game/headless";
 import { describe, expect, it } from "vitest";
 import { SESSION_COOKIE } from "../auth/sessions";
 import { PASSWORD, call, cookieOf, signedIn } from "../testing/helpers";
@@ -107,6 +109,66 @@ describe("the avatar", () => {
       const res = await call(t, "PUT", "/me/avatar", { cookie, body: { avatar } });
       expect(res.statusCode).toBe(400);
     }
+  });
+});
+
+describe("the game settings", () => {
+  it("have the engine's own bounds", () => {
+    expect(contracts.MAX_VOLUME).toBe(engine.MAX_VOLUME);
+    expect(contracts.MIN_SENSITIVITY).toBe(engine.MIN_SENSITIVITY);
+    expect(contracts.MAX_SENSITIVITY).toBe(engine.MAX_SENSITIVITY);
+  });
+
+  it("need a session", async () => {
+    const t = testApp();
+    expect((await call(t, "GET", "/me/settings")).statusCode).toBe(401);
+    const body = { musicVolume: 10, mouseSensitivity: 1 };
+    expect((await call(t, "PUT", "/me/settings", { body })).statusCode).toBe(401);
+  });
+
+  it("are null, the game's defaults, until the player changes them", async () => {
+    const t = testApp();
+    const cookie = await signedIn(t);
+    expect((await call(t, "GET", "/me/settings", { cookie })).json()).toEqual({
+      musicVolume: null,
+      mouseSensitivity: null,
+    });
+  });
+
+  it("keep both values, the sensitivity to the hundredth", async () => {
+    const t = testApp();
+    const cookie = await signedIn(t);
+    // Position 18 of the game's bar: 0.1 + 18 / 62 × 2.9 = 0.9419…
+    const body = { musicVolume: 62, mouseSensitivity: 0.1 + (18 / 62) * 2.9 };
+    expect((await call(t, "PUT", "/me/settings", { cookie, body })).statusCode).toBe(204);
+    expect((await call(t, "GET", "/me/settings", { cookie })).json()).toEqual({
+      musicVolume: 62,
+      mouseSensitivity: 0.94,
+    });
+  });
+
+  it("refuse an unknown field and any value out of the game's range", async () => {
+    const t = testApp();
+    const cookie = await signedIn(t);
+    const ok = { musicVolume: 32, mouseSensitivity: 0.5 };
+    for (const body of [
+      {},
+      { musicVolume: 32 },
+      { ...ok, soundVolume: 32 },
+      { ...ok, musicVolume: 65 },
+      { ...ok, musicVolume: -1 },
+      { ...ok, musicVolume: 1.5 },
+      { ...ok, musicVolume: null },
+      { ...ok, mouseSensitivity: 0.09 },
+      { ...ok, mouseSensitivity: 3.01 },
+      { ...ok, mouseSensitivity: "1" },
+    ]) {
+      expect((await call(t, "PUT", "/me/settings", { cookie, body })).statusCode).toBe(400);
+    }
+    expect((await call(t, "GET", "/me/settings", { cookie })).json()).toEqual({
+      musicVolume: null,
+      mouseSensitivity: null,
+    });
   });
 });
 

@@ -38,6 +38,28 @@ export function loadSettings(store: Store | null): Settings {
   };
 }
 
+/** Settings kept outside the game, the website's account; null or missing: not set there. */
+export type KeptSettings = { [K in keyof Settings]?: number | null };
+
+/**
+ * Copies the kept settings into storage, then plays on them. A setting not kept there, or out of
+ * range, stays as storage had it.
+ */
+export function adoptSettings(store: Store | null, kept: KeptSettings | null): Settings {
+  const local = loadSettings(store);
+  const settings = {
+    musicVolume: inRange(kept?.musicVolume, 0, MAX_VOLUME, local.musicVolume),
+    mouseSensitivity: inRange(
+      kept?.mouseSensitivity,
+      MIN_SENSITIVITY,
+      MAX_SENSITIVITY,
+      local.mouseSensitivity,
+    ),
+  };
+  saveSettings(store, settings);
+  return settings;
+}
+
 export function saveSettings(store: Store | null, settings: Settings): void {
   try {
     store?.setItem(SETTINGS_KEY, JSON.stringify(settings));

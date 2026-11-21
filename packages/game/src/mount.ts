@@ -74,13 +74,21 @@ import {
   scoresKey,
   tableTitle,
 } from "./ui/scores";
-import { browserStorage, loadSettings, saveSettings } from "./ui/settings";
+import {
+  type KeptSettings,
+  type Settings,
+  adoptSettings,
+  browserStorage,
+  loadSettings,
+  saveSettings,
+} from "./ui/settings";
 import { Notice } from "./ui/notice";
 import { BOOT_SLIDES, CREDITS_LAST_ORDER, CREDITS_SLIDES, Slideshow } from "./ui/slideshow";
 import { Transition, quitVolume } from "./ui/transition";
 
 export type { Difficulty } from "./data/config";
 export type { World } from "./data/images";
+export type { KeptSettings, Settings } from "./ui/settings";
 
 /** A game that ended, with what the server needs to replay it. */
 export interface GameEndReport {
@@ -114,6 +122,13 @@ export interface MountOptions {
    * Stack V2). A rejection goes back to the menu. Without it, the engine draws its own seeds.
    */
   newSeed?: (game: { world: World; difficulty: Difficulty }) => Promise<number>;
+  /**
+   * The player's settings kept by the website's account. They are copied into localStorage
+   * before the game reads it; a rejection keeps localStorage's. Without it, localStorage only.
+   */
+  loadSettings?: () => Promise<KeptSettings | null>;
+  /** Called after each settings change in the menu, once localStorage has it. */
+  onSettingsChange?: (settings: Settings) => void;
 }
 
 // Loaded once per page: a page that mounts the game again does not fetch the pack again.
@@ -128,11 +143,14 @@ export async function mountGame(
   const listen = <E extends Event>(target: EventTarget, type: string, handler: (e: E) => void) =>
     target.addEventListener(type, handler as EventListener, { signal });
 
+  // Fetched along with the assets, not after them.
+  const keptSettings = options.loadSettings?.().catch(() => null);
   assetsLoad ??= loadAssets().catch((error: unknown) => {
     assetsLoad = null;
     throw error;
   });
   const assets = await assetsLoad;
+  const kept = await keptSettings;
   if (signal.aborted) return;
 
   const screen = new Screen(canvas, {
@@ -145,7 +163,7 @@ export async function mountGame(
   const flasher = new IconFlasher(assets.images.get(SHEET_FLASH_MASK)!);
 
   const storage = browserStorage();
-  const settings = loadSettings(storage);
+  const settings = keptSettings ? adoptSettings(storage, kept ?? null) : loadSettings(storage);
   const audio = new GameAudio(assets.sounds, signal);
   audio.setMusicVolume(settings.musicVolume);
   /** Electron serves dist/ over app://. The desktop version stays with the original on these. */
@@ -510,6 +528,7 @@ export async function mountGame(
       audio.setMusicVolume(settings.musicVolume);
       mouse.sensitivity = settings.mouseSensitivity;
       saveSettings(storage, settings);
+      options.onSettingsChange?.({ ...settings });
     }
   }
 

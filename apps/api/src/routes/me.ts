@@ -3,12 +3,15 @@ import {
   type ChangePasswordBody,
   type PseudoBody,
   RESERVED_PSEUDO,
+  type SettingsBody,
   avatarBody,
   changePasswordBody,
   deleteAccountBody,
   errorReply,
   meReply,
   pseudoBody,
+  settingsBody,
+  settingsReply,
 } from "@brick-blaster/contracts";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { isRefusedPseudo } from "../account/pseudo";
@@ -62,6 +65,24 @@ export function meRoutes(app: FastifyInstance, deps: AccountDeps): void {
       { schema: { body: avatarBody } },
       async (req, res) => {
         await store.setAvatar(session(req).userId, req.body.avatar);
+        return res.code(204).send();
+      },
+    );
+
+    me.get(
+      "/me/settings",
+      { schema: { response: { 200: settingsReply, 401: errorReply } } },
+      async (req, res) => {
+        const found = await store.getSettings(session(req).userId);
+        return found ?? res.code(401).send({ error: "unauthorized" });
+      },
+    );
+
+    me.put<{ Body: SettingsBody }>(
+      "/me/settings",
+      { schema: { body: settingsBody } },
+      async (req, res) => {
+        await store.setSettings(session(req).userId, req.body);
         return res.code(204).send();
       },
     );

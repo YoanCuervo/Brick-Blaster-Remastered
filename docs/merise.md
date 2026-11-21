@@ -1,6 +1,6 @@
 # Modèle de données — méthode Merise
 
-Schéma MySQL de l'API (`apps/api`). Les tables des comptes (§ 1 à 5) reprennent exactement `apps/api/migrations/0001_create_accounts.sql`, celles des parties, scores et stats (§ 6) `0002_create_games.sql`, tirées de [`cadrage.md`](cadrage.md) (§ Scores et classements, § Stats). Les réglages (§ 7) et les avatars personnels (§ 8) sont prévus.
+Schéma MySQL de l'API (`apps/api`). Les tables des comptes (§ 1 à 5) reprennent exactement `apps/api/migrations/0001_create_accounts.sql`, celles des parties, scores et stats (§ 6) `0002_create_games.sql`, tirées de [`cadrage.md`](cadrage.md) (§ Scores et classements, § Stats). Les réglages (§ 7) sont deux colonnes de `users` ajoutées par `0003_add_user_settings.sql` ; les avatars personnels (§ 8) sont prévus.
 
 Base : MySQL 8.0, InnoDB, jeu de caractères par défaut `utf8mb4`, collation `utf8mb4_0900_ai_ci`. Toutes les dates sont écrites en UTC par l'API (le pilote est réglé sur `timezone: "Z"`, `apps/api/src/db.ts`) ; MySQL ne l'impose pas.
 
@@ -166,7 +166,7 @@ Toutes les colonnes sont `NOT NULL` sauf celles marquées `NULL`. Toutes les tab
 Le MPD ci-dessus est la migration telle quelle. Ce qui suit signale ce que la migration, le code ou le cadrage disent de différent, sans rien corriger.
 
 1. **Corrigé.** Le § Sécurité du cadrage annonçait argon2id alors que le § Comptes et le code (`apps/api/src/auth/password.ts`) utilisent scrypt. Il dit désormais scrypt, et prévoit le passage à argon2id quand `crypto.argon2` sera stable dans Node. `users.password_hash` n'en dépend pas : le hash porte le nom de son algorithme.
-2. **Décidé, à implémenter avec l'écran des réglages.** Le cadrage (§ Comptes) veut les réglages (souris, son) enregistrés sur le compte ; aucune colonne ne les porte encore. Ils deviendront deux attributs de UTILISATEUR, voir le § 7.
+2. **Corrigé.** Le cadrage (§ Comptes) veut les réglages (souris, son) enregistrés sur le compte : `0003_add_user_settings.sql` en fait deux attributs de UTILISATEUR, voir le § 7.
 3. **Assumé.** `users.avatar` est un `TINYINT UNSIGNED`, le plus petit entier de MySQL (un octet), qui accepte 0 à 255 ; seuls les numéros de la galerie ont une image. La limite vit dans `packages/contracts` (`AVATAR_COUNT`), seule source de vérité, et le schéma de `PUT /api/me/avatar` la fait respecter. Pas de `CHECK` : il dupliquerait la limite, et les avatars personnels prévus (§ 8) remplaceront ce numéro par une clé étrangère.
    - **Galerie à corriger dans le code** : les maquettes (haute fidélité et charte E, « Choisir un avatar ») prévoient 9 avatars en grille de 3 × 3 ; le code en compte 10 (`AVATAR_COUNT = 10`, 10 entrées dans `apps/web/src/components/Avatar.tsx`). Les 10 dessins actuels sont provisoires, aucun n'est validé : la galerie définitive en comptera 9, à créer. Sans effet sur le schéma : les numéros valides deviendront 0 à 8.
 4. **Assumé.** Une session prend fin après 7 jours d'inactivité (`last_seen_at` + 7 jours, calculé par l'API, `apps/api/src/auth/sessions.ts`) ou 30 jours après sa création (`expires_at`). La purge horaire (`apps/api/src/cleanup.ts`, `expires_at <= ? OR last_seen_at <= ?`) parcourt toute la table : `last_seen_at` n'a pas d'index et le `OR` empêche d'utiliser `sessions_expiry` seul. La table ne compte qu'une ligne par appareil connecté (environ 70 Ko pour 1 000 joueurs) : le parcours coûte de l'ordre d'une milliseconde, et un index sur `last_seen_at` ne se justifierait qu'au-delà d'environ 100 000 sessions.
@@ -369,16 +369,23 @@ Toutes les colonnes sont `NOT NULL` sauf celles marquées `NULL`. Les tables ne 
 5. **Briques et vies par partie.** Gardées sur la ligne de la partie, pas seulement dans les cumuls : la partie d'essai les apporte au compte à l'inscription.
 6. **RGPD.** Aucune IP en base : la limite par IP des lancements et des journaux vit en mémoire. Les journaux, qui décrivent le jeu d'une personne tick par tick, ne sont gardés que pour le top 1000 du Limbes (finalité : revérifier un score affiché publiquement). Un essai non converti disparaît en 24 heures. À confirmer au `/conform-cnil`.
 
-## 7. Modèle prévu : réglages
+## 7. Réglages
 
-> **Prévu, non implémenté.** Le cadrage (§ Comptes) veut les réglages du joueur enregistrés sur son compte.
+Le cadrage (§ Comptes) veut les réglages du joueur enregistrés sur son compte. La migration `apps/api/migrations/0003_add_user_settings.sql` ajoute à `users` :
 
 | Colonne | Type | Règle |
 |---|---|---|
 | users.music_volume | `TINYINT UNSIGNED NULL` | 0 à 64, l'échelle du jeu (`MAX_VOLUME`, `packages/game/src/audio/rules.ts`) |
-| users.mouse_sensitivity | `DECIMAL(3,2) NULL` | 0,10 à 3,00 (`packages/game/src/ui/settings.ts`) |
+| users.mouse_sensitivity | `DECIMAL(3,2) NULL` | 0,10 à 3,00 (`packages/game/src/ui/settings.ts`), arrondie au centième par l'API |
 
 Les réglages ne forment pas une entité : un compte en a une valeur de chaque, qui ne dépend que de lui. Ce sont des attributs de UTILISATEUR. `NULL` vaut « défaut du jeu » (volume 32, sensibilité 0,5) : un défaut changé plus tard profite aux joueurs qui n'y ont jamais touché, sans migration. Des colonnes typées plutôt qu'un document JSON : MySQL vérifie alors le type, et le modèle dit ce qui est stocké.
+
+Ce sont les deux seuls réglages du jeu. Le jeu n'a pas de volume des bruitages séparé : le « son » du cadrage est le volume de la musique, que l'original gardait dans son fichier `.usr` (0x4079CB). La sensibilité de la souris est un ajout du remake : l'original déplace le curseur au mickey près.
+
+- **Bornes** : `packages/contracts` (`MAX_VOLUME`, `MIN_SENSITIVITY`, `MAX_SENSITIVITY`) les reprend, et un test de `apps/api` vérifie qu'elles égalent celles du moteur.
+- **Routes** : `GET /api/me/settings` les donne (`null` : jamais réglé) ; `PUT /api/me/settings` exige les deux valeurs, aucun autre champ, dans les bornes.
+- **Arrondi** : un pas de la barre du menu vaut environ 0,047 ; le centième garde la barre à la même position.
+- **Copie en localStorage** : sur `/jouer`, le site passe au moteur `MountOptions.loadSettings`. Le moteur recopie les réglages du compte en localStorage avant de les lire ; un réglage `NULL` (ou une API injoignable) garde la valeur locale. Chaque changement dans le menu passe par `MountOptions.onSettingsChange` et part au serveur 500 ms après le dernier pas de la barre. L'essai sans compte, la version navigateur seule et le .exe n'ont que le localStorage.
 
 ## 8. Piste : avatars personnels (V2.0, hors V2)
 

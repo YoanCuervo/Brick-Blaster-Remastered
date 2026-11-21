@@ -31,6 +31,12 @@ export const RESERVED_PSEUDO = /^joueur\d+$/i;
 /** Size of the predefined avatar gallery (apps/web/src/components/Avatar.tsx). */
 export const AVATAR_COUNT = 10;
 
+/** The game's music volume scale (packages/game/src/audio/rules.ts, MAX_VOLUME). */
+export const MAX_VOLUME = 64;
+/** Mouse sensitivity bounds of the game (packages/game/src/ui/settings.ts). */
+export const MIN_SENSITIVITY = 0.1;
+export const MAX_SENSITIVITY = 3;
+
 /** Typed by the player to confirm the deletion of their account. */
 export const DELETE_CONFIRMATION = "SUPPRIMER";
 
