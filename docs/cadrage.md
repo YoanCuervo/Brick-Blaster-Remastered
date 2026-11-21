@@ -98,7 +98,7 @@ Le journal d'entrées note ce que le moteur reçoit à chaque tick (déplacement
 - Email vérifié par un lien avant la première connexion, valable 24 heures. Un compte jamais vérifié est supprimé au bout de 7 jours. Mot de passe oublié : un lien de réinitialisation envoyé à l'adresse du compte, valable 1 heure et à usage unique ; il vérifie aussi l'email, et déconnecte tous les appareils. Pas de double authentification.
 - Mot de passe : 12 caractères au moins, avec une minuscule, une majuscule, un chiffre et un caractère spécial (recommandation CNIL, délibération 2022-100). Haché avec scrypt (N = 2¹⁷, r = 8, p = 1, sel aléatoire), fourni par Node : aucune dépendance. Les paramètres sont écrits dans le hash, pour pouvoir les relever plus tard.
 - Pseudo : 15 caractères au plus, la limite de la table des scores du jeu (analyse, Écrans et meilleurs scores), unique sans tenir compte de la casse, filtré contre les insultes, modifiable. Il se choisit dans le profil, pas à l'inscription : à la création du compte, le serveur attribue un pseudo provisoire unique, « Joueur » suivi d'un numéro (par exemple `Joueur48213`), et le profil invite à le changer. Le motif « joueur » suivi de chiffres est réservé à ces pseudos provisoires. Un pseudo fait au moins 3 caractères, lettres sans accent, chiffres, espaces et ponctuation simple : le jeu ne sait écrire que l'ASCII et met les noms en minuscules (0x408D3C).
-- Avatar choisi parmi une galerie prédéfinie : aucun envoi d'image, donc aucun contenu à modérer.
+- Avatar choisi parmi une galerie prédéfinie de 9 avatars : aucun envoi d'image, donc aucun contenu à modérer.
 - Réglages (souris, son…) enregistrés sur le compte et recopiés en localStorage.
 - Le joueur peut supprimer son compte depuis le profil (confirmation en saisissant « SUPPRIMER »). Pas d'export en libre-service : le droit d'accès s'exerce sur demande.
 
@@ -106,7 +106,7 @@ Le journal d'entrées note ce que le moteur reçoit à chaque tick (déplacement
 
 | Mesure | Détail |
 |---|---|
-| Mots de passe | Hachés en argon2id, jamais journalisés. |
+| Mots de passe | Hachés avec scrypt (paramètres au § Comptes), jamais journalisés. Passage à argon2id prévu quand `crypto.argon2` sera stable dans Node, re-hachage à la connexion. |
 | Session | Stockée côté serveur dans MySQL. Le cookie ne porte qu'un identifiant aléatoire : `HttpOnly`, `Secure`, `SameSite=Strict`. Expire après 7 jours d'inactivité, 30 jours au plus. Toutes les sessions sont révoquées au changement de mot de passe. Pas de jeton lisible par le front. |
 | Validation | Chaque route de l'API valide son entrée contre un schéma (types, longueurs, champs en trop rejetés). Toute autorisation se décide côté serveur. |
 | Limitation de débit | Nombre de requêtes par IP et par minute plafonné sur l'inscription, la connexion, le mot de passe oublié et l'envoi de parties. |
@@ -124,7 +124,7 @@ Le journal d'entrées note ce que le moteur reçoit à chaque tick (déplacement
 | Interface d'administration (bannir, supprimer un score, renommer) | Plus tard |
 | Duel en temps réel en réseau | Exclu : le PvP est un classement |
 | Mode coop sur le site | Exclu : remplacé par le PvP, gardé dans le .exe |
-| Envoi d'images de profil | Exclu : avatars prédéfinis |
+| Envoi d'images de profil | Exclu de la V2 : avatars prédéfinis (piste V2.0, voir Pistes) |
 | Double authentification | Exclue |
 | Version mobile, autres langues | Exclues |
 
@@ -218,5 +218,6 @@ Ces conclusions aident au cadrage. Elles ne remplacent pas l'avis d'un juriste.
 - Choix du skin par le joueur, intégré au site web (dette de la V2) : couleurs du joueur 1 ou du joueur 2 de l'original, affichage seul. La table existe (`packages/game/src/render/skin.ts`, analyse §3.5), aucun réglage ni menu ne la propose encore.
 - Éditeur de niveaux.
 - Interface d'administration du site.
+- Avatars personnels (V2.0, avec la messagerie et l'administration) : le joueur envoie sa propre image, modérée par l'administration. Donnée personnelle (RGPD) et fichiers à stocker sur le serveur ; modèle esquissé dans [`merise.md`](merise.md), § 6.
 - Pack d'assets refait, pour publier le site et le .exe.
 - Passage éventuel du .exe à Tauri, si un livrable léger devient utile.

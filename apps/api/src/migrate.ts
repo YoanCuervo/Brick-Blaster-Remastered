@@ -30,7 +30,7 @@ export async function migrate(
   await sql.run(
     `CREATE TABLE IF NOT EXISTS ${table} (
       name VARCHAR(255) NOT NULL PRIMARY KEY,
-      applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      applied_at DATETIME(3) NOT NULL DEFAULT (UTC_TIMESTAMP(3))
     )`,
   );
   const done = new Set(await sql.names(`SELECT name FROM ${table}`));
