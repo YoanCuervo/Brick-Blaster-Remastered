@@ -21,6 +21,7 @@ describe("the API configuration", () => {
       trustProxy: false,
       siteUrl: "http://localhost:5174",
       mail: { transport: "log" },
+      gameDataDir: "../../assets",
       db: {
         host: "127.0.0.1",
         port: 3306,
@@ -39,9 +40,11 @@ describe("the API configuration", () => {
       API_TRUST_PROXY: "true",
       DB_HOST: "mysql",
       DB_PORT: "3307",
+      GAME_DATA_DIR: "/srv/game",
     });
     expect(config).toMatchObject({ host: "0.0.0.0", port: 8080, trustProxy: true });
     expect(config.db).toMatchObject({ host: "mysql", port: 3307 });
+    expect(config.gameDataDir).toBe("/srv/game");
   });
 
   it("names every missing variable at once", () => {

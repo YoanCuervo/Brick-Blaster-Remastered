@@ -8,6 +8,8 @@ export interface Config {
   siteUrl: string;
   mail: MailConfig;
   db: DbConfig;
+  /** Folder of the asset pack's config.json and levels.json, which the replays need. */
+  gameDataDir: string;
 }
 
 /** Without a Brevo key, emails go to the console: allowed for a local site only. */
@@ -91,6 +93,8 @@ export function loadConfig(env: Env): Config {
     trustProxy: flag("API_TRUST_PROXY"),
     siteUrl: site?.origin ?? "",
     mail,
+    // apps/api is the working directory of the npm scripts; assets/ sits at the root.
+    gameDataDir: text("GAME_DATA_DIR", "../../assets"),
     db: {
       host: text("DB_HOST", "127.0.0.1"),
       port: port("DB_PORT", 3306),

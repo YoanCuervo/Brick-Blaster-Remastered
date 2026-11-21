@@ -9,7 +9,11 @@ export default defineConfig({
     outDir: "dist",
     emptyOutDir: true,
     rollupOptions: {
-      input: { server: "src/server.ts", migrate: "src/migrateCli.ts" },
+      input: {
+        server: "src/server.ts",
+        migrate: "src/migrateCli.ts",
+        replayWorker: "src/replay/worker.ts",
+      },
       output: { format: "es", entryFileNames: "[name].js" },
     },
   },

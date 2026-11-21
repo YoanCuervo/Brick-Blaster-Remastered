@@ -4,8 +4,14 @@ import { startCleanup } from "./cleanup";
 import { ConfigError, loadConfig } from "./config";
 import { createDb, createPool } from "./db";
 import { createMailer } from "./mail/mailer";
-import { rateLimits } from "./routes/deps";
+import { loadGameData } from "./replay/job";
+import { workerReplayer } from "./replay/pool";
+import { gameRateLimits, rateLimits } from "./routes/deps";
+import { newSeed } from "./routes/games";
 import { createMysqlAccountStore } from "./store/accounts";
+import { createMysqlGameStore } from "./store/games";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 let config;
 try {
@@ -19,7 +25,17 @@ try {
 const pool = createPool(config.db);
 const db = createDb(pool);
 const store = createMysqlAccountStore(pool);
+const games = createMysqlGameStore(pool);
 const now = () => new Date();
+const gameDataDir = resolve(config.gameDataDir);
+try {
+  // Read once here so that a missing pack stops the start, not the first replay.
+  loadGameData(gameDataDir);
+} catch (error: unknown) {
+  console.error(`GAME_DATA_DIR: no valid config.json and levels.json in ${gameDataDir}`);
+  console.error(error instanceof Error ? error.message : error);
+  process.exit(1);
+}
 // The app's logger, once the app exists: no email is sent before it listens.
 const mailer = createMailer(config.mail, { info: (message) => app.log.info(message) });
 const app = buildApp({
@@ -31,6 +47,18 @@ const app = buildApp({
     siteUrl: config.siteUrl,
     now,
     limits: rateLimits(now),
+    trials: games,
+  },
+  games: {
+    store: games,
+    accounts: store,
+    // vite.config.ts builds the worker next to this file.
+    replayer: workerReplayer(gameDataDir, {
+      file: join(dirname(fileURLToPath(import.meta.url)), "replayWorker.js"),
+    }),
+    newSeed,
+    now,
+    limits: gameRateLimits(now),
   },
   trustProxy: config.trustProxy,
   logger: { level: "info" },
@@ -38,7 +66,9 @@ const app = buildApp({
 if (config.mail.transport === "log") {
   app.log.warn("no BREVO_API_KEY: emails are written to this log instead of being sent");
 }
-const stopCleanup = startCleanup(store, now, (error) => app.log.error(error, "cleanup failed"));
+const stopCleanup = startCleanup(store, games, now, (error) =>
+  app.log.error(error, "cleanup failed"),
+);
 
 async function stop(): Promise<void> {
   stopCleanup();

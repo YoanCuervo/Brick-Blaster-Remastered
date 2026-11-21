@@ -1,4 +1,5 @@
 import { SESSION_COOKIE } from "../auth/sessions";
+import { TRIAL_COOKIE } from "../auth/trial";
 import type { TestApp } from "./testApp";
 
 export const PASSWORD = "Brique-Bleue9";
@@ -9,13 +10,17 @@ export async function call(
   t: TestApp,
   method: Method,
   url: string,
-  options: { body?: object; cookie?: string | null; ip?: string } = {},
+  options: { body?: object; cookie?: string | null; trial?: string | null; ip?: string } = {},
 ) {
+  const cookies = [
+    options.cookie ? `${SESSION_COOKIE}=${options.cookie}` : null,
+    options.trial ? `${TRIAL_COOKIE}=${options.trial}` : null,
+  ].filter((c) => c !== null);
   return t.app.inject({
     method,
     url: `/api${url}`,
     ...(options.body ? { payload: options.body } : {}),
-    headers: options.cookie ? { cookie: `${SESSION_COOKIE}=${options.cookie}` } : {},
+    headers: cookies.length > 0 ? { cookie: cookies.join("; ") } : {},
     remoteAddress: options.ip ?? "127.0.0.1",
   });
 }
@@ -45,4 +50,15 @@ export async function signedIn(t: TestApp, email = "nova@exemple.fr", password =
   const cookie = cookieOf(res);
   if (res.statusCode !== 200 || !cookie) throw new Error(`sign-in failed: ${res.body}`);
   return cookie;
+}
+
+/** The value a reply gives to one cookie, "" when it clears it, null when it leaves it alone. */
+export function setCookie(res: { headers: Record<string, unknown> }, name: string): string | null {
+  const header = res.headers["set-cookie"];
+  const lines = Array.isArray(header) ? header : [header];
+  for (const line of lines) {
+    const match = typeof line === "string" && new RegExp(`^${name}=([^;]*)`).exec(line);
+    if (match) return match[1]!;
+  }
+  return null;
 }

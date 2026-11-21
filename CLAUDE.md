@@ -13,7 +13,7 @@ Scope, choices and legal: [`docs/cadrage.md`](docs/cadrage.md). Reverse-engineer
 - Desktop: Electron + electron-builder (Windows 10+ .exe).
 - Tests: Vitest, game logic only. Lint: ESLint (typescript-eslint) + Prettier.
 
-V2 (scope in `docs/cadrage.md`; done so far: monorepo, replay in `packages/game/src/game/replay.ts`, API skeleton and accounts, `packages/contracts`, `apps/web` pages on fixtures): website hosting the game. npm-workspaces monorepo (`apps/web` React + TS + Vite, `apps/api` Node + TS + Fastify, `apps/desktop` Electron, `packages/game` the current engine, `packages/contracts` web/api schemas, `deploy/` this project's Dockerfiles and Caddy/compose fragments; the shared server config lives in a separate infra repo), MySQL, Brevo emails, OVH VPS behind Cloudflare. The backend decides everything: every score is replayed server-side from its seed and input log, never trusted from the client.
+V2 (scope in `docs/cadrage.md`; done so far: monorepo, replay in `packages/game/src/game/replay.ts`, API skeleton and accounts, games and scores (server replay in worker threads), `packages/contracts`, `apps/web` pages on fixtures): website hosting the game. npm-workspaces monorepo (`apps/web` React + TS + Vite, `apps/api` Node + TS + Fastify, `apps/desktop` Electron, `packages/game` the current engine, `packages/contracts` web/api schemas, `deploy/` this project's Dockerfiles and Caddy/compose fragments; the shared server config lives in a separate infra repo), MySQL, Brevo emails, OVH VPS behind Cloudflare. The backend decides everything: every score is replayed server-side from its seed and input log, never trusted from the client.
 
 ## Commands
 
@@ -65,7 +65,7 @@ docs/           cadrage.md
 
 Python tooling runs in `tools/.venv` (capstone, Pillow), never in the system Python.
 
-The API reads its configuration from the environment only (`apps/api/src/config.ts`): `DB_USER`, `DB_PASSWORD`, `DB_NAME` required; `DB_HOST`, `DB_PORT`, `API_HOST`, `API_PORT`, `API_TRUST_PROXY`, `SITE_URL` (default `http://localhost:5174`), `BREVO_API_KEY` and `MAIL_FROM` optional. Without `BREVO_API_KEY` the API writes emails, links included, to its log, which it only allows when `SITE_URL` is on localhost. Locally they sit in `apps/api/.env`, written by the user (Claude cannot read or write `.env*`) and loaded by Node's `--env-file-if-exists`. Local MySQL 8.0 runs on this machine; Docker is only for the VPS. The MySQL tests of `apps/api` are skipped, with a warning, when no database is configured.
+The API reads its configuration from the environment only (`apps/api/src/config.ts`): `DB_USER`, `DB_PASSWORD`, `DB_NAME` required; `DB_HOST`, `DB_PORT`, `API_HOST`, `API_PORT`, `API_TRUST_PROXY`, `SITE_URL` (default `http://localhost:5174`), `BREVO_API_KEY`, `MAIL_FROM` and `GAME_DATA_DIR` optional. `GAME_DATA_DIR` (default `../../assets`) holds the `config.json` and `levels.json` the server replays games with: the API refuses to start without them. Without `BREVO_API_KEY` the API writes emails, links included, to its log, which it only allows when `SITE_URL` is on localhost. Locally they sit in `apps/api/.env`, written by the user (Claude cannot read or write `.env*`) and loaded by Node's `--env-file-if-exists`. Local MySQL 8.0 runs on this machine; Docker is only for the VPS. The MySQL tests of `apps/api` are skipped, with a warning, when no database is configured.
 
 ## Conventions
 

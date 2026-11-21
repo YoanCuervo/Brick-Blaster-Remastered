@@ -5,7 +5,8 @@
   "description": "Brick Blaster engine and browser version",
   "type": "module",
   "exports": {
-    "./mount": "./src/mount.ts"
+    "./mount": "./src/mount.ts",
+    "./headless": "./src/headless.ts"
   },
   "scripts": {
     "dev": "vite",

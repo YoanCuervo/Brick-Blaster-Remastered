@@ -1,16 +1,19 @@
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from "fastify";
 import type { Db } from "./db";
 import { authRoutes } from "./routes/auth";
-import type { AccountDeps } from "./routes/deps";
+import type { AccountDeps, GameDeps } from "./routes/deps";
+import { gameRoutes } from "./routes/games";
 import { healthRoutes } from "./routes/health";
 import { meRoutes } from "./routes/me";
+import { scoreRoutes } from "./routes/scores";
 
-/** Requests carry small JSON only; replay logs will raise this on their own route. */
+/** Requests carry small JSON only; replay logs raise this on their own route. */
 export const BODY_LIMIT = 16 * 1024;
 
 export interface AppOptions {
   db: Db;
   accounts: AccountDeps;
+  games: GameDeps;
   trustProxy?: boolean;
   logger?: FastifyServerOptions["logger"];
 }
@@ -60,6 +63,8 @@ export function buildApp(options: AppOptions): FastifyInstance {
       healthRoutes(api, options.db);
       authRoutes(api, options.accounts);
       meRoutes(api, options.accounts);
+      gameRoutes(api, options.games);
+      scoreRoutes(api, options.games);
     },
     { prefix: "/api" },
   );

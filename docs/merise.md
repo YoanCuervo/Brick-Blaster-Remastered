@@ -1,6 +1,6 @@
 # Modèle de données — méthode Merise
 
-Schéma MySQL de l'API (`apps/api`). Les tables des comptes existent : leur MPD reprend exactement `apps/api/migrations/0001_create_accounts.sql`. Les parties, scores et stats sont **prévus** : leur modèle découle de [`cadrage.md`](cadrage.md) (§ Scores et classements, § Stats) et changera à leur implémentation.
+Schéma MySQL de l'API (`apps/api`). Les tables des comptes (§ 1 à 5) reprennent exactement `apps/api/migrations/0001_create_accounts.sql`, celles des parties, scores et stats (§ 6) `0002_create_games.sql`, tirées de [`cadrage.md`](cadrage.md) (§ Scores et classements, § Stats). Les réglages (§ 7) et les avatars personnels (§ 8) sont prévus.
 
 Base : MySQL 8.0, InnoDB, jeu de caractères par défaut `utf8mb4`, collation `utf8mb4_0900_ai_ci`. Toutes les dates sont écrites en UTC par l'API (le pilote est réglé sur `timezone: "Z"`, `apps/api/src/db.ts`) ; MySQL ne l'impose pas.
 
@@ -166,8 +166,8 @@ Toutes les colonnes sont `NOT NULL` sauf celles marquées `NULL`. Toutes les tab
 Le MPD ci-dessus est la migration telle quelle. Ce qui suit signale ce que la migration, le code ou le cadrage disent de différent, sans rien corriger.
 
 1. **Corrigé.** Le § Sécurité du cadrage annonçait argon2id alors que le § Comptes et le code (`apps/api/src/auth/password.ts`) utilisent scrypt. Il dit désormais scrypt, et prévoit le passage à argon2id quand `crypto.argon2` sera stable dans Node. `users.password_hash` n'en dépend pas : le hash porte le nom de son algorithme.
-2. **Décidé, à implémenter avec l'écran des réglages.** Le cadrage (§ Comptes) veut les réglages (souris, son) enregistrés sur le compte ; aucune colonne ne les porte encore. Ils deviendront deux attributs de UTILISATEUR, voir le modèle prévu.
-3. **Assumé.** `users.avatar` est un `TINYINT UNSIGNED`, le plus petit entier de MySQL (un octet), qui accepte 0 à 255 ; seuls les numéros de la galerie ont une image. La limite vit dans `packages/contracts` (`AVATAR_COUNT`), seule source de vérité, et le schéma de `PUT /api/me/avatar` la fait respecter. Pas de `CHECK` : il dupliquerait la limite, et les avatars personnels prévus (§ 6) remplaceront ce numéro par une clé étrangère.
+2. **Décidé, à implémenter avec l'écran des réglages.** Le cadrage (§ Comptes) veut les réglages (souris, son) enregistrés sur le compte ; aucune colonne ne les porte encore. Ils deviendront deux attributs de UTILISATEUR, voir le § 7.
+3. **Assumé.** `users.avatar` est un `TINYINT UNSIGNED`, le plus petit entier de MySQL (un octet), qui accepte 0 à 255 ; seuls les numéros de la galerie ont une image. La limite vit dans `packages/contracts` (`AVATAR_COUNT`), seule source de vérité, et le schéma de `PUT /api/me/avatar` la fait respecter. Pas de `CHECK` : il dupliquerait la limite, et les avatars personnels prévus (§ 8) remplaceront ce numéro par une clé étrangère.
    - **Galerie à corriger dans le code** : les maquettes (haute fidélité et charte E, « Choisir un avatar ») prévoient 9 avatars en grille de 3 × 3 ; le code en compte 10 (`AVATAR_COUNT = 10`, 10 entrées dans `apps/web/src/components/Avatar.tsx`). Les 10 dessins actuels sont provisoires, aucun n'est validé : la galerie définitive en comptera 9, à créer. Sans effet sur le schéma : les numéros valides deviendront 0 à 8.
 4. **Assumé.** Une session prend fin après 7 jours d'inactivité (`last_seen_at` + 7 jours, calculé par l'API, `apps/api/src/auth/sessions.ts`) ou 30 jours après sa création (`expires_at`). La purge horaire (`apps/api/src/cleanup.ts`, `expires_at <= ? OR last_seen_at <= ?`) parcourt toute la table : `last_seen_at` n'a pas d'index et le `OR` empêche d'utiliser `sessions_expiry` seul. La table ne compte qu'une ligne par appareil connecté (environ 70 Ko pour 1 000 joueurs) : le parcours coûte de l'ordre d'une milliseconde, et un index sur `last_seen_at` ne se justifierait qu'au-delà d'environ 100 000 sessions.
    - **RGPD** : la purge applique la limitation de la conservation (art. 5.1.e) ; une session périmée est effacée dans l'heure, et refusée dès qu'elle se présente, avant même la purge. Les sessions ne gardent ni IP ni navigateur. À confirmer au `/conform-cnil` avant la mise en ligne.
@@ -176,51 +176,74 @@ Le MPD ci-dessus est la migration telle quelle. Ce qui suit signale ce que la mi
 6. **Corrigé.** `schema_migrations.applied_at` était un `TIMESTAMP`, limité au 19 janvier 2038 et écrit dans le fuseau de la session MySQL. Il est désormais en `DATETIME(3)`, rempli en UTC par la base (`DEFAULT (UTC_TIMESTAMP(3))`, `apps/api/src/migrate.ts`), comme les autres dates. Corrigé avant que la table n'existe dans aucune base : pas d'`ALTER TABLE` à prévoir.
 7. **Assumé.** `purpose` est un `ENUM` : la base refuse toute sorte de lien inconnue. En ajouter une (par exemple `change_email` en V2.0) demande une migration `ALTER TABLE … MODIFY`, instantanée dans MySQL 8 tant que la nouvelle valeur est ajoutée à la fin de la liste.
 
-## 6. Modèle prévu : parties, scores et stats
+## 6. Parties, scores et stats
 
-> **Prévu, non implémenté.** Tiré de `cadrage.md` (§ Parcours, § Scores et classements, § Stats). Types indicatifs ; noms, index et découpage seront fixés par la migration qui les créera.
+Implémenté : le MPD reprend exactement `apps/api/migrations/0002_create_games.sql`.
 
 ### Règles de gestion
 
-- RG1. Chaque partie lancée reçoit du serveur une graine ; le client renvoie le journal de ses entrées ; le serveur rejoue et ne garde que son propre résultat.
-- RG2. Chaque partie validée, quel que soit le monde (espace, arcade, Limbes), donne une ligne : monde, difficulté, score, niveau atteint, durée, date.
-- RG3. La partie d'essai (espace, moyen) n'a pas de compte : elle est rattachée à une session anonyme et expire si le joueur ne s'inscrit pas ; s'il s'inscrit, elle passe à son compte.
+- RG1. Chaque partie lancée reçoit du serveur une graine ; le client renvoie le journal de ses entrées ; le serveur rejoue et ne garde que son propre résultat. Un journal est une seule partie : après un game over, la suivante est lancée avec une nouvelle graine (cadrage, § Stack V2).
+- RG2. Chaque partie validée, quel que soit le monde (espace, arcade, Limbes), donne une ligne : monde, difficulté, score, niveau atteint, durée, date. Une partie quittée par Échap compte dans les stats mais son score n'entre dans aucune table, comme dans l'original.
+- RG3. La partie d'essai (espace, moyen) n'a pas de compte : elle est rattachée à une session anonyme de 24 heures. S'il s'inscrit, elle passe à son compte ; sinon elle est supprimée avec la session. Un nouvel essai remplace le précédent.
 - RG4. Espace et arcade : tables privées par monde et par difficulté, visibles du seul joueur.
-- RG5. Limbes : un classement par difficulté, partagé ; plusieurs entrées par joueur ; la base en garde les 1000 meilleures, le site affiche les 100 premières.
-- RG6. Le journal d'entrées est supprimé après validation, sauf pour les scores du top 1000 du Limbes.
-- RG7. Une ligne de compteurs par joueur, mise à jour à chaque partie : parties jouées, temps total, meilleur score par monde et par difficulté, niveau maximal, briques cassées, vies perdues.
-- RG8. Les réglages du joueur sont enregistrés sur son compte.
+- RG5. Limbes classé : un classement par difficulté, partagé ; plusieurs entrées par joueur ; la base en garde les 1000 meilleures, le site affiche les 100 premières. À score égal, la partie la plus ancienne passe devant.
+- RG6. Le journal d'entrées n'est gardé que pour les parties du top 1000 du Limbes ; il disparaît quand la partie en sort.
+- RG7. Une ligne de compteurs par joueur, mise à jour à chaque partie : parties jouées, temps total, niveau maximal, briques cassées, vies perdues ; et une ligne de meilleur score par monde et difficulté joués.
+- RG8. Une partie jamais envoyée est supprimée 12 heures après son lancement ; lancer une partie supprime celle que le joueur n'a pas envoyée.
 
-### MCD prévu
+### Dictionnaire de données
+
+| Donnée | Signification | Type | Règle |
+|---|---|---|---|
+| hash d'essai | SHA-256 de l'identifiant aléatoire du cookie `__Host-trial` | 32 octets | le cookie seul ne se retrouve pas en base |
+| essai expire le | Fin de la session anonyme | date | création + 24 h |
+| id partie | Identifiant technique | entier | attribué par la base |
+| monde | espace, arcade ou Limbes | énumération | noms du site (`WORLD_IDS`, `packages/contracts`) |
+| difficulté | 0 facile, 1 moyen, 2 difficile | entier 0–2 | `Difficulty` du moteur |
+| classée | Partie du mode PvP du Limbes | booléen | Limbes seulement, vérifié par l'API |
+| graine | Graine du hasard du moteur | entier 32 bits non signé | tirée par le serveur |
+| statut | lancée, game over, terminée (dernier niveau), quittée | énumération | |
+| score, niveau, durée | Résultat du rejeu ; durée en ticks à 60 Hz, pauses comprises | entiers | vides tant que la partie est lancée |
+| briques cassées, vies perdues | Compteurs du rejeu pour cette partie | entiers | |
+| lancée le, finie le | | dates | |
+| journal | `ReplayLog` en JSON compressé (gzip) | binaire | top 1000 du Limbes seulement |
+| parties jouées, temps de jeu, niveau max | Cumuls du joueur | entiers | |
+| meilleur score | Par joueur, monde et difficulté | entier | parties classées comprises, quittées exclues |
+
+### MCD
 
 ```mermaid
 erDiagram
     UTILISATEUR |o--o{ PARTIE : joue
-    ESSAI_ANONYME |o--o| PARTIE : "porte"
-    PARTIE ||--o| JOURNAL : "garde"
+    ESSAI_ANONYME |o--o| PARTIE : porte
+    PARTIE ||--o| ENTREE_LIMBES : "entre dans"
+    UTILISATEUR ||--o{ ENTREE_LIMBES : "détient"
+    ENTREE_LIMBES ||--o| JOURNAL : garde
     UTILISATEUR ||--o| STATS_JOUEUR : cumule
     UTILISATEUR ||--o{ MEILLEUR_SCORE : "détient"
 
-    UTILISATEUR {
-        volume_musique entier "prévu"
-        sensibilite_souris decimal "prévu"
-    }
-
-    PARTIE {
-        id identifiant
-        monde enumeration
-        difficulte enumeration
-        graine entier
-        statut enumeration
-        score entier
-        niveau_atteint entier
-        duree_ticks entier
-        lancee_le date
-        terminee_le date
-    }
     ESSAI_ANONYME {
         hash_essai identifiant
         expire_le date
+    }
+    PARTIE {
+        id identifiant
+        monde enumeration
+        difficulte entier
+        classee booleen
+        graine entier
+        statut enumeration
+        score entier
+        niveau entier
+        duree_ticks entier
+        briques_cassees entier
+        vies_perdues entier
+        lancee_le date
+        finie_le date
+    }
+    ENTREE_LIMBES {
+        difficulte entier
+        score entier
     }
     JOURNAL {
         donnees_compressees binaire
@@ -234,51 +257,130 @@ erDiagram
     }
     MEILLEUR_SCORE {
         monde enumeration
-        difficulte enumeration
+        difficulte entier
         score entier
     }
 ```
 
-Seuls les attributs ajoutés à UTILISATEUR sont montrés ; les siens sont au § 2.
-
 | Association | Cardinalités | Remarque |
 |---|---|---|
 | joue | UTILISATEUR 0,n — PARTIE 0,1 | 0,1 côté partie : la partie d'essai n'a pas de compte avant l'inscription (RG3) |
-| porte | ESSAI_ANONYME 0,1 — PARTIE 0,1 | une session anonyme, une seule partie d'essai |
-| garde | PARTIE 0,1 — JOURNAL 1,1 | journal gardé pour le top 1000 du Limbes seulement (RG6) |
+| porte | ESSAI_ANONYME 0,1 — PARTIE 0,1 | une session anonyme, une seule partie |
+| entre dans | PARTIE 0,1 — ENTREE_LIMBES 1,1 | seules les parties classées du top 1000 (RG5) |
+| détient (entrée) | UTILISATEUR 0,n — ENTREE_LIMBES 1,1 | plusieurs entrées par joueur |
+| garde | ENTREE_LIMBES 0,1 — JOURNAL 1,1 | le journal suit l'entrée (RG6) |
 | cumule | UTILISATEUR 0,1 — STATS_JOUEUR 1,1 | créée à la première partie |
-| détient | UTILISATEUR 0,n — MEILLEUR_SCORE 1,1 | une ligne par monde et difficulté joués (RG7) |
+| détient (meilleur) | UTILISATEUR 0,n — MEILLEUR_SCORE 1,1 | une ligne par monde et difficulté joués |
 
-Les réglages (RG8) ne forment pas une entité : un compte en a une valeur de chaque, qui ne dépend que de lui. Ce sont des attributs de UTILISATEUR.
+ENTREE_LIMBES répète la difficulté et le score de sa partie, et le joueur de celle-ci : redondance voulue, pour que le classement se lise sur une table de 3000 lignes au plus sans parcourir toutes les parties (remarque 1).
 
-### MLD prévu
+### MLD
 
-- games (**id**, #user_id, #trial_hash, world, difficulty, seed, status, score, level, duration_ticks, started_at, ended_at)
 - trial_sessions (**id_hash**, expires_at)
-- replay_logs (**#game_id**, log)
-- player_stats (**#user_id**, games_played, total_ticks, max_level, bricks_broken, lives_lost)
+- games (**id**, #user_id, #trial_hash, world, difficulty, ranked, seed, status, score, level, duration_ticks, bricks_broken, lives_lost, started_at, ended_at)
+- limbes_top (**#game_id**, #user_id, difficulty, score)
+- replay_logs (**#game_id**, log) — `game_id` référence `limbes_top`
+- player_stats (**#user_id**, games_played, play_ticks, max_level, bricks_broken, lives_lost)
 - player_bests (**#user_id, world, difficulty**, best_score)
-- users : ajout de music_volume, mouse_sensitivity
 
-### MPD prévu des réglages
+### MPD
+
+```mermaid
+erDiagram
+    users ||--o{ games : "user_id"
+    trial_sessions |o--o| games : "trial_hash"
+    games ||--o| limbes_top : "game_id"
+    users ||--o{ limbes_top : "user_id"
+    limbes_top ||--o| replay_logs : "game_id"
+    users ||--o| player_stats : "user_id"
+    users ||--o{ player_bests : "user_id"
+
+    trial_sessions {
+        BINARY_32 id_hash PK
+        DATETIME_3 expires_at
+    }
+    games {
+        BIGINT_UNSIGNED id PK "AUTO_INCREMENT"
+        BIGINT_UNSIGNED user_id FK "NULL, ON DELETE CASCADE"
+        BINARY_32 trial_hash FK "NULL, UNIQUE, ON DELETE CASCADE"
+        ENUM world "espace, arcade, limbes"
+        TINYINT_UNSIGNED difficulty
+        BOOLEAN ranked
+        INT_UNSIGNED seed
+        ENUM status "started, game_over, finished, left; DEFAULT started"
+        INT_UNSIGNED score "NULL"
+        TINYINT_UNSIGNED level "NULL"
+        INT_UNSIGNED duration_ticks "NULL"
+        INT_UNSIGNED bricks_broken "NULL"
+        SMALLINT_UNSIGNED lives_lost "NULL"
+        DATETIME_3 started_at
+        DATETIME_3 ended_at "NULL"
+    }
+    limbes_top {
+        BIGINT_UNSIGNED game_id PK "FK, ON DELETE CASCADE"
+        BIGINT_UNSIGNED user_id FK "ON DELETE CASCADE"
+        TINYINT_UNSIGNED difficulty
+        INT_UNSIGNED score
+    }
+    replay_logs {
+        BIGINT_UNSIGNED game_id PK "FK limbes_top, ON DELETE CASCADE"
+        MEDIUMBLOB log
+    }
+    player_stats {
+        BIGINT_UNSIGNED user_id PK "FK, ON DELETE CASCADE"
+        INT_UNSIGNED games_played
+        BIGINT_UNSIGNED play_ticks
+        TINYINT_UNSIGNED max_level
+        BIGINT_UNSIGNED bricks_broken
+        INT_UNSIGNED lives_lost
+    }
+    player_bests {
+        BIGINT_UNSIGNED user_id PK "FK, ON DELETE CASCADE"
+        ENUM world PK "espace, arcade, limbes"
+        TINYINT_UNSIGNED difficulty PK
+        INT_UNSIGNED best_score
+    }
+```
+
+Toutes les colonnes sont `NOT NULL` sauf celles marquées `NULL`. Les tables ne déclarent pas de jeu de caractères et prennent celui de la base ; seules les `ENUM` sont concernées.
+
+#### Index et contraintes
+
+| Table | Nom | Colonnes | Sorte | Sert à |
+|---|---|---|---|---|
+| trial_sessions | trial_sessions_expiry | expires_at | index | purge des essais expirés |
+| games | games_trial | trial_hash | unique | une seule partie par essai |
+| games | games_user_ended | user_id, ended_at | index | dernières parties du profil |
+| games | games_user_mode | user_id, world, difficulty, ranked, score | index | record classé et nombre de parties classées d'un joueur |
+| games | games_started | status, started_at | index | purge des parties jamais envoyées |
+| games | games_user_fk, games_trial_fk | → users.id, → trial_sessions.id_hash | clés étrangères, `ON DELETE CASCADE` | suppression du compte ou de l'essai |
+| limbes_top | limbes_top_rank | difficulty, score DESC, game_id | index | top 100, rang d'une entrée, coupe à 1000 |
+| limbes_top | limbes_top_user | user_id, difficulty | index | meilleure entrée d'un joueur, survol |
+| limbes_top | limbes_top_game_fk, limbes_top_user_fk | → games.id, → users.id | clés étrangères, `ON DELETE CASCADE` | suppression de la partie ou du compte |
+| replay_logs | replay_logs_top_fk | game_id → limbes_top.game_id | clé étrangère, `ON DELETE CASCADE` | une partie qui sort du top perd son journal (RG6) |
+| player_stats, player_bests | player_stats_user_fk, player_bests_user_fk | user_id → users.id | clés étrangères, `ON DELETE CASCADE` | suppression du compte |
+
+#### Remarques
+
+1. **Classement en table dédiée.** Le modèle prévu lisait le classement dans `games`. `limbes_top` le remplace : le plafond de 1000 (RG5) devient le nombre de lignes de la table, et la conservation des journaux (RG6) une clé étrangère. La table ne grossit pas avec le nombre de parties ; sa redondance (difficulté, score, joueur) n'est jamais réécrite, une partie finie ne change plus.
+2. **Coupe à 1000.** À chaque entrée, l'API supprime ce qui dépasse le 1000ᵉ rang de la difficulté, dans la même transaction, sous un verrou nommé par difficulté (`GET_LOCK`) pour que deux fins de partie simultanées ne se croisent pas. Une entrée sortie du top n'y revient pas, même si un compte mieux classé est supprimé ensuite.
+3. **Pas de `CHECK`.** MySQL interdit un `CHECK` sur une colonne utilisée par une clé étrangère à `ON DELETE CASCADE` (`user_id`, `trial_hash`) ; les autres limites (difficulté 0–2, classée au Limbes seulement) vivent dans `packages/contracts` et l'API, comme pour l'avatar (§ 5, remarque 3).
+4. **Graine.** `INT UNSIGNED`, les 32 bits du hasard du moteur (`packages/game/src/core/rng.ts`) ; tirée par `crypto.randomInt` côté serveur, jamais par le client.
+5. **Briques et vies par partie.** Gardées sur la ligne de la partie, pas seulement dans les cumuls : la partie d'essai les apporte au compte à l'inscription.
+6. **RGPD.** Aucune IP en base : la limite par IP des lancements et des journaux vit en mémoire. Les journaux, qui décrivent le jeu d'une personne tick par tick, ne sont gardés que pour le top 1000 du Limbes (finalité : revérifier un score affiché publiquement). Un essai non converti disparaît en 24 heures. À confirmer au `/conform-cnil`.
+
+## 7. Modèle prévu : réglages
+
+> **Prévu, non implémenté.** Le cadrage (§ Comptes) veut les réglages du joueur enregistrés sur son compte.
 
 | Colonne | Type | Règle |
 |---|---|---|
 | users.music_volume | `TINYINT UNSIGNED NULL` | 0 à 64, l'échelle du jeu (`MAX_VOLUME`, `packages/game/src/audio/rules.ts`) |
 | users.mouse_sensitivity | `DECIMAL(3,2) NULL` | 0,10 à 3,00 (`packages/game/src/ui/settings.ts`) |
 
-`NULL` vaut « défaut du jeu » (volume 32, sensibilité 0,5) : un défaut changé plus tard profite aux joueurs qui n'y ont jamais touché, sans migration. Des colonnes typées plutôt qu'un document JSON : MySQL vérifie alors le type, et le modèle dit ce qui est stocké.
+Les réglages ne forment pas une entité : un compte en a une valeur de chaque, qui ne dépend que de lui. Ce sont des attributs de UTILISATEUR. `NULL` vaut « défaut du jeu » (volume 32, sensibilité 0,5) : un défaut changé plus tard profite aux joueurs qui n'y ont jamais touché, sans migration. Des colonnes typées plutôt qu'un document JSON : MySQL vérifie alors le type, et le modèle dit ce qui est stocké.
 
-### Choix à trancher à l'implémentation
-
-- **Tables privées et classement du Limbes sans table dédiée** : ce sont des lectures de `games` (statut validé) triées par score, servies par un index `(world, difficulty, score)` pour le Limbes et `(user_id, world, difficulty, score)` pour les tables privées. Le plafond de 1000 du Limbes se tient en supprimant le journal (et éventuellement la ligne) des parties sorties du top. Une table `limbes_ranking` séparée ne vaudrait que si la lecture devenait trop lente.
-- **`player_bests` contre `player_stats`** : les meilleurs scores par monde et difficulté (jusqu'à 3 × 3 valeurs) vont dans une table à part pour rester en première forme normale ; le survol d'un joueur dans le classement lit `player_stats.games_played` et le meilleur score Limbes.
-- **Briques cassées et vies perdues** : le moteur ne les rend pas encore dans le résultat du rejeu (`GameEnd` de `packages/game/src/game/replay.ts` donne score, niveau et tick). Il faudra les ajouter au rejeu, puisque seul le résultat du serveur fait foi.
-- **Journal** : environ 5 Ko compressé pour 7 minutes de jeu (cadrage, § Stats) ; `MEDIUMBLOB` suffit. En table à part pour que les lectures de `games` ne le chargent jamais.
-- **Monde et difficulté** : `ENUM('space', 'arcade', 'limbes')` et `TINYINT` 0–2 (`Difficulty` de `packages/game/src/data/config.ts`), ou `ENUM('easy', 'medium', 'hard')`.
-- **Suppression du compte** : `ON DELETE CASCADE` partout depuis `users`, comme pour les comptes ; les entrées du joueur disparaissent alors du classement du Limbes.
-
-### Avatars personnels (V2.0, hors V2)
+## 8. Piste : avatars personnels (V2.0, hors V2)
 
 > **Piste, non cadrée.** Le cadrage exclut l'envoi d'images de la V2 et le range dans ses pistes, avec la messagerie et l'administration.
 
