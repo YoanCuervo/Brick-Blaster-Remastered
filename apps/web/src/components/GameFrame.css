@@ -31,7 +31,12 @@
 .game-frame-info {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.game-outcome {
+  font-size: 13.2px;
 }
 
 .game-frame-actions {

@@ -84,7 +84,8 @@ export type { World } from "./data/images";
 
 /** A game that ended, with what the server needs to replay it. */
 export interface GameEndReport {
-  kind: GameEnd["kind"];
+  /** "left": Esc during the game. */
+  kind: GameEnd["kind"] | "left";
   world: World;
   difficulty: Difficulty;
   score: number;
@@ -105,8 +106,14 @@ export interface MountOptions {
   fit?: "window" | "host";
   /** What the F key puts in fullscreen; the whole document by default. */
   fullscreenTarget?: HTMLElement;
-  /** Called at each game over and at the end of the last level. */
+  /** Called at each game over, at the end of the last level and when a game is left with Esc. */
   onGameEnd?: (report: GameEndReport) => void;
+  /**
+   * The seed of each solo game, from the website's server. With it, a game over no longer goes
+   * on in the same engine: the next game is a new one with a seed of its own (docs/cadrage.md,
+   * Stack V2). A rejection goes back to the menu. Without it, the engine draws its own seeds.
+   */
+  newSeed?: (game: { world: World; difficulty: Difficulty }) => Promise<number>;
 }
 
 // Loaded once per page: a page that mounts the game again does not fetch the pack again.
@@ -158,7 +165,8 @@ export async function mountGame(
   const backgroundOf = (name: string): CanvasImageSource => assets.images.get(name)!;
   const backgroundAt = (w: World, level: number) => backgroundImage(w, level);
 
-  type Scene = "slides" | "menu" | "game" | "scores" | "film" | "final" | "transition" | "notice";
+  type Scene =
+    "slides" | "menu" | "game" | "scores" | "film" | "final" | "transition" | "notice" | "seed";
   let scene: Scene = "slides";
   let menu = newMenu();
   let world: World = "space";
@@ -262,30 +270,65 @@ export async function mountGame(
     lockPointer(canvas);
     menuMusicInGame = false;
     audio.playMusic(worldMusic(world, assets.config.startLevel));
+    // Asked during the fade, so the server's answer is usually there before it ends.
+    askSeed();
     const t = new Transition({ musicTicks: musicFadeTicks(settings.musicVolume) });
-    startTransition(t, () => {
-      const levels = assets.levels[WORLD_LEVELS[world]];
-      const lifePoints = desktop ? 0 : SPARE_LIFE_POINTS;
-      const rules = desktop ? assets.config : webConfig(assets.config, event.difficulty);
-      const seed = Date.now() >>> 0;
-      game = new Game(rules, levels, event.difficulty, new Rng(seed), lifePoints, false, partner);
-      // Only a solo game can be replayed: the coop of the website is not online.
-      recorder = partner === null ? new GameRecorder(game, seed) : null;
-      driver = recorder ?? game;
-      replaySetup = {
-        config: rules,
-        levels,
-        difficulty: event.difficulty,
-        spareLifePoints: lifePoints,
-      };
-      recordedEnds = 0;
-      const speed = keyboardSpeed(forDifficulty(assets.config.startSpeed, event.difficulty));
-      keyboard = new KeyboardPaddle(speed);
-      // Not in the original: player 2 takes the same acceleration as the player 1 keyboard.
-      keyboard2 = new KeyboardPaddle(speed);
-      mouse.reset();
-      setScene("game");
-    });
+    startTransition(t, () => withSeed(newGame));
+  }
+
+  /** A new game in `world` and `difficulty`, alone or with `partner`. */
+  function newGame(seed: number): void {
+    const levels = assets.levels[WORLD_LEVELS[world]];
+    const lifePoints = desktop ? 0 : SPARE_LIFE_POINTS;
+    const rules = desktop ? assets.config : webConfig(assets.config, difficulty);
+    game = new Game(rules, levels, difficulty, new Rng(seed), lifePoints, false, partner);
+    // Only a solo game can be replayed: the coop of the website is not online.
+    recorder = partner === null ? new GameRecorder(game, seed) : null;
+    driver = recorder ?? game;
+    replaySetup = { config: rules, levels, difficulty, spareLifePoints: lifePoints };
+    recordedEnds = 0;
+    const speed = keyboardSpeed(forDifficulty(assets.config.startSpeed, difficulty));
+    keyboard = new KeyboardPaddle(speed);
+    // Not in the original: player 2 takes the same acceleration as the player 1 keyboard.
+    keyboard2 = new KeyboardPaddle(speed);
+    mouse.reset();
+    setScene("game");
+  }
+
+  /** The server's seed for the next game, null when the engine draws its own. */
+  let pendingSeed: { seed?: number; failed?: boolean } | null = null;
+  let afterSeed: (seed: number) => void = () => {};
+  /** Solo games on the website take the server's seed; a coop game is never sent. */
+  const serverSeeds = () => options.newSeed !== undefined && partner === null;
+
+  function askSeed(): void {
+    pendingSeed = null;
+    if (!serverSeeds()) return;
+    const asked: { seed?: number; failed?: boolean } = {};
+    pendingSeed = asked;
+    options.newSeed!({ world, difficulty }).then(
+      (seed) => (asked.seed = seed >>> 0),
+      () => (asked.failed = true),
+    );
+  }
+
+  /** Runs `then` with the seed of the next game, on a black screen until the server's is there. */
+  function withSeed(then: (seed: number) => void): void {
+    if (!pendingSeed) return then(Date.now() >>> 0);
+    afterSeed = then;
+    setScene("seed");
+    updateSeed();
+  }
+
+  function updateSeed(): void {
+    if (pendingSeed?.failed) {
+      pendingSeed = null;
+      returnToMenu(false);
+    } else if (pendingSeed?.seed !== undefined) {
+      const { seed } = pendingSeed;
+      pendingSeed = null;
+      afterSeed(seed);
+    }
   }
 
   /**
@@ -352,12 +395,15 @@ export async function mountGame(
   function showGameOverScores(): void {
     const music = gameMusic();
     const leave = () => {
+      // On the website one log is one game: the next one is a new engine with a new seed.
+      const fresh = serverSeeds();
+      if (fresh) askSeed();
       const t = new Transition({
         waitRelease: true,
         musicTicks: musicTicks(music),
         onMusic: () => audio.playMusic(music),
       });
-      startTransition(t, () => setScene("game"));
+      startTransition(t, () => (fresh ? withSeed(newGame) : setScene("game")));
     };
     startTransition(new Transition(), () =>
       openScores(backgroundAt(world, game.level), gameEntry(), leave, game.coop),
@@ -528,6 +574,7 @@ export async function mountGame(
     }
     if (gameKey === "Escape" && game.canLeave) {
       gameKey = null;
+      reportEnd("left");
       returnToMenu(true);
       return;
     }
@@ -637,6 +684,9 @@ export async function mountGame(
           onTransitionTick();
           if (transition!.tick(fire.take())) afterTransition();
           break;
+        case "seed":
+          updateSeed();
+          break;
       }
       anyKeyPressed = false;
       stats.ticks++;
@@ -650,6 +700,8 @@ export async function mountGame(
         applyFade(ctx, transition!.fade);
       } else if (scene === "slides") {
         drawSlide(ctx, show, assets.images, films);
+      } else if (scene === "seed") {
+        black(ctx);
       } else if (scene === "film") {
         if (endFilm) films.draw(ctx, endFilm, endFilm.fade);
         else black(ctx);
@@ -696,8 +748,8 @@ export async function mountGame(
   });
   if (options.start) startGame({ kind: "play", ...options.start, partner: null });
 
-  function reportEnd(kind: GameEnd["kind"]): void {
-    checkReplay(kind);
+  function reportEnd(kind: GameEndReport["kind"]): void {
+    if (kind !== "left") checkReplay(kind);
     if (game.demo) return;
     options.onGameEnd?.({
       kind,

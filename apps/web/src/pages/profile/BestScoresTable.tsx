@@ -1,4 +1,5 @@
-import { DIFFICULTIES, WORLDS, type Profile } from "../../fixtures/profile";
+import type { Profile } from "@brick-blaster/contracts";
+import { DIFFICULTIES, WORLDS } from "./format";
 import { difficultyName, formatScore } from "./format";
 
 interface BestScoresTableProps {

@@ -20,6 +20,8 @@ export interface GameSetup {
   /** Starts this game at once; without it, the game opens on its own menu. */
   start?: GameStart;
   onGameEnd?: (report: GameEndReport) => void;
+  /** The server's seed of each solo game (see MountOptions.newSeed). */
+  newSeed?: MountOptions["newSeed"];
 }
 
 interface GameFrameProps {
@@ -50,8 +52,11 @@ export function GameFrame({ info, actions, game, children }: GameFrameProps) {
   const difficulty = game?.start?.difficulty;
   // Read through a ref: a new callback from the page must not restart the game.
   const onGameEnd = useRef(game?.onGameEnd);
+  const newSeed = useRef(game?.newSeed);
+  const serverSeeds = game?.newSeed !== undefined;
   useEffect(() => {
     onGameEnd.current = game?.onGameEnd;
+    newSeed.current = game?.newSeed;
   });
 
   const refit = useCallback(() => {
@@ -101,6 +106,7 @@ export function GameFrame({ info, actions, game, children }: GameFrameProps) {
           fit: "host",
           fullscreenTarget: screen,
           onGameEnd: (report) => onGameEnd.current?.(report),
+          newSeed: serverSeeds ? (setup) => newSeed.current!(setup) : undefined,
         }),
       )
       .then(
@@ -111,7 +117,7 @@ export function GameFrame({ info, actions, game, children }: GameFrameProps) {
         },
       );
     return () => controller.abort();
-  }, [hasGame, world, difficulty]);
+  }, [hasGame, world, difficulty, serverSeeds]);
 
   const toggleFullscreen = () => {
     if (document.fullscreenElement) void document.exitFullscreen();

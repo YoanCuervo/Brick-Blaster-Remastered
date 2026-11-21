@@ -1,4 +1,12 @@
-import { DIFFICULTY_NAMES, WORLDS, type DifficultyId, type WorldId } from "../../fixtures/profile";
+import type { DifficultyId, WorldId } from "@brick-blaster/contracts";
+
+export const WORLDS: readonly { id: WorldId; name: string }[] = [
+  { id: "espace", name: "Espace" },
+  { id: "arcade", name: "Arcade" },
+  { id: "limbes", name: "Limbes" },
+];
+export const DIFFICULTIES: readonly DifficultyId[] = [0, 1, 2];
+const DIFFICULTY_NAMES = ["Facile", "Moyen", "Difficile"] as const;
 
 const numbers = new Intl.NumberFormat("fr-FR");
 const shortDate = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" });

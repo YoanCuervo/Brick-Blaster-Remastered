@@ -1,8 +1,8 @@
 import { Fragment } from "react";
-import { DIFFICULTIES, SHOWN_RANKS, WORLDS, type Profile } from "../../fixtures/profile";
+import { SHOWN_RANKS, type Profile } from "@brick-blaster/contracts";
 import { Link } from "../../router";
 import { ROUTES, playUrl } from "../../routes";
-import { difficultyName, formatScore, worldName } from "./format";
+import { DIFFICULTIES, WORLDS, difficultyName, formatScore, worldName } from "./format";
 
 interface PanelProps {
   profile: Profile;

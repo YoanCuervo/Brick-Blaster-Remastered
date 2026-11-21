@@ -54,3 +54,16 @@
   justify-content: flex-end;
   gap: 12px;
 }
+
+.trial-note {
+  width: min(560px, 100%);
+  margin: 0;
+  padding: 24px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.trial-note p {
+  margin: 0;
+}
