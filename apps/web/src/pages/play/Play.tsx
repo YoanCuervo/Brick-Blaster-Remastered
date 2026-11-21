@@ -2,6 +2,7 @@ import { startGame } from "../../api/games";
 import { GameFrame, type GameStart } from "../../components/GameFrame";
 import { GameOutcomeLine } from "../../components/GameOutcomeLine";
 import { PageLayout } from "../../components/PageLayout";
+import { useAccountSettings } from "../../hooks/useAccountSettings";
 import { SITE_WORLDS, useServerGames, type EngineGame } from "../../hooks/useServerGames";
 import { Link } from "../../router";
 import { ROUTES, WORLD_PARAMS, difficultyParam } from "../../routes";
@@ -39,6 +40,7 @@ export function Play() {
     const ranked = chosen?.ranked === true && site === "limbes" && difficulty === chosen.difficulty;
     return startGame({ world: site, difficulty, ranked });
   });
+  const settings = useAccountSettings();
 
   return (
     <PageLayout
@@ -52,7 +54,7 @@ export function Play() {
     >
       <div className="play">
         <GameFrame
-          game={{ start, newSeed: games.newSeed, onGameEnd: games.onGameEnd }}
+          game={{ start, newSeed: games.newSeed, onGameEnd: games.onGameEnd, ...settings }}
           info={
             <>
               {chosen ? (

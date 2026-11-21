@@ -1,5 +1,11 @@
-import type { Me } from "@brick-blaster/contracts";
+import type { AccountSettings, Me, SettingsBody } from "@brick-blaster/contracts";
 import type mysql from "mysql2/promise";
+
+/**
+ * The precision of users.mouse_sensitivity, DECIMAL(3,2). A step of the game's bar is about
+ * 0.047, so the bar comes back at the same position.
+ */
+export const roundSensitivity = (value: number): number => Math.round(value * 100) / 100;
 
 /** What the account routes need from the database: a test stands in for it in memory. */
 export interface AccountStore {
@@ -13,6 +19,9 @@ export interface AccountStore {
   /** False when another account holds the pseudo, whatever its case. */
   setPseudo(userId: number, pseudo: string): Promise<boolean>;
   setAvatar(userId: number, avatar: number): Promise<void>;
+  /** Null when the account is gone. */
+  getSettings(userId: number): Promise<AccountSettings | null>;
+  setSettings(userId: number, settings: SettingsBody): Promise<void>;
   /** Its sessions and links go with it. */
   deleteUser(userId: number): Promise<void>;
 
@@ -164,6 +173,27 @@ export function createMysqlAccountStore(pool: mysql.Pool): AccountStore {
 
     async setAvatar(userId, avatar) {
       await run("UPDATE users SET avatar = ? WHERE id = ?", [avatar, userId]);
+    },
+
+    async getSettings(userId) {
+      const [row] = await rows("SELECT music_volume, mouse_sensitivity FROM users WHERE id = ?", [
+        userId,
+      ]);
+      if (!row) return null;
+      // mysql2 gives a DECIMAL as a string.
+      const number = (v: unknown) => (v === null ? null : Number(v));
+      return {
+        musicVolume: number(row["music_volume"]),
+        mouseSensitivity: number(row["mouse_sensitivity"]),
+      };
+    },
+
+    async setSettings(userId, settings) {
+      await run("UPDATE users SET music_volume = ?, mouse_sensitivity = ? WHERE id = ?", [
+        settings.musicVolume,
+        roundSensitivity(settings.mouseSensitivity),
+        userId,
+      ]);
     },
 
     async deleteUser(userId) {

@@ -24,6 +24,9 @@ export {
   type ReplaySetup,
 } from "./game/replay";
 export type { Difficulty, GameConfig, World };
+/** The bounds of the settings the website keeps on the account. */
+export { MAX_VOLUME } from "./audio/rules";
+export { MAX_SENSITIVITY, MIN_SENSITIVITY } from "./ui/settings";
 
 /** config.json and levels.json of the asset pack, as tools/extract/extract_assets.py writes them. */
 export interface GameData {

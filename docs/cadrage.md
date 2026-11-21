@@ -99,7 +99,7 @@ Le journal d'entrées note ce que le moteur reçoit à chaque tick (déplacement
 - Mot de passe : 12 caractères au moins, avec une minuscule, une majuscule, un chiffre et un caractère spécial (recommandation CNIL, délibération 2022-100). Haché avec scrypt (N = 2¹⁷, r = 8, p = 1, sel aléatoire), fourni par Node : aucune dépendance. Les paramètres sont écrits dans le hash, pour pouvoir les relever plus tard.
 - Pseudo : 15 caractères au plus, la limite de la table des scores du jeu (analyse, Écrans et meilleurs scores), unique sans tenir compte de la casse, filtré contre les insultes, modifiable. Il se choisit dans le profil, pas à l'inscription : à la création du compte, le serveur attribue un pseudo provisoire unique, « Joueur » suivi d'un numéro (par exemple `Joueur48213`), et le profil invite à le changer. Le motif « joueur » suivi de chiffres est réservé à ces pseudos provisoires. Un pseudo fait au moins 3 caractères, lettres sans accent, chiffres, espaces et ponctuation simple : le jeu ne sait écrire que l'ASCII et met les noms en minuscules (0x408D3C).
 - Avatar choisi parmi une galerie prédéfinie de 9 avatars : aucun envoi d'image, donc aucun contenu à modérer.
-- Réglages (souris, son…) enregistrés sur le compte et recopiés en localStorage.
+- Réglages enregistrés sur le compte et recopiés en localStorage : le volume de la musique et la sensibilité de la souris, les deux seuls du jeu (pas de volume des bruitages). Détail dans [`merise.md`](merise.md) § 7.
 - Le joueur peut supprimer son compte depuis le profil (confirmation en saisissant « SUPPRIMER »). Pas d'export en libre-service : le droit d'accès s'exerce sur demande.
 
 ### Sécurité

@@ -1,5 +1,11 @@
-import type { Me } from "@brick-blaster/contracts";
-import type { AccountStore, AccountToken, Session, Throttle } from "../store/accounts";
+import type { AccountSettings, Me } from "@brick-blaster/contracts";
+import {
+  type AccountStore,
+  type AccountToken,
+  type Session,
+  type Throttle,
+  roundSensitivity,
+} from "../store/accounts";
 
 /** The account store in memory, for the route tests: same answers as the MySQL one. */
 
@@ -10,6 +16,7 @@ interface UserRow {
   pseudo: string;
   pseudoChosen: boolean;
   avatar: number | null;
+  settings: AccountSettings;
   emailVerifiedAt: Date | null;
   createdAt: Date;
 }
@@ -54,6 +61,7 @@ export function memoryAccounts(): MemoryAccounts {
         pseudo: user.pseudo,
         pseudoChosen: false,
         avatar: null,
+        settings: { musicVolume: null, mouseSensitivity: null },
         emailVerifiedAt: null,
         createdAt: user.createdAt,
       });
@@ -89,6 +97,19 @@ export function memoryAccounts(): MemoryAccounts {
     async setAvatar(userId, avatar) {
       const u = users.get(userId);
       if (u) u.avatar = avatar;
+    },
+    async getSettings(userId) {
+      const u = users.get(userId);
+      return u ? { ...u.settings } : null;
+    },
+    async setSettings(userId, settings) {
+      const u = users.get(userId);
+      if (u) {
+        u.settings = {
+          musicVolume: settings.musicVolume,
+          mouseSensitivity: roundSensitivity(settings.mouseSensitivity),
+        };
+      }
     },
     async deleteUser(userId) {
       users.delete(userId);

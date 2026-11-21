@@ -22,6 +22,9 @@ export interface GameSetup {
   onGameEnd?: (report: GameEndReport) => void;
   /** The server's seed of each solo game (see MountOptions.newSeed). */
   newSeed?: MountOptions["newSeed"];
+  /** The settings kept on the account (see MountOptions.loadSettings). */
+  loadSettings?: MountOptions["loadSettings"];
+  onSettingsChange?: MountOptions["onSettingsChange"];
 }
 
 interface GameFrameProps {
@@ -53,10 +56,15 @@ export function GameFrame({ info, actions, game, children }: GameFrameProps) {
   // Read through a ref: a new callback from the page must not restart the game.
   const onGameEnd = useRef(game?.onGameEnd);
   const newSeed = useRef(game?.newSeed);
+  const loadSettings = useRef(game?.loadSettings);
+  const onSettingsChange = useRef(game?.onSettingsChange);
   const serverSeeds = game?.newSeed !== undefined;
+  const accountSettings = game?.loadSettings !== undefined;
   useEffect(() => {
     onGameEnd.current = game?.onGameEnd;
     newSeed.current = game?.newSeed;
+    loadSettings.current = game?.loadSettings;
+    onSettingsChange.current = game?.onSettingsChange;
   });
 
   const refit = useCallback(() => {
@@ -107,6 +115,8 @@ export function GameFrame({ info, actions, game, children }: GameFrameProps) {
           fullscreenTarget: screen,
           onGameEnd: (report) => onGameEnd.current?.(report),
           newSeed: serverSeeds ? (setup) => newSeed.current!(setup) : undefined,
+          loadSettings: accountSettings ? () => loadSettings.current!() : undefined,
+          onSettingsChange: (settings) => onSettingsChange.current?.(settings),
         }),
       )
       .then(
@@ -117,7 +127,7 @@ export function GameFrame({ info, actions, game, children }: GameFrameProps) {
         },
       );
     return () => controller.abort();
-  }, [hasGame, world, difficulty, serverSeeds]);
+  }, [hasGame, world, difficulty, serverSeeds, accountSettings]);
 
   const toggleFullscreen = () => {
     if (document.fullscreenElement) void document.exitFullscreen();
