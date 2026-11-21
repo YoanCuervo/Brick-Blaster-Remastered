@@ -27,11 +27,13 @@ export async function request<T = void>(
   if (response.ok) return { ok: true, data: json as T };
   const reply = json as { error?: ApiErrorCode; retryAfterSeconds?: number } | undefined;
   if (!reply?.error) return { ok: false, status: response.status, error: "network" };
+  // A lock gives its wait in the body; the rate limit and a busy replay, in Retry-After.
+  const header = Number(response.headers.get("retry-after"));
   return {
     ok: false,
     status: response.status,
     error: reply.error,
-    retryAfterSeconds: reply.retryAfterSeconds,
+    retryAfterSeconds: reply.retryAfterSeconds ?? (header > 0 ? header : undefined),
   };
 }
 

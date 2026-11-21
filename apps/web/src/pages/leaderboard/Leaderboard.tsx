@@ -1,11 +1,20 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { getLeaderboard, type Leaderboard, type LeaderboardEntry } from "../../api/leaderboard";
+import {
+  SHOWN_RANKS,
+  type DifficultyId,
+  type Leaderboard,
+  type LeaderboardEntry,
+  type Me,
+  type PlayerCard,
+} from "@brick-blaster/contracts";
+import { GENERIC_ERROR } from "../../api/http";
+import { getMe } from "../../api/profile";
+import { getLeaderboard, getPlayerCard } from "../../api/scores";
 import { Avatar } from "../../components/Avatar";
 import { PageLayout } from "../../components/PageLayout";
-import { DIFFICULTIES, SHOWN_RANKS, type DifficultyId } from "../../fixtures/profile";
 import { Link } from "../../router";
 import { ROUTES, difficultyParam, leaderboardUrl } from "../../routes";
-import { difficultyName, formatScore } from "../profile/format";
+import { DIFFICULTIES, difficultyName, formatScore } from "../profile/format";
 import { Laurel } from "./Laurel";
 import "./Leaderboard.css";
 
@@ -34,6 +43,12 @@ export function LeaderboardPage() {
     () => difficultyParam(new URLSearchParams(window.location.search).get("difficulte")) ?? 1,
   );
   const [board, setBoard] = useState<Leaderboard | null>(null);
+  const [failed, setFailed] = useState(false);
+  /** The signed-in player, for the « Pas encore classé » row. */
+  const [player, setPlayer] = useState<Me | null>(null);
+  /** Hover cards already fetched, by difficulty and pseudo; null when the API had none. */
+  const cards = useRef(new Map<string, PlayerCard | null>());
+  const [, setCardsLoaded] = useState(0);
   const [expanded, setExpanded] = useState(false);
   const [card, setCard] = useState<Card | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -41,11 +56,23 @@ export function LeaderboardPage() {
 
   useEffect(() => {
     let current = true;
-    void getLeaderboard(difficulty).then((result) => current && setBoard(result));
+    setBoard(null);
+    setFailed(false);
+    void getLeaderboard(difficulty).then((reply) => {
+      if (!current) return;
+      if (reply.ok) setBoard(reply.data);
+      else setFailed(true);
+    });
     return () => {
       current = false;
     };
   }, [difficulty]);
+
+  useEffect(() => {
+    void getMe().then(setPlayer);
+  }, []);
+
+  const cardKey = (pseudo: string) => `${difficulty}:${pseudo}`;
 
   const choose = (d: DifficultyId) => {
     setDifficulty(d);
@@ -68,14 +95,25 @@ export function LeaderboardPage() {
     if (!wrap) return;
     const top = row.getBoundingClientRect().bottom - wrap.getBoundingClientRect().top + 4;
     setCard({ entry, top });
+    const key = cardKey(entry.pseudo);
+    if (cards.current.has(key)) return;
+    cards.current.set(key, null);
+    void getPlayerCard(entry.pseudo, difficulty).then((reply) => {
+      if (!reply.ok) return cards.current.delete(key);
+      cards.current.set(key, reply.data);
+      setCardsLoaded((n) => n + 1);
+    });
   };
 
   const me = board?.me;
   const shown = board ? board.entries.slice(0, expanded ? SHOWN_RANKS : FIRST_ROWS) : [];
-  const pinnedMe = me && (me.rank === null || me.rank > shown.length) ? me : null;
+  const pinnedMe = me && me.rank > shown.length ? me : null;
+  const unranked = board !== null && me === null && player !== null;
+  const shownCard = card && cards.current.get(cardKey(card.entry.pseudo));
 
   const row = (entry: LeaderboardEntry, pinned = false) => {
-    const isMe = me?.rank === entry.rank;
+    // A player may hold several rows: all of theirs are marked.
+    const isMe = player !== null && entry.pseudo === player.pseudo;
     const classes = [PODIUM[entry.rank - 1], isMe && "me"].filter(Boolean).join(" ");
     return (
       <tr
@@ -162,7 +200,21 @@ export function LeaderboardPage() {
             </thead>
             <tbody>
               {shown.map((entry) => row(entry))}
-              {board && !expanded && (
+              {failed && (
+                <tr>
+                  <td colSpan={3} role="alert" className="lb-unranked">
+                    {GENERIC_ERROR}
+                  </td>
+                </tr>
+              )}
+              {board && board.entries.length === 0 && (
+                <tr>
+                  <td colSpan={3} className="lb-unranked">
+                    Personne n'est encore classé à cette difficulté.
+                  </td>
+                </tr>
+              )}
+              {board && !expanded && board.entries.length > FIRST_ROWS && (
                 <tr className="lb-gap">
                   <td colSpan={3}>
                     <button className="lb-more" type="button" onClick={() => setExpanded(true)}>
@@ -171,22 +223,19 @@ export function LeaderboardPage() {
                   </td>
                 </tr>
               )}
-              {board &&
-                pinnedMe &&
-                (pinnedMe.rank !== null ? (
-                  row(board.entries[pinnedMe.rank - 1]!, true)
-                ) : (
-                  <tr className="me">
-                    <RankCell rank={null} />
-                    <th scope="row">
-                      <span className="lb-who">
-                        <Avatar avatar={pinnedMe.avatar} pseudo={pinnedMe.pseudo} size={36} />
-                        {pinnedMe.pseudo} (toi)
-                      </span>
-                    </th>
-                    <td className="lb-unranked">Pas encore classé</td>
-                  </tr>
-                ))}
+              {pinnedMe && row(pinnedMe, true)}
+              {unranked && (
+                <tr className="me">
+                  <RankCell rank={null} />
+                  <th scope="row">
+                    <span className="lb-who">
+                      <Avatar avatar={player.avatar} pseudo={player.pseudo} size={36} />
+                      {player.pseudo} (toi)
+                    </span>
+                  </th>
+                  <td className="lb-unranked">Pas encore classé</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </section>
@@ -199,9 +248,9 @@ export function LeaderboardPage() {
             </div>
             <dl>
               <dt>Meilleur score</dt>
-              <dd>{formatScore(card.entry.score)}</dd>
+              <dd>{shownCard ? formatScore(shownCard.score) : "…"}</dd>
               <dt>Parties jouées</dt>
-              <dd>{formatScore(card.entry.gamesPlayed)}</dd>
+              <dd>{shownCard ? formatScore(shownCard.gamesPlayed) : "…"}</dd>
             </dl>
           </div>
         )}

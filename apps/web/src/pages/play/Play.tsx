@@ -1,5 +1,8 @@
+import { startGame } from "../../api/games";
 import { GameFrame, type GameStart } from "../../components/GameFrame";
+import { GameOutcomeLine } from "../../components/GameOutcomeLine";
 import { PageLayout } from "../../components/PageLayout";
+import { SITE_WORLDS, useServerGames, type EngineGame } from "../../hooks/useServerGames";
 import { Link } from "../../router";
 import { ROUTES, WORLD_PARAMS, difficultyParam } from "../../routes";
 import { difficultyName, worldName } from "../profile/format";
@@ -30,6 +33,13 @@ export function Play() {
     ? { world: ENGINE_WORLDS[chosen.world], difficulty: chosen.difficulty }
     : undefined;
 
+  // The games that follow a ranked one, after a game over, stay ranked; the menu's do not.
+  const games = useServerGames(({ world, difficulty }: EngineGame) => {
+    const site = SITE_WORLDS[world];
+    const ranked = chosen?.ranked === true && site === "limbes" && difficulty === chosen.difficulty;
+    return startGame({ world: site, difficulty, ranked });
+  });
+
   return (
     <PageLayout
       title="Jouer"
@@ -42,18 +52,23 @@ export function Play() {
     >
       <div className="play">
         <GameFrame
-          game={{ start }}
+          game={{ start, newSeed: games.newSeed, onGameEnd: games.onGameEnd }}
           info={
-            chosen ? (
-              <>
-                <span>{chosen.ranked ? "Limbes classé" : worldName(chosen.world)}</span>
-                <span className="muted play-mode">{difficultyName(chosen.difficulty)}</span>
-              </>
-            ) : (
-              <span className="subtle play-mode">
-                Choisis ton monde et ta difficulté dans le menu du jeu.
-              </span>
-            )
+            <>
+              {chosen ? (
+                <>
+                  <span>{chosen.ranked ? "Limbes classé" : worldName(chosen.world)}</span>
+                  <span className="muted play-mode">{difficultyName(chosen.difficulty)}</span>
+                </>
+              ) : (
+                games.outcome === null && (
+                  <span className="subtle play-mode">
+                    Choisis ton monde et ta difficulté dans le menu du jeu.
+                  </span>
+                )
+              )}
+              <GameOutcomeLine outcome={games.outcome} />
+            </>
           }
         />
       </div>

@@ -393,6 +393,11 @@
   padding: 16px;
 }
 
+.profile-failed {
+  margin: auto;
+  padding: 16px 24px;
+}
+
 /* Side column */
 
 .profile-aside {

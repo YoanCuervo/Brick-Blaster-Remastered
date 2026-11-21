@@ -1,16 +1,27 @@
 import { useState, type FormEvent } from "react";
-import type { ScoreRow } from "../../fixtures/trial";
+
+interface ScoreRow {
+  name: string;
+  score: number;
+}
+
+/** First rows of the game's default table (packages/game/src/ui/scores.ts, defaultScores()). */
+const TABLE: readonly ScoreRow[] = Array.from({ length: 5 }, () => ({
+  name: "?".repeat(15),
+  score: 0,
+}));
 
 const formatScore = (score: number) => score.toLocaleString("fr-FR");
 const ordinal = (rank: number) => (rank === 1 ? "1re" : `${rank}e`);
 
 interface TrialEndProps {
+  /** The server's score for the trial game. */
   score: number;
-  table: readonly ScoreRow[];
   onSubmit: (name: string) => void;
 }
 
-export function TrialEnd({ score, table, onSubmit }: TrialEndProps) {
+export function TrialEnd({ score, onSubmit }: TrialEndProps) {
+  const table = TABLE;
   const [name, setName] = useState("");
   // A tie goes above the existing entry, as in the game (0x408C24).
   const index = table.filter((row) => row.score > score).length;

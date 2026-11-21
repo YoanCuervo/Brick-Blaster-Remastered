@@ -1,24 +1,27 @@
 import { useEffect, useRef, useState } from "react";
-import { getMe, signOut } from "../../api/profile";
+import { SHOWN_RANKS, type GameRow, type Profile } from "@brick-blaster/contracts";
+import { GENERIC_ERROR } from "../../api/http";
+import { signOut } from "../../api/profile";
+import { getProfile } from "../../api/scores";
 import logoFull from "../../assets/logo/logo-full.png";
 import { Avatar } from "../../components/Avatar";
 import { Backdrop } from "../../components/Backdrop";
 import { BrickArt } from "../../components/BrickArt";
-import {
-  DIFFICULTIES,
-  EMPTY_STATS,
-  SHOWN_RANKS,
-  WORLDS,
-  type GameRow,
-  type Profile,
-} from "../../fixtures/profile";
 import { Link, navigate } from "../../router";
 import { DOWNLOAD_URL, ROUTES } from "../../routes";
 import { AccountModal } from "./AccountModal";
 import { AvatarModal } from "./AvatarModal";
 import { BestScoresTable } from "./BestScoresTable";
 import { DeleteAccountModal } from "./DeleteAccountModal";
-import { difficultyName, formatDay, formatDuration, formatScore, worldName } from "./format";
+import {
+  DIFFICULTIES,
+  WORLDS,
+  difficultyName,
+  formatDay,
+  formatDuration,
+  formatScore,
+  worldName,
+} from "./format";
 import { PasswordModal } from "./PasswordModal";
 import { MultiPanel, SoloPanel } from "./PlayPanels";
 import { PseudoModal } from "./PseudoModal";
@@ -91,6 +94,7 @@ function GameItem({ game, record }: { game: GameRow; record: boolean }) {
 
 export function ProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [failed, setFailed] = useState(false);
   const [mode, setMode] = useState<Mode | null>(null);
   const [modal, setModal] = useState<ModalId | null>(null);
   // Remounts the modals on each opening, so a form never shows a previous attempt.
@@ -100,10 +104,11 @@ export function ProfilePage() {
   useEffect(() => {
     document.title = "Profil · Brick Blaster Remastered";
     let live = true;
-    void getMe().then((me) => {
+    void getProfile().then((reply) => {
       if (!live) return;
-      if (me) setProfile({ ...me, ...EMPTY_STATS });
-      else navigate(ROUTES.signIn, { replace: true });
+      if (reply.ok) setProfile(reply.data);
+      else if (reply.error === "unauthorized") navigate(ROUTES.signIn, { replace: true });
+      else setFailed(true);
     });
     return () => {
       live = false;
@@ -114,6 +119,11 @@ export function ProfilePage() {
     return (
       <div className="page">
         <Backdrop />
+        {failed && (
+          <p className="card profile-failed" role="alert">
+            {GENERIC_ERROR}
+          </p>
+        )}
       </div>
     );
   }
@@ -299,12 +309,8 @@ export function ProfilePage() {
                 <p className="card profile-empty muted">Aucune partie pour l'instant.</p>
               ) : (
                 <ol className="profile-games">
-                  {profile.games.slice(0, 5).map((game) => (
-                    <GameItem
-                      key={game.playedAt}
-                      game={game}
-                      record={record > 0 && game.score === record}
-                    />
+                  {profile.games.slice(0, 5).map((game, i) => (
+                    <GameItem key={i} game={game} record={record > 0 && game.score === record} />
                   ))}
                 </ol>
               )}

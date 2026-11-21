@@ -1,5 +1,5 @@
 import { Modal } from "../../components/Modal";
-import type { Profile } from "../../fixtures/profile";
+import type { Profile } from "@brick-blaster/contracts";
 import { BestScoresTable } from "./BestScoresTable";
 import { difficultyName, formatDate, formatDuration, formatScore, worldName } from "./format";
 
