@@ -227,6 +227,13 @@ export interface PaddleAnim {
   done: boolean;
 }
 
+export interface GameStats {
+  /** Bricks destroyed, by a ball or a shot. */
+  bricksBroken: number;
+  /** Lives lost, the last one of a game over included. */
+  livesLost: number;
+}
+
 export class Game {
   mode: GameMode = GameMode.Ready;
   /** 1-based [0x411031]. */
@@ -268,6 +275,8 @@ export class Game {
   finished = false;
   /** Game over: 0x408AD9 shows the scores before mode 7. For the caller to reset. */
   scoresDue = false;
+  /** Not in the original: what the website counts for each game, reset by newGame(). */
+  stats: GameStats = { bricksBroken: 0, livesLost: 0 };
   /** Demo in progress ([0x411035] without [0x41103D]); a game over turns it into a game. */
   demo: Demo | null = null;
   /** The demo has run its course (0x401F72): for the caller to go back to the menu. */
@@ -379,6 +388,7 @@ export class Game {
       this.message = this.config.texts.status.demo;
     }
     this.player = createPlayer(this.config.nbsLife, this.config.extraLife);
+    this.stats = { bricksBroken: 0, livesLost: 0 };
     this.livesShown = this.player.lives;
     this.balls = [];
     this.loadLevel();
@@ -829,6 +839,7 @@ export class Game {
       case "none":
         return false;
       case "destroyed":
+        this.stats.bricksBroken++;
         addScore(this.player, BRICK_UNITS, this.difficulty, this.doubled);
         this.dropBonus(hit.index);
         this.sounds.push("bounce");
@@ -865,6 +876,7 @@ export class Game {
     clearActive(this.bonus);
     this.bonus.timer = 0;
     this.player.lives--;
+    this.stats.livesLost++;
     for (const b of this.balls) b.state = BallState.Dead;
     if (this.player.lives === -1) {
       this.mode = GameMode.GameOver;

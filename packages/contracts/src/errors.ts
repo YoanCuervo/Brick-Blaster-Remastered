@@ -9,6 +9,7 @@ export const API_ERRORS = [
   "unsupported_media_type",
   "too_many_requests",
   "internal",
+  "busy",
   // Account routes.
   "invalid_credentials",
   "email_not_verified",
@@ -16,6 +17,9 @@ export const API_ERRORS = [
   "invalid_token",
   "pseudo_taken",
   "pseudo_refused",
+  // Game routes.
+  "game_closed",
+  "replay_refused",
 ] as const;
 
 export type ApiErrorCode = (typeof API_ERRORS)[number];

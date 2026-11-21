@@ -76,18 +76,27 @@ export class GameRecorder implements GameDriver {
   }
 }
 
-/** Where a game of the chain ended: a game over starts the next one (0x401FB4). */
-export interface GameEnd {
-  kind: "gameOver" | "finished";
+/** The state of the game being played at some tick. */
+export interface GameState {
   score: number;
   level: number;
   /** Ticks played from the first one, pauses included. */
   tick: number;
+  /** Counted from the start of the current game of the chain. */
+  bricksBroken: number;
+  livesLost: number;
+}
+
+/** Where a game of the chain ended: a game over starts the next one (0x401FB4). */
+export interface GameEnd extends GameState {
+  kind: "gameOver" | "finished";
 }
 
 export interface ReplayResult {
   ends: GameEnd[];
   ticks: number;
+  /** After the last op: where a game left with Esc stood. */
+  last: GameState;
 }
 
 export class ReplayError extends Error {}
@@ -111,8 +120,13 @@ export function replay(setup: ReplaySetup, log: ReplayLog): ReplayResult {
   let ticks = 0;
   /** The main loop accepts P before its tick, which still gets the real input (0x4020A8). */
   let pauseJustStarted = false;
-  const end = (kind: GameEnd["kind"]) =>
-    ends.push({ kind, score: game.player.score, level: game.level, tick: ticks });
+  const state = (): GameState => ({
+    score: game.player.score,
+    level: game.level,
+    tick: ticks,
+    ...game.stats,
+  });
+  const end = (kind: GameEnd["kind"]) => ends.push({ kind, ...state() });
 
   for (const op of log.ops) {
     if (game.finished) throw new ReplayError("input after the end");
@@ -154,5 +168,5 @@ export function replay(setup: ReplaySetup, log: ReplayLog): ReplayResult {
       if (game.finished) end("finished");
     }
   }
-  return { ends, ticks };
+  return { ends, ticks, last: state() };
 }

@@ -50,7 +50,7 @@ function record(): { log: ReplayLog; ends: GameEnd[]; ticks: number } {
   let pausedFor = -1;
   let givingUp = false;
   const end = (kind: GameEnd["kind"]) =>
-    ends.push({ kind, score: game.player.score, level: game.level, tick: ticks });
+    ends.push({ kind, score: game.player.score, level: game.level, tick: ticks, ...game.stats });
   while (!game.finished && ticks < 400_000) {
     if (game.paused) {
       recorder.tick({ paddleDx: 0, fire: false });
@@ -94,8 +94,25 @@ describe("a recorded game", () => {
 
   it("replays to the same ends, through JSON as the server gets it", () => {
     const sent = JSON.parse(JSON.stringify(recorded.log)) as ReplayLog;
-    expect(replay(setup, sent)).toEqual({ ends: recorded.ends, ticks: recorded.ticks });
+    expect(replay(setup, sent)).toMatchObject({ ends: recorded.ends, ticks: recorded.ticks });
     expect(replay(setup, sent)).toEqual(replay(setup, recorded.log));
+  });
+
+  it("counts the bricks and lives of each game of the chain", () => {
+    const [over, finished] = recorded.ends;
+    // A game over spends every life: the spare ones and the one in play.
+    expect(over!.livesLost).toBe(setup.config.nbsLife);
+    expect(over!.bricksBroken).toBeGreaterThan(0);
+    // The second game counts from zero again, and breaks every brick of every level.
+    expect(finished!.bricksBroken).toBeGreaterThan(0);
+    expect(finished!.livesLost).toBeLessThan(setup.config.nbsLife);
+  });
+
+  it("tells where a game left before its end stood", () => {
+    const cut = recorded.log.ops.slice(0, 10);
+    const result = replay(setup, { ...recorded.log, ops: cut });
+    expect(result.ends).toEqual([]);
+    expect(result.last).toMatchObject({ tick: result.ticks, level: 1, livesLost: 0 });
   });
 
   it("depends on its seed", () => {

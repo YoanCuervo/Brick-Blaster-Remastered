@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@brick-blaster/contracts": "*",
+    "@brick-blaster/game": "*",
     "fastify": "^5.12.8",
     "mysql2": "^3.24.6"
   }

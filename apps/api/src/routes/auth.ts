@@ -16,6 +16,7 @@ import { provisionalPseudo } from "../account/pseudo";
 import { clearSessionCookie, findSession, startSession } from "../auth/sessions";
 import { afterFailure, lockSeconds } from "../auth/throttle";
 import { newToken, normalizeEmail, sha256 } from "../auth/tokens";
+import { clearTrialCookie, trialIdOf } from "../auth/trial";
 import { limitByIp } from "../http/rateLimit";
 import type { Mail } from "../mail/mailer";
 import { alreadyRegisteredMail, resetPasswordMail, verifyEmailMail } from "../mail/templates";
@@ -97,6 +98,12 @@ export function authRoutes(app: FastifyInstance, deps: AccountDeps): void {
           createdAt: now(),
         });
         if ("id" in created) {
+          // docs/cadrage.md, Parcours: the trial score enters the new account's tables.
+          const trialId = trialIdOf(req);
+          if (trialId) {
+            await deps.trials.claimTrial(sha256(trialId), created.id);
+            clearTrialCookie(res);
+          }
           await sendVerification(created.id, email);
           return accepted(res);
         }
