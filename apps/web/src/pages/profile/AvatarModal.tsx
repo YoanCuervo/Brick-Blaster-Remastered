@@ -1,7 +1,9 @@
 import { useRef, useState, type KeyboardEvent } from "react";
+import { GENERIC_ERROR } from "../../api/http";
 import { changeAvatar } from "../../api/profile";
 import { AVATARS, AvatarArt } from "../../components/Avatar";
 import { Modal } from "../../components/Modal";
+import { sessionLost } from "./session";
 
 interface AvatarModalProps {
   open: boolean;
@@ -21,6 +23,7 @@ const MOVES: Record<string, number> = {
 export function AvatarModal({ open, avatar, onClose, onSaved }: AvatarModalProps) {
   const [selected, setSelected] = useState(avatar);
   const [pending, setPending] = useState(false);
+  const [failed, setFailed] = useState(false);
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
 
   // Radio group: arrows move the choice and the focus together, wrapping around the grid.
@@ -40,9 +43,11 @@ export function AvatarModal({ open, avatar, onClose, onSaved }: AvatarModalProps
       return;
     }
     setPending(true);
-    await changeAvatar(selected);
+    setFailed(false);
+    const reply = await changeAvatar(selected);
     setPending(false);
-    onSaved(selected);
+    if (reply.ok) onSaved(selected);
+    else if (!sessionLost(reply)) setFailed(true);
   }
 
   return (
@@ -79,6 +84,11 @@ export function AvatarModal({ open, avatar, onClose, onSaved }: AvatarModalProps
           </button>
         ))}
       </div>
+      {failed && (
+        <p className="alert alert-danger" role="alert">
+          {GENERIC_ERROR}
+        </p>
+      )}
       <div className="modal-actions">
         <button className="btn btn-secondary" type="button" onClick={onClose}>
           Annuler

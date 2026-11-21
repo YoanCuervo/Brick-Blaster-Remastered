@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { getProfile, signOut } from "../../api/profile";
+import { getMe, signOut } from "../../api/profile";
 import logoFull from "../../assets/logo/logo-full.png";
 import { Avatar } from "../../components/Avatar";
 import { Backdrop } from "../../components/Backdrop";
 import { BrickArt } from "../../components/BrickArt";
 import {
   DIFFICULTIES,
+  EMPTY_STATS,
   SHOWN_RANKS,
   WORLDS,
   type GameRow,
@@ -18,13 +19,14 @@ import { AvatarModal } from "./AvatarModal";
 import { BestScoresTable } from "./BestScoresTable";
 import { DeleteAccountModal } from "./DeleteAccountModal";
 import { difficultyName, formatDay, formatDuration, formatScore, worldName } from "./format";
+import { PasswordModal } from "./PasswordModal";
 import { MultiPanel, SoloPanel } from "./PlayPanels";
 import { PseudoModal } from "./PseudoModal";
 import { StatsModal, counterList } from "./StatsModal";
 import "./Profile.css";
 
 type Mode = "solo" | "multi";
-type ModalId = "account" | "avatar" | "pseudo" | "stats" | "delete";
+type ModalId = "account" | "avatar" | "pseudo" | "password" | "stats" | "delete";
 
 // Counters of the profile, in the mockup's order: the last one spans the two columns.
 const COUNTER_ORDER = ["games", "time", "level", "lives", "bricks"];
@@ -98,8 +100,10 @@ export function ProfilePage() {
   useEffect(() => {
     document.title = "Profil · Brick Blaster Remastered";
     let live = true;
-    void getProfile().then((loaded) => {
-      if (live) setProfile(loaded);
+    void getMe().then((me) => {
+      if (!live) return;
+      if (me) setProfile({ ...me, ...EMPTY_STATS });
+      else navigate(ROUTES.signIn, { replace: true });
     });
     return () => {
       live = false;
@@ -381,6 +385,7 @@ export function ProfilePage() {
           close();
         }}
       />
+      <PasswordModal key={`password-${opening}`} open={modal === "password"} onClose={close} />
       <StatsModal open={modal === "stats"} profile={profile} onClose={close} />
       <DeleteAccountModal key={`delete-${opening}`} open={modal === "delete"} onClose={close} />
     </div>

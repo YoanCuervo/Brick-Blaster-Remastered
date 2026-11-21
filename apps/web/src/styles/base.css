@@ -199,6 +199,14 @@ button {
 .link:hover {
   color: var(--orange);
 }
+button.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
 
 .btn {
   display: inline-flex;

@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { signUp } from "../../api/account";
+import { GENERIC_ERROR } from "../../api/http";
 import { AuthLayout } from "../../components/AuthLayout";
 import { TextField } from "../../components/TextField";
 import { Link } from "../../router";
@@ -15,6 +16,7 @@ export function SignUp() {
   const [submitted, setSubmitted] = useState(false);
   const [pending, setPending] = useState(false);
   const [sentTo, setSentTo] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
 
   const errors: Record<string, string | null> = {
     "signup-email": checkEmail(email),
@@ -32,9 +34,11 @@ export function SignUp() {
       return;
     }
     setPending(true);
-    await signUp({ email: email.trim(), password });
+    setFailed(false);
+    const reply = await signUp({ email: email.trim(), password });
     setPending(false);
-    setSentTo(email.trim());
+    if (reply.ok) setSentTo(email.trim());
+    else setFailed(true);
   }
 
   return (
@@ -62,6 +66,11 @@ export function SignUp() {
         <button className="btn btn-primary btn-lg" type="submit" aria-busy={pending}>
           Créer mon compte
         </button>
+        {failed && (
+          <p className="alert alert-danger" role="alert">
+            {GENERIC_ERROR}
+          </p>
+        )}
       </form>
       <p className="muted auth-small auth-center">
         Déjà un compte ?{" "}

@@ -2,7 +2,7 @@ import { Modal } from "../../components/Modal";
 import { Link } from "../../router";
 import { ROUTES } from "../../routes";
 
-export type AccountAction = "avatar" | "pseudo" | "delete";
+export type AccountAction = "avatar" | "pseudo" | "password" | "delete";
 
 interface AccountModalProps {
   open: boolean;
@@ -34,10 +34,10 @@ export function AccountModal({ open, onClose, onPick, onSignOut }: AccountModalP
           Changer de pseudo
           <Arrow />
         </button>
-        <Link className="profile-row" to={ROUTES.forgotPassword}>
+        <button className="profile-row" type="button" onClick={() => onPick("password")}>
           Changer le mot de passe
           <Arrow />
-        </Link>
+        </button>
         <button className="profile-row" type="button" onClick={() => onPick("delete")}>
           Supprimer mon compte
           <Arrow />

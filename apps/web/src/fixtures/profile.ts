@@ -1,4 +1,4 @@
-/** Stand-in data for the profile until the API has its profile and score routes. */
+/** Stand-in data for the stats and scores until the API has its score routes. */
 
 export type WorldId = "espace" | "arcade" | "limbes";
 /** 0 easy, 1 medium, 2 hard, as `Difficulty` in packages/game/src/data/config.ts. */
@@ -134,11 +134,10 @@ export const DEMO_PROFILE: Profile = {
   ],
 };
 
-/** A fresh account: provisional pseudo, no avatar, no game. */
-export const NEW_PROFILE: Profile = {
-  pseudo: "Joueur48213",
-  pseudoChosen: false,
-  avatar: null,
+export type Stats = Omit<Profile, "pseudo" | "pseudoChosen" | "avatar">;
+
+/** Shown on a real account until the score routes exist: an empty record, never fake figures. */
+export const EMPTY_STATS: Stats = {
   counters: { gamesPlayed: 0, playSeconds: 0, maxLevel: 0, livesLost: 0, bricksBroken: 0 },
   best: { espace: [null, null, null], arcade: [null, null, null], limbes: [null, null, null] },
   ranked: [
@@ -149,11 +148,5 @@ export const NEW_PROFILE: Profile = {
   games: [],
 };
 
-/** /profil carrying this query shows the fresh account. */
-export const NEW_PROFILE_QUERY = "?compte=nouveau";
-
-/** Pseudos other accounts already hold. */
+/** Pseudos of the other players in the fake leaderboards. */
 export const TAKEN_PSEUDOS: readonly string[] = ["Krakatoa", "BrickLord", "NovaBlast2"];
-
-/** Stands for the server's insult filter, so the refusal can be seen on screen. */
-export const REFUSED_WORD = "interdit";

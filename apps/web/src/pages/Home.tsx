@@ -1,10 +1,23 @@
+import { useEffect } from "react";
+import { getMe } from "../api/profile";
 import { BrickArt } from "../components/BrickArt";
 import { PageLayout } from "../components/PageLayout";
-import { Link } from "../router";
+import { Link, navigate } from "../router";
 import { ROUTES } from "../routes";
 import "./Home.css";
 
 export function Home() {
+  // A signed-in player's home is the profile.
+  useEffect(() => {
+    let live = true;
+    void getMe().then((me) => {
+      if (live && me) navigate(ROUTES.profile, { replace: true });
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+
   return (
     <PageLayout
       title="Accueil"
