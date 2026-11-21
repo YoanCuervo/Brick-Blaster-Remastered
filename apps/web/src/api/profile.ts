@@ -1,59 +1,31 @@
 import {
-  DEMO_PROFILE,
-  NEW_PROFILE,
-  NEW_PROFILE_QUERY,
-  REFUSED_WORD,
-  TAKEN_PSEUDOS,
-  type Profile,
-} from "../fixtures/profile";
+  DELETE_CONFIRMATION,
+  type AvatarBody,
+  type ChangePasswordBody,
+  type DeleteAccountBody,
+  type Me,
+  type PseudoBody,
+} from "@brick-blaster/contracts";
+import { request, type Reply } from "./http";
 
-/*
- * Fake profile API: same signatures and answers as the future `/api` routes, backed by
- * fixtures. Only this file changes when the profile routes exist.
- */
+/** /api/me routes. Every one answers 401 `unauthorized` once the session is gone. */
 
-export type ChangePseudoResult = { ok: true } | { ok: false; error: "taken" | "refused" };
-
-let current: Profile | null = null;
-
-const latency = () => new Promise((resolve) => setTimeout(resolve, 300));
-
-function profile(): Profile {
-  current ??= structuredClone(
-    window.location.search === NEW_PROFILE_QUERY ? NEW_PROFILE : DEMO_PROFILE,
-  );
-  return current;
+/** The signed-in player, or null without a session (or when the API cannot be reached). */
+export async function getMe(): Promise<Me | null> {
+  const reply = await request<Me>("GET", "/me");
+  return reply.ok ? reply.data : null;
 }
 
-export async function getProfile(): Promise<Profile> {
-  return structuredClone(profile());
-}
+export const changePseudo = (pseudo: string): Promise<Reply<void>> =>
+  request("PUT", "/me/pseudo", { pseudo } satisfies PseudoBody);
 
-/** The server checks the format again, then uniqueness (case-insensitive) and the insult filter. */
-export async function changePseudo(pseudo: string): Promise<ChangePseudoResult> {
-  await latency();
-  const key = pseudo.toLowerCase();
-  if (TAKEN_PSEUDOS.some((taken) => taken.toLowerCase() === key)) {
-    return { ok: false, error: "taken" };
-  }
-  if (key.includes(REFUSED_WORD)) return { ok: false, error: "refused" };
-  const me = profile();
-  me.pseudo = pseudo;
-  me.pseudoChosen = true;
-  return { ok: true };
-}
+export const changeAvatar = (avatar: number): Promise<Reply<void>> =>
+  request("PUT", "/me/avatar", { avatar } satisfies AvatarBody);
 
-export async function changeAvatar(avatar: number): Promise<void> {
-  await latency();
-  profile().avatar = avatar;
-}
+export const changePassword = (body: ChangePasswordBody): Promise<Reply<void>> =>
+  request("PUT", "/me/password", body);
 
-export async function deleteAccount(): Promise<void> {
-  await latency();
-  current = null;
-}
+export const deleteAccount = (): Promise<Reply<void>> =>
+  request("DELETE", "/me", { confirm: DELETE_CONFIRMATION } satisfies DeleteAccountBody);
 
-export async function signOut(): Promise<void> {
-  await latency();
-  current = null;
-}
+export const signOut = (): Promise<Reply<void>> => request("POST", "/auth/sign-out");

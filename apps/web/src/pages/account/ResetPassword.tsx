@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { resetPassword } from "../../api/account";
+import { GENERIC_ERROR } from "../../api/http";
 import { AuthLayout } from "../../components/AuthLayout";
 import { TextField } from "../../components/TextField";
 import { Link, navigate } from "../../router";
@@ -16,6 +17,7 @@ export function ResetPassword() {
   const [submitted, setSubmitted] = useState(false);
   const [pending, setPending] = useState(false);
   const [linkInvalid, setLinkInvalid] = useState(token === "");
+  const [failed, setFailed] = useState(false);
 
   const errors: Record<string, string | null> = {
     "reset-password": checkPassword(password),
@@ -32,10 +34,13 @@ export function ResetPassword() {
       return;
     }
     setPending(true);
-    const result = await resetPassword({ token, password });
+    setFailed(false);
+    const reply = await resetPassword({ token, password });
     setPending(false);
-    if (result.ok) navigate(ROUTES.signIn + RESET_DONE_QUERY, { replace: true });
-    else setLinkInvalid(true);
+    if (reply.ok) navigate(ROUTES.signIn + RESET_DONE_QUERY, { replace: true });
+    // A malformed token fails the API's schema before any lookup: as dead as an expired one.
+    else if (reply.error === "invalid_token" || reply.error === "bad_request") setLinkInvalid(true);
+    else setFailed(true);
   }
 
   return (
@@ -76,6 +81,11 @@ export function ResetPassword() {
           <button className="btn btn-primary btn-lg" type="submit" aria-busy={pending}>
             Enregistrer
           </button>
+          {failed && (
+            <p className="alert alert-danger" role="alert">
+              {GENERIC_ERROR}
+            </p>
+          )}
         </form>
       )}
     </AuthLayout>

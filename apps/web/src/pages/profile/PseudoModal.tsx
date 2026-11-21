@@ -1,8 +1,10 @@
 import { useState, type FormEvent } from "react";
+import { GENERIC_ERROR, type RequestError } from "../../api/http";
 import { changePseudo } from "../../api/profile";
 import { Modal } from "../../components/Modal";
 import { TextField } from "../../components/TextField";
 import { PSEUDO_MAX, PSEUDO_MIN, checkPseudo } from "./pseudo";
+import { sessionLost } from "./session";
 
 interface PseudoModalProps {
   open: boolean;
@@ -12,9 +14,9 @@ interface PseudoModalProps {
   onSaved: (pseudo: string) => void;
 }
 
-const SERVER_ERRORS = {
-  taken: "Ce pseudo est déjà pris.",
-  refused: "Ce pseudo n'est pas autorisé.",
+const SERVER_ERRORS: Partial<Record<RequestError, string>> = {
+  pseudo_taken: "Ce pseudo est déjà pris.",
+  pseudo_refused: "Ce pseudo n'est pas autorisé.",
 };
 
 export function PseudoModal({ open, pseudo, onClose, onSaved }: PseudoModalProps) {
@@ -37,11 +39,11 @@ export function PseudoModal({ open, pseudo, onClose, onSaved }: PseudoModalProps
       return;
     }
     setPending(true);
-    const result = await changePseudo(next);
+    const reply = await changePseudo(next);
     setPending(false);
-    if (result.ok) onSaved(next);
-    else {
-      setError(SERVER_ERRORS[result.error]);
+    if (reply.ok) onSaved(next);
+    else if (!sessionLost(reply)) {
+      setError(SERVER_ERRORS[reply.error] ?? GENERIC_ERROR);
       document.getElementById("pseudo-input")?.focus();
     }
   }

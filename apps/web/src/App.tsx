@@ -4,6 +4,7 @@ import { ForgotPassword } from "./pages/account/ForgotPassword";
 import { ResetPassword } from "./pages/account/ResetPassword";
 import { SignIn } from "./pages/account/SignIn";
 import { SignUp } from "./pages/account/SignUp";
+import { VerifyEmail } from "./pages/account/VerifyEmail";
 import { Home } from "./pages/Home";
 import { LeaderboardPage } from "./pages/leaderboard/Leaderboard";
 import { MobileNotice } from "./pages/MobileNotice";
@@ -21,6 +22,7 @@ const PAGES: Record<string, () => ReactElement> = {
   [ROUTES.trial]: () => <Trial />,
   [ROUTES.signUp]: () => <SignUp />,
   [ROUTES.signIn]: () => <SignIn />,
+  [ROUTES.verifyEmail]: () => <VerifyEmail />,
   [ROUTES.forgotPassword]: () => <ForgotPassword />,
   [ROUTES.resetPassword]: () => <ResetPassword />,
   [ROUTES.profile]: () => <ProfilePage />,

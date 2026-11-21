@@ -1,6 +1,6 @@
 import { LEADERBOARDS, type LeaderboardEntry } from "../fixtures/leaderboard";
-import type { DifficultyId } from "../fixtures/profile";
-import { getProfile } from "./profile";
+import { DEMO_PROFILE, type DifficultyId } from "../fixtures/profile";
+import { getMe } from "./profile";
 
 /*
  * Fake leaderboard API: same signature and answer as the future `/api` route, backed by
@@ -17,9 +17,9 @@ export interface Leaderboard {
 }
 
 export async function getLeaderboard(difficulty: DifficultyId): Promise<Leaderboard> {
-  const profile = await getProfile();
+  // Ranks stay the demo player's until the score routes exist; the name and face are the account's.
+  const profile = { ...DEMO_PROFILE, ...(await getMe()) };
   const { rank, record } = profile.ranked[difficulty];
-  // The fixtures hold the demo player: the row follows a pseudo or avatar changed meanwhile.
   const entries = LEADERBOARDS[difficulty].map((entry) =>
     entry.rank === rank ? { ...entry, pseudo: profile.pseudo, avatar: profile.avatar } : entry,
   );
