@@ -72,3 +72,166 @@
   background: #050505;
   color: var(--text-muted);
 }
+
+.game-frame-begin {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  border: 0;
+  border-radius: 0;
+  background: var(--scrim);
+  color: var(--text);
+  text-align: center;
+  cursor: pointer;
+}
+.game-frame-begin-title {
+  padding: 14px 32px;
+  background: var(--blue);
+  font: 700 25.8px/34px var(--font-display);
+}
+.game-frame-begin:hover .game-frame-begin-title {
+  background: var(--green);
+  color: #000000;
+}
+
+.game-frame-bar {
+  flex-wrap: wrap;
+}
+.game-frame-actions {
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.game-setting {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.2px;
+  color: var(--text-muted);
+}
+.game-setting-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.game-setting-icon:hover:not(:disabled) {
+  color: var(--green);
+}
+.game-setting-step {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--field-border);
+  border-radius: 0;
+  background: var(--black);
+  color: var(--text);
+  cursor: pointer;
+}
+.game-setting-step:hover:not(:disabled) {
+  background: var(--green);
+  border-color: var(--green);
+  color: #000000;
+}
+.game-setting-step:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+.game-setting-value {
+  min-width: 3ch;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.game-range {
+  width: 110px;
+  height: 24px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  appearance: none;
+}
+.game-range:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.game-range::-webkit-slider-runnable-track {
+  height: 4px;
+  background: var(--track, var(--line));
+}
+.game-range::-moz-range-track {
+  height: 4px;
+  background: var(--track, var(--line));
+}
+.game-range::-webkit-slider-thumb {
+  width: 10px;
+  height: 20px;
+  margin-top: -8px;
+  border: 0;
+  border-radius: 0;
+  background: #ffffff;
+  appearance: none;
+}
+.game-range::-moz-range-thumb {
+  width: 10px;
+  height: 20px;
+  border: 0;
+  border-radius: 0;
+  background: #ffffff;
+}
+.game-range:hover:not(:disabled)::-webkit-slider-thumb {
+  background: var(--green);
+}
+.game-range:hover:not(:disabled)::-moz-range-thumb {
+  background: var(--green);
+}
+/* The played part of the volume, as in the Windows mixer. */
+.game-range-fill {
+  --track: linear-gradient(to right, var(--green) var(--fill), var(--line) var(--fill));
+}
+/* Ten even ticks, and a taller one at the default sensitivity (--mark, 0 to 1 along the track). */
+.game-range-ticks {
+  /* Same room above as the ticks take below: the track stays on the labels' middle line. */
+  box-sizing: content-box;
+  padding: 8px 0;
+  background:
+    linear-gradient(var(--text-muted), var(--text-muted))
+      calc(5px + var(--mark, 0.5) * (100% - 10px) - 1px) bottom / 2px 7px no-repeat,
+    repeating-linear-gradient(to right, var(--line) 0 1px, transparent 1px calc((100% - 10px) / 10))
+      5px bottom / calc(100% - 9px) 4px no-repeat;
+}
+
+.game-frame-top {
+  justify-content: flex-start;
+}
+/* The server's verdict stands apart, on the right edge of the screen. */
+.game-frame-top .game-outcome {
+  margin-left: auto;
+  padding-left: 24px;
+  text-align: right;
+}
+/* Sensitivity, volume, fullscreen: the same gap between each, edge to edge. */
+.game-frame-bar-live {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+@media (max-width: 720px) {
+  .game-frame-bar-live {
+    justify-content: center;
+  }
+}

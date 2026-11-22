@@ -10,7 +10,12 @@ const SWATCHES = [
     role: "Solo, boutons primaires, case d'inscription",
     on: "#ffffff",
   },
-  { name: "Vert", value: "#3cc677", role: "Sélectionné, survolé, succès", on: "#000000" },
+  {
+    name: "Vert",
+    value: "#3cc677",
+    role: "Sélectionné, survolé, succès, ton pseudo",
+    on: "#000000",
+  },
   { name: "Rose", value: "#d22961", role: "Multi, danger", on: "#ffffff" },
   { name: "Rouge", value: "#ff4141", role: "Alertes et erreurs", on: "#000000" },
   { name: "Orange", value: "#f7972f", role: "Scores, records, filets, focus", on: "#000000" },
@@ -19,7 +24,7 @@ const SWATCHES = [
 const SCORES = [
   { rank: 1, name: "Orbitale", score: "1 284 500" },
   { rank: 2, name: "Kasso", score: "1 102 340" },
-  { rank: 37, name: "NovaKrak (toi)", score: "998 120", me: true },
+  { rank: 37, name: "NovaKrak", score: "998 120", me: true },
 ];
 
 const grid: CSSProperties = {
@@ -171,7 +176,10 @@ export function StyleGuide() {
                 {SCORES.map((s) => (
                   <tr key={s.rank} className={s.me ? "me" : undefined}>
                     <td>{s.rank}</td>
-                    <th scope="row">{s.name}</th>
+                    <th scope="row">
+                      {s.name}
+                      {s.me && <span className="sr-only"> (toi)</span>}
+                    </th>
                     <td className="num">{s.score}</td>
                   </tr>
                 ))}

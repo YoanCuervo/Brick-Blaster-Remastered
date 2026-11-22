@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { MailError, brevoMailer, logMailer } from "./mailer";
 import { resetPasswordMail, verifyEmailMail } from "./templates";
 
-const MAIL = verifyEmailMail("nova@exemple.fr", "http://localhost:5174/verification-email?token=t");
+const SITE = "http://localhost:5174";
+const MAIL = verifyEmailMail("nova@exemple.fr", `${SITE}/verification-email?token=t`, SITE);
 
 describe("the Brevo mailer", () => {
   it("posts one transactional email with the key in a header", async () => {
@@ -47,8 +48,12 @@ describe("the log mailer", () => {
 
 describe("the email templates", () => {
   it("escape what they put in HTML", () => {
-    const mail = resetPasswordMail("a@b.fr", 'http://x/?token=<script>"');
+    const mail = resetPasswordMail("a@b.fr", 'http://x/?token=<script>"', SITE);
     expect(mail.html).not.toContain("<script>");
     expect(mail.text).toContain("<script>");
+  });
+
+  it("load the logo from the site, at an absolute address", () => {
+    expect(MAIL.html).toContain(`src="${SITE}/email/logo.png"`);
   });
 });

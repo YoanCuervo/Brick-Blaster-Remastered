@@ -6,6 +6,7 @@ Usage (from the repository root):
 Reads  apps/web/src/assets/logo/logo-source.png
 Writes apps/web/src/assets/logo/logo-full.png     (complete logo with light flares)
        apps/web/src/assets/logo/logo-compact.png  (letters only, for the top bar)
+       apps/web/src/assets/logo/favicon-32.png, apple-touch-icon.png  (the B, for the tab)
 """
 
 from pathlib import Path
@@ -30,6 +31,11 @@ FULL_WIDTH = 1600
 FULL_MARGIN = 48
 COMPACT_HEIGHT = 144  # 2x the 72 px CSS height
 COMPACT_MARGIN = 0.03  # of the content height
+
+# The B of BLASTER, up to the dark gap before the L.
+B_LETTER = (115, 262, 404, 528)
+ICON_MARGIN = 0.06  # of the letter's larger side
+ICONS = ((32, "favicon-32.png"), (180, "apple-touch-icon.png"))
 
 
 def bbox(rgb: Image.Image) -> tuple[int, int, int, int]:
@@ -109,8 +115,23 @@ def make_compact(src: Image.Image) -> Image.Image:
     return to_rgba(rgb)
 
 
+def make_icon(src: Image.Image, size: int) -> Image.Image:
+    # The whole logo is about 3:1, unreadable at 16-32 px: the icon is the B of BLASTER alone,
+    # on an opaque black square so it reads on light and dark tabs alike.
+    left, top, right, bottom = bbox(src.crop(B_LETTER))
+    letter = src.crop(B_LETTER).crop((left, top, right, bottom))
+    side = round(max(letter.size) * (1 + 2 * ICON_MARGIN))
+    square = Image.new("RGB", (side, side))
+    square.paste(letter, ((side - letter.width) // 2, (side - letter.height) // 2))
+    return square.resize((size, size), Image.Resampling.LANCZOS)
+
+
 def main() -> None:
     src = Image.open(SOURCE).convert("RGB")
+    for size, name in ICONS:
+        path = LOGO_DIR / name
+        make_icon(src, size).save(path, optimize=True)
+        print(f"{path.name}: {size}x{size}")
     for name, image in (("logo-full.png", make_full(src)), ("logo-compact.png", make_compact(src))):
         path = LOGO_DIR / name
         image.save(path, optimize=True)

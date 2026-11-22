@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import type { GameEndReport, MountOptions } from "@brick-blaster/game/mount";
+import type { GameEndReport, GameHandle, MountOptions, Settings } from "@brick-blaster/game/mount";
 import { BrickArt } from "./BrickArt";
+import { GameSettings } from "./GameSettings";
 import "./GameFrame.css";
 
 // The game's logical screen (packages/game/src/render/screen.ts), kept here so the page does
@@ -11,6 +12,8 @@ const SCREEN_HEIGHT = 480;
 const CARD_CHROME = 22;
 /** The bar under the card and the gap above it. */
 const BAR_SPACE = 48 + 14;
+/** The world and difficulty line above the card of a live game, and the gap under it. */
+const INFO_SPACE = 24 + 14;
 /** Room kept under the bar, as the page's bottom padding. */
 const BOTTOM_SPACE = 32;
 
@@ -50,6 +53,10 @@ export function GameFrame({ info, actions, game, children }: GameFrameProps) {
   const [fullscreen, setFullscreen] = useState(false);
   const [scale, setScale] = useState(1);
   const [status, setStatus] = useState<Status>("loading");
+  const handle = useRef<GameHandle | null>(null);
+  const [settings, setSettings] = useState<Settings | null>(null);
+  /** With `start`, the game waits for a click on the screen, so the settings come first. */
+  const [begun, setBegun] = useState(false);
   const hasGame = game !== undefined;
   const world = game?.start?.world;
   const difficulty = game?.start?.difficulty;
@@ -78,7 +85,7 @@ export function GameFrame({ info, actions, game, children }: GameFrameProps) {
     // with the scale.
     const top = area.getBoundingClientRect().top + window.scrollY;
     const width = document.documentElement.clientWidth - 2 * 40 - CARD_CHROME;
-    const height = window.innerHeight - top - CARD_CHROME - BAR_SPACE - BOTTOM_SPACE;
+    const height = window.innerHeight - top - INFO_SPACE - CARD_CHROME - BAR_SPACE - BOTTOM_SPACE;
     setScale(fitScale(width, height));
   }, [hasGame]);
 
@@ -103,6 +110,9 @@ export function GameFrame({ info, actions, game, children }: GameFrameProps) {
     if (!hasGame || !canvas || !screen) return;
     const controller = new AbortController();
     setStatus("loading");
+    setBegun(false);
+    setSettings(null);
+    handle.current = null;
     const start =
       world !== undefined && difficulty !== undefined ? { world, difficulty } : undefined;
     // Loaded on demand: the other pages of the site never download the engine.
@@ -111,16 +121,25 @@ export function GameFrame({ info, actions, game, children }: GameFrameProps) {
         mountGame(canvas, {
           signal: controller.signal,
           start,
+          waitForBegin: true,
           fit: "host",
           fullscreenTarget: screen,
           onGameEnd: (report) => onGameEnd.current?.(report),
           newSeed: serverSeeds ? (setup) => newSeed.current!(setup) : undefined,
           loadSettings: accountSettings ? () => loadSettings.current!() : undefined,
-          onSettingsChange: (settings) => onSettingsChange.current?.(settings),
+          onSettingsChange: (changed) => {
+            setSettings(changed);
+            onSettingsChange.current?.(changed);
+          },
         }),
       )
       .then(
-        () => !controller.signal.aborted && setStatus("running"),
+        (mounted) => {
+          if (controller.signal.aborted || !mounted) return;
+          handle.current = mounted;
+          setSettings(mounted.settings);
+          setStatus("running");
+        },
         (error: unknown) => {
           console.error(error);
           if (!controller.signal.aborted) setStatus("failed");
@@ -136,10 +155,23 @@ export function GameFrame({ info, actions, game, children }: GameFrameProps) {
     canvasRef.current?.focus();
   };
 
+  const begin = () => {
+    // In the click itself: the game locks the mouse as it starts.
+    handle.current?.begin();
+    setBegun(true);
+    canvasRef.current?.focus();
+  };
+  const waiting = status === "running" && world !== undefined && !begun;
+
   const size = { width: SCREEN_WIDTH * scale, height: SCREEN_HEIGHT * scale };
 
   return (
     <div ref={rootRef} className="game-frame">
+      {hasGame && (
+        <div className="game-frame-info game-frame-top" style={{ width: size.width + CARD_CHROME }}>
+          {info}
+        </div>
+      )}
       <div className="card game-frame-card">
         <div
           ref={screenRef}
@@ -155,6 +187,11 @@ export function GameFrame({ info, actions, game, children }: GameFrameProps) {
                 style={size}
                 aria-label="Brick Blaster"
               />
+              {waiting && (
+                <button type="button" className="game-frame-begin" onClick={begin}>
+                  <span className="game-frame-begin-title">Clique pour commencer</span>
+                </button>
+              )}
               {status !== "running" && (
                 <p className="game-frame-status" role={status === "failed" ? "alert" : "status"}>
                   {status === "failed" ? "Le jeu n'a pas pu se charger." : "Chargement du jeu…"}
@@ -167,10 +204,18 @@ export function GameFrame({ info, actions, game, children }: GameFrameProps) {
         </div>
       </div>
       <div
-        className="game-frame-bar"
+        className={hasGame ? "game-frame-bar game-frame-bar-live" : "game-frame-bar"}
         style={hasGame ? { width: size.width + CARD_CHROME } : undefined}
       >
-        <span className="game-frame-info">{info}</span>
+        {hasGame ? (
+          // Sensitivity on the left, volume in the middle: grid cells of the bar.
+          <GameSettings
+            settings={settings}
+            onChange={(change) => handle.current?.setSettings(change)}
+          />
+        ) : (
+          <span className="game-frame-info">{info}</span>
+        )}
         <span className="game-frame-actions">
           {actions}
           {document.fullscreenEnabled && (

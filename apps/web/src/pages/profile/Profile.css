@@ -638,3 +638,20 @@ a.profile-tile[href]:hover {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* From 1280px the three lower blocks sit side by side and are at their narrowest just above:
+   a 999 990 in each best-score column and a 999 999 counter must still fit. */
+@media (min-width: 1280px) and (max-width: 1365px) {
+  .profile-best-card {
+    padding: 10px 12px;
+  }
+  .profile-best-card .tbl {
+    font-size: 12px;
+  }
+  .profile-counter {
+    padding: 8px 6px;
+  }
+  .profile-counter dd {
+    font-size: 22px;
+  }
+}
