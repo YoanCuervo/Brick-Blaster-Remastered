@@ -202,6 +202,8 @@ Graphismes, sons, musiques et niveaux appartiennent à Eclipse et à leurs auteu
 | RGPD | **Ne s'applique pas en V1** | Aucune donnée personnelle ne quitte la machine. Le nom des meilleurs scores reste dans le navigateur. |
 | RGPD en V2 | **S'applique** | Comptes (email, pseudo, mot de passe haché), parties et stats, adresses IP dans les journaux. Pas de condition d'âge à l'inscription (base légale : le contrat). Suppression du compte par le joueur ; droit d'accès et de portabilité sur demande. Sous-traitants : OVHcloud (France), Brevo (France, UE), Cloudflare (États-Unis, transfert hors UE à mentionner). Le seul cookie est celui de session, strictement nécessaire : pas de bandeau tant qu'aucun traceur non exempté n'est ajouté. `/conform-cnil` avant la mise en ligne. |
 
+Pages légales faites (`apps/web/src/pages/legal/`) : mentions légales et politique de confidentialité, écrites d'après ce que fait le code. Éditeur particulier non professionnel, anonyme (LCEN, art. 6, III, 2) : seul l'hébergeur, OVH SAS, est nommé. Deux cookies strictement nécessaires (`__Host-sid`, `__Host-trial`), pas de bandeau. L'adresse de contact (`contact@brickblaster.fr`) et la durée des sauvegardes (30 jours, à régler dans le dépôt d'infra) sont dans `legalInfo.ts`. La page des conditions d'utilisation reste à écrire.
+
 Ces conclusions aident au cadrage. Elles ne remplacent pas l'avis d'un juriste.
 
 ## Pistes V2 et au-delà
