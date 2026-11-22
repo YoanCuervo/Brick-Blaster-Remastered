@@ -1,4 +1,4 @@
-import { buildApp } from "../app";
+import { type AppOptions, buildApp } from "../app";
 import { createPasswordHasher } from "../auth/password";
 import type { Db } from "../db";
 import type { Mail, Mailer } from "../mail/mailer";
@@ -33,7 +33,14 @@ export const DEFAULT_OUTCOME: ReplayOutcome = {
 };
 
 /** The app on in-memory stores, a cheap scrypt, a mailbox array and a clock of its own. */
-export function testApp(options: { dbUp?: boolean; mailer?: Mailer } = {}): TestApp {
+export function testApp(
+  options: {
+    dbUp?: boolean;
+    mailer?: Mailer;
+    logger?: AppOptions["logger"];
+    trustProxy?: boolean;
+  } = {},
+): TestApp {
   const db: Db = {
     ping: () =>
       options.dbUp === false
@@ -83,6 +90,8 @@ export function testApp(options: { dbUp?: boolean; mailer?: Mailer } = {}): Test
       now,
       limits: gameRateLimits(now),
     },
+    logger: options.logger,
+    trustProxy: options.trustProxy,
   });
   return t;
 }

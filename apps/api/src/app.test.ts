@@ -102,3 +102,27 @@ describe("a write from another origin", () => {
     expect((await post()).statusCode).toBe(200);
   });
 });
+
+describe("the server log", () => {
+  it("never holds the client's address or port", async () => {
+    const lines: string[] = [];
+    const { app } = testApp({
+      trustProxy: true,
+      logger: { level: "info", stream: { write: (line: string) => void lines.push(line) } },
+    });
+    app.get("/api/boom", async () => {
+      throw new Error("secret detail");
+    });
+    const from = { remoteAddress: "203.0.113.7", headers: { "x-forwarded-for": "198.51.100.23" } };
+    await app.inject({ method: "GET", url: "/api/health", ...from });
+    await app.inject({ method: "GET", url: "/api/boom", ...from });
+
+    const log = lines.join("");
+    expect(log).toContain('"req":{"method":"GET","url":"/api/health"}');
+    expect(log).toContain('"req":{"method":"GET","url":"/api/boom"}');
+    expect(log).toContain("secret detail");
+    for (const leak of ["203.0.113.7", "198.51.100.23", "remoteAddress", "remotePort"]) {
+      expect(log).not.toContain(leak);
+    }
+  });
+});
