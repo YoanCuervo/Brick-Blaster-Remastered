@@ -4,6 +4,7 @@ import Fastify, {
   type FastifyServerOptions,
 } from "fastify";
 import type { Db } from "./db";
+import { logMethod, serializeError } from "./logRedaction";
 import { authRoutes } from "./routes/auth";
 import type { AccountDeps, GameDeps } from "./routes/deps";
 import { gameRoutes } from "./routes/games";
@@ -30,6 +31,9 @@ export interface AppOptions {
  */
 const logSerializers = {
   req: (req: FastifyRequest) => ({ method: req.method, url: req.url }),
+  // Fastify's types expect a message on every serialized error: a MySQL one goes without.
+  err: serializeError as never,
+  error: serializeError,
 };
 
 /** Error bodies name a category, never the cause: details stay in the server log. */
@@ -46,7 +50,11 @@ const ERRORS: Record<number, string> = {
 export function buildApp(options: AppOptions): FastifyInstance {
   const app = Fastify({
     logger: options.logger
-      ? { ...options.logger, serializers: { ...options.logger.serializers, ...logSerializers } }
+      ? {
+          ...options.logger,
+          serializers: { ...options.logger.serializers, ...logSerializers },
+          hooks: { ...options.logger.hooks, logMethod },
+        }
       : false,
     bodyLimit: BODY_LIMIT,
     trustProxy: options.trustProxy ?? false,

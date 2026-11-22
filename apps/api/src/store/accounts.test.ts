@@ -4,6 +4,7 @@ import mysql from "mysql2/promise";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ConfigError, type Config, loadConfig } from "../config";
 import { createPool } from "../db";
+import { isMysqlError, serializeError } from "../logRedaction";
 import { type AccountStore, createMysqlAccountStore } from "./accounts";
 
 /**
@@ -82,6 +83,20 @@ describe.skipIf(!migrated)("the account store on MySQL", () => {
       store.createUser({ email: e, passwordHash: "h", pseudo: p, createdAt: new Date() });
     expect(await again(email("a"), pseudo("z"))).toEqual({ taken: "email" });
     expect(await again(email("z"), pseudo("a").toUpperCase())).toEqual({ taken: "pseudo" });
+  });
+
+  it("throws duplicates that the log serializer recognises and strips of their value", async () => {
+    await newUser("logdup");
+    const error = await pool!
+      .execute(
+        "INSERT INTO users (email, password_hash, pseudo, created_at, last_active_at) " +
+          "VALUES (?, 'x', ?, NOW(), NOW())",
+        [email("logdup"), pseudo("logdup2")],
+      )
+      .catch((caught: unknown) => caught);
+    expect(String((error as Error).message)).toContain(email("logdup"));
+    expect(isMysqlError(error as Error & Record<string, unknown>)).toBe(true);
+    expect(JSON.stringify(serializeError(error))).not.toContain(email("logdup"));
   });
 
   it("changes the pseudo, unique whatever its case, and the avatar", async () => {
