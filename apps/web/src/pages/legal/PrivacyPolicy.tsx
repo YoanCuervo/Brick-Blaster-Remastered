@@ -19,7 +19,8 @@ interface Row {
 const CONTRACT = "Exécution du contrat (art. 6.1.b)";
 const SECURITY = "Intérêt légitime : la sécurité du site (art. 6.1.f)";
 const FAIR_PLAY = "Intérêt légitime : un classement sans triche (art. 6.1.f)";
-const ACCOUNT_LIFE = "Jusqu'à la suppression du compte";
+const ACCOUNT_LIFE =
+  "Jusqu'à la suppression du compte, ou après 3 ans sans utilisation (un email te prévient un mois avant)";
 
 const ROWS: Row[] = [
   {

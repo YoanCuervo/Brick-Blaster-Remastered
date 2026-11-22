@@ -1,5 +1,6 @@
 import { buildApp } from "./app";
 import { createPasswordHasher } from "./auth/password";
+import { inactivityWarner } from "./account/inactivity";
 import { startCleanup } from "./cleanup";
 import { ConfigError, loadConfig } from "./config";
 import { createDb, createPool } from "./db";
@@ -66,8 +67,12 @@ const app = buildApp({
 if (config.mail.transport === "log") {
   app.log.warn("no BREVO_API_KEY: emails are written to this log instead of being sent");
 }
-const stopCleanup = startCleanup(store, games, now, (error) =>
-  app.log.error(error, "cleanup failed"),
+const stopCleanup = startCleanup(
+  store,
+  games,
+  inactivityWarner(store, mailer, config.siteUrl),
+  now,
+  (error) => app.log.error(error, "cleanup failed"),
 );
 
 async function stop(): Promise<void> {

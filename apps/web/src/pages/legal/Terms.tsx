@@ -105,6 +105,10 @@ export function Terms() {
           compte »). Ton compte, tes parties, tes stats et tes scores sont effacés immédiatement,
           puis des sauvegardes sous {BACKUP_RETENTION_DAYS} jours.
         </p>
+        <p>
+          Un compte inutilisé pendant 3 ans est supprimé de la même façon. Un email te prévient un
+          mois avant : une connexion suffit pour le garder.
+        </p>
       </LegalSection>
 
       <LegalSection title="Propriété intellectuelle">

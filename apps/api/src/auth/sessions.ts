@@ -48,6 +48,7 @@ export async function startSession(
     lastSeenAt: now,
     expiresAt: new Date(now.getTime() + SESSION_MAX_MS),
   });
+  await store.markActive(userId, now);
   res.header("set-cookie", cookie(id, SESSION_MAX_MS / 1000));
 }
 
@@ -71,6 +72,10 @@ export async function findSession(
     await store.deleteSession(idHash);
     return null;
   }
-  if (t - session.lastSeenAt.getTime() >= TOUCH_EVERY_MS) await store.touchSession(idHash, now);
+  // The account's activity, for the purge of inactive accounts, moves at the same pace.
+  if (t - session.lastSeenAt.getTime() >= TOUCH_EVERY_MS) {
+    await store.touchSession(idHash, now);
+    await store.markActive(session.userId, now);
+  }
   return { userId: session.userId, idHash };
 }

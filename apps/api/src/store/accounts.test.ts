@@ -37,6 +37,12 @@ const tag = randomBytes(4).toString("hex");
 const email = (name: string) => `${name}-${tag}@test.invalid`;
 const pseudo = (name: string) => `${name}${tag}`.slice(0, 15);
 const at = (iso: string) => new Date(iso);
+/** Cutoffs before any account of the tests: the purge of inactive accounts touches none. */
+const NOTHING_INACTIVE = {
+  inactiveBefore: at("1999-01-01T00:00:00Z"),
+  warnedBefore: at("1999-01-01T00:00:00Z"),
+  abandonedBefore: at("1999-01-01T00:00:00Z"),
+};
 
 describe.skipIf(!migrated)("the account store on MySQL", () => {
   let store: AccountStore;
@@ -168,8 +174,79 @@ describe.skipIf(!migrated)("the account store on MySQL", () => {
       idleSince: at("2000-01-02T00:00:00Z"),
       unverifiedBefore: at("2000-01-02T00:00:00Z"),
       throttleBefore: at("2000-01-02T00:00:00Z"),
+      ...NOTHING_INACTIVE,
     });
     expect(await store.getMe(verified)).not.toBeNull();
     expect(await store.getMe(unverified)).toBeNull();
+  });
+
+  it("warns an inactive verified account once, forgets it when the player is back", async () => {
+    const activity = async (id: number) => {
+      const [rows] = await pool!.execute<mysql.RowDataPacket[]>(
+        "SELECT last_active_at, inactivity_warned_at FROM users WHERE id = ?",
+        [id],
+      );
+      return { active: rows[0]!["last_active_at"], warned: rows[0]!["inactivity_warned_at"] };
+    };
+    const idle = await newUser("i");
+    const fresh = await newUser("j");
+    const unverified = await newUser("k");
+    await store.markEmailVerified(idle, at("2000-01-01T12:05:00Z"));
+    await store.markEmailVerified(fresh, at("2000-01-01T12:05:00Z"));
+    await store.markActive(fresh, at("2000-06-01T00:00:00Z"));
+    // Never backwards.
+    await store.markActive(fresh, at("2000-02-01T00:00:00Z"));
+    expect(await activity(idle)).toEqual({ active: at("2000-01-01T12:00:00.123Z"), warned: null });
+    expect((await activity(fresh)).active).toEqual(at("2000-06-01T00:00:00Z"));
+
+    const before = at("2000-03-01T00:00:00Z");
+    const mine = async () =>
+      (await store.findAccountsToWarn(before, 1000)).filter((a) =>
+        [idle, fresh, unverified].includes(a.id),
+      );
+    // The unverified "k" and the recently active "j" are not due.
+    expect(await mine()).toEqual([{ id: idle, email: email("i") }]);
+    await store.markInactivityWarned(idle, at("2000-03-02T00:00:00Z"), before);
+    expect((await activity(idle)).warned).toEqual(at("2000-03-02T00:00:00Z"));
+    expect(await mine()).toEqual([]);
+
+    await store.markActive(idle, at("2000-03-03T00:00:00Z"));
+    expect(await activity(idle)).toEqual({ active: at("2000-03-03T00:00:00Z"), warned: null });
+    // Back during the sending: the warning is not marked.
+    await store.markInactivityWarned(idle, at("2000-03-04T00:00:00Z"), before);
+    expect((await activity(idle)).warned).toBeNull();
+  });
+
+  it("purges an inactive account 30 days after its warning, or past the grace without", async () => {
+    const warned = await newUser("l");
+    const unwarned = await newUser("m");
+    const recent = await newUser("n");
+    for (const id of [warned, unwarned, recent]) {
+      await store.markEmailVerified(id, at("2000-01-01T12:05:00Z"));
+    }
+    await store.markInactivityWarned(
+      warned,
+      at("2000-02-01T00:00:00Z"),
+      at("2000-01-02T00:00:00Z"),
+    );
+    await store.markActive(recent, at("2000-05-01T00:00:00Z"));
+    const purge = (warnedBefore: string, abandonedBefore: string) =>
+      store.cleanup({
+        now: at("1999-01-01T00:00:00Z"),
+        idleSince: at("1999-01-01T00:00:00Z"),
+        unverifiedBefore: at("1999-01-01T00:00:00Z"),
+        throttleBefore: at("1999-01-01T00:00:00Z"),
+        inactiveBefore: at("2000-04-01T00:00:00Z"),
+        warnedBefore: at(warnedBefore),
+        abandonedBefore: at(abandonedBefore),
+      });
+    await purge("2000-01-31T00:00:00Z", "1999-12-01T00:00:00Z");
+    expect(await store.getMe(warned)).not.toBeNull();
+    await purge("2000-02-01T00:00:00Z", "1999-12-01T00:00:00Z");
+    expect(await store.getMe(warned)).toBeNull();
+    expect(await store.getMe(unwarned)).not.toBeNull();
+    await purge("2000-02-01T00:00:00Z", "2000-01-01T12:00:00.123Z");
+    expect(await store.getMe(unwarned)).toBeNull();
+    expect(await store.getMe(recent)).not.toBeNull();
   });
 });

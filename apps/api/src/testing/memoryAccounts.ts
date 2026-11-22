@@ -19,6 +19,8 @@ interface UserRow {
   settings: AccountSettings;
   emailVerifiedAt: Date | null;
   createdAt: Date;
+  lastActiveAt: Date;
+  inactivityWarnedAt: Date | null;
 }
 
 export interface MemoryAccounts extends AccountStore {
@@ -64,6 +66,8 @@ export function memoryAccounts(): MemoryAccounts {
         settings: { musicVolume: null, mouseSensitivity: null },
         emailVerifiedAt: null,
         createdAt: user.createdAt,
+        lastActiveAt: user.createdAt,
+        inactivityWarnedAt: null,
       });
       return { id };
     },
@@ -116,6 +120,28 @@ export function memoryAccounts(): MemoryAccounts {
       dropWhere(sessions, (s) => s.userId === userId);
       dropWhere(tokens, (t) => t.userId === userId);
     },
+    async markActive(userId, at) {
+      const u = users.get(userId);
+      if (u)
+        Object.assign(u, {
+          lastActiveAt: at > u.lastActiveAt ? at : u.lastActiveAt,
+          inactivityWarnedAt: null,
+        });
+    },
+    async findAccountsToWarn(lastActiveBefore, limit) {
+      return [...users.values()]
+        .filter(
+          (u) => u.emailVerifiedAt && !u.inactivityWarnedAt && u.lastActiveAt <= lastActiveBefore,
+        )
+        .sort((a, b) => a.lastActiveAt.getTime() - b.lastActiveAt.getTime())
+        .slice(0, limit)
+        .map((u) => ({ id: u.id, email: u.email }));
+    },
+    async markInactivityWarned(userId, at, lastActiveBefore) {
+      const u = users.get(userId);
+      if (u && !u.inactivityWarnedAt && u.lastActiveAt <= lastActiveBefore)
+        u.inactivityWarnedAt = at;
+    },
 
     async createSession(session) {
       sessions.set(key(session.idHash), { ...session });
@@ -161,7 +187,12 @@ export function memoryAccounts(): MemoryAccounts {
       dropWhere(sessions, (s) => s.expiresAt <= c.now || s.lastSeenAt <= c.idleSince);
       dropWhere(tokens, (t) => t.expiresAt <= c.now);
       for (const [id, u] of users) {
-        if (!u.emailVerifiedAt && u.createdAt <= c.unverifiedBefore) await this.deleteUser(id);
+        const unverified = !u.emailVerifiedAt && u.createdAt <= c.unverifiedBefore;
+        const inactive =
+          u.lastActiveAt <= c.inactiveBefore &&
+          (u.lastActiveAt <= c.abandonedBefore ||
+            (u.inactivityWarnedAt !== null && u.inactivityWarnedAt <= c.warnedBefore));
+        if (unverified || inactive) await this.deleteUser(id);
       }
       dropWhere(throttles, (t) => t.updatedAt <= c.throttleBefore);
     },
