@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NOTICE_BLOCKS, NOTICE_TICKS, Notice } from "./notice";
+import { NOTICE_BLOCKS, NOTICE_TICKS, Notice, TRIBUTE } from "./notice";
 
 describe("Notice", () => {
   it("ends by itself", () => {
@@ -19,5 +19,13 @@ describe("Notice", () => {
       expect(text).toContain(author);
     }
     expect(text).toContain("creativecommons.org/licenses/by/4.0");
+  });
+
+  it("ends with the tribute to Alain", () => {
+    expect(NOTICE_BLOCKS.at(-1)).toBe(TRIBUTE);
+    expect(TRIBUTE).toEqual({
+      title: "Pour Alain,",
+      lines: ["mon grand-père, avec qui je jouais à Brick Blaster."],
+    });
   });
 });

@@ -5,6 +5,12 @@ export interface NoticeBlock {
   lines: readonly string[];
 }
 
+/** Level 50 of Limbes spells his name. */
+export const TRIBUTE: NoticeBlock = {
+  title: "Pour Alain,",
+  lines: ["mon grand-père, avec qui je jouais à Brick Blaster."],
+};
+
 /** CC BY 4.0 asks for the author, the source and the licence to reach every player. */
 export const NOTICE_BLOCKS: readonly NoticeBlock[] = [
   {
@@ -16,6 +22,7 @@ export const NOTICE_BLOCKS: readonly NoticeBlock[] = [
     ],
   },
   { title: "Licence", lines: ["CC BY 4.0 : creativecommons.org/licenses/by/4.0"] },
+  TRIBUTE,
 ];
 
 /** Long enough to read it once; a key or fire ends it sooner. */
