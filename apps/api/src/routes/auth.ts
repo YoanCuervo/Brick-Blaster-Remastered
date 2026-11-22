@@ -67,7 +67,7 @@ export function authRoutes(app: FastifyInstance, deps: AccountDeps): void {
 
   const sendVerification = async (userId: number, email: string) => {
     const token = await issueToken(userId, "verify_email", VERIFY_EMAIL_TTL_MS);
-    send(verifyEmailMail(email, link(SITE_PATHS.verifyEmail, token)));
+    send(verifyEmailMail(email, link(SITE_PATHS.verifyEmail, token), deps.siteUrl));
   };
 
   const accepted = (res: FastifyReply) => res.code(202).send({});
@@ -83,7 +83,12 @@ export function authRoutes(app: FastifyInstance, deps: AccountDeps): void {
       if (existing) {
         if (existing.emailVerified) {
           send(
-            alreadyRegisteredMail(email, link(SITE_PATHS.signIn), link(SITE_PATHS.forgotPassword)),
+            alreadyRegisteredMail(
+              email,
+              link(SITE_PATHS.signIn),
+              link(SITE_PATHS.forgotPassword),
+              deps.siteUrl,
+            ),
           );
         } else {
           await sendVerification(existing.id, email);
@@ -189,7 +194,7 @@ export function authRoutes(app: FastifyInstance, deps: AccountDeps): void {
       const user = await store.findUserByEmail(email);
       if (user) {
         const token = await issueToken(user.id, "reset_password", RESET_PASSWORD_TTL_MS);
-        send(resetPasswordMail(email, link(SITE_PATHS.resetPassword, token)));
+        send(resetPasswordMail(email, link(SITE_PATHS.resetPassword, token), deps.siteUrl));
       }
       return accepted(res);
     },
