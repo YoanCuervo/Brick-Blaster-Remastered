@@ -440,11 +440,15 @@ button.link {
   color: var(--text);
   font-weight: 700;
 }
+.tbl tr.me th {
+  color: var(--green);
+}
 .tbl tr.me .num {
   color: var(--orange);
 }
 .tbl-hover tbody tr:hover td,
-.tbl-hover tbody tr:hover th {
+.tbl-hover tbody tr:hover th,
+.tbl-hover tbody tr.me:hover th {
   background: var(--green);
   color: #000000;
 }

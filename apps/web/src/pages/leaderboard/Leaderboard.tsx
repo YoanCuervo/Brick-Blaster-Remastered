@@ -130,7 +130,8 @@ export function LeaderboardPage() {
         <th scope="row">
           <span className="lb-who">
             <Avatar avatar={entry.avatar} pseudo={entry.pseudo} size={36} />
-            {isMe ? `${entry.pseudo} (toi)` : entry.pseudo}
+            {entry.pseudo}
+            {isMe && <span className="sr-only"> (toi)</span>}
           </span>
         </th>
         <td>{formatScore(entry.score)}</td>
@@ -230,7 +231,8 @@ export function LeaderboardPage() {
                   <th scope="row">
                     <span className="lb-who">
                       <Avatar avatar={player.avatar} pseudo={player.pseudo} size={36} />
-                      {player.pseudo} (toi)
+                      {player.pseudo}
+                      <span className="sr-only"> (toi)</span>
                     </span>
                   </th>
                   <td className="lb-unranked">Pas encore classé</td>

@@ -116,6 +116,13 @@
 .lb tr.me > :last-child {
   color: var(--orange);
 }
+.lb tr.me .lb-who {
+  color: var(--green);
+}
+.lb tbody tr.me[tabindex]:hover .lb-who,
+.lb tbody tr.me[tabindex]:focus-visible .lb-who {
+  color: inherit;
+}
 .lb .lb-unranked {
   font: 400 14.1px/22px var(--font-sans);
   color: var(--text-muted);
@@ -155,7 +162,8 @@
   position: absolute;
   left: 290px;
   z-index: 1;
-  width: 280px;
+  width: max-content;
+  min-width: 280px;
   padding: 16px;
   display: flex;
   flex-direction: column;
