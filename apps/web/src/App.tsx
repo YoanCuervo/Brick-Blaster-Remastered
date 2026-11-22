@@ -9,10 +9,10 @@ import { Home } from "./pages/Home";
 import { LeaderboardPage } from "./pages/leaderboard/Leaderboard";
 import { LegalNotice } from "./pages/legal/LegalNotice";
 import { PrivacyPolicy } from "./pages/legal/PrivacyPolicy";
+import { Terms } from "./pages/legal/Terms";
 import { MobileNotice } from "./pages/MobileNotice";
 import { NotFound } from "./pages/NotFound";
 import { Play } from "./pages/play/Play";
-import { Placeholder } from "./pages/Placeholder";
 import { ProfilePage } from "./pages/profile/Profile";
 import { StyleGuide } from "./pages/StyleGuide";
 import { Trial } from "./pages/trial/Trial";
@@ -31,7 +31,7 @@ const PAGES: Record<string, () => ReactElement> = {
   [ROUTES.play]: () => <Play />,
   [ROUTES.leaderboard]: () => <LeaderboardPage />,
   [ROUTES.legal]: () => <LegalNotice />,
-  [ROUTES.terms]: () => <Placeholder title="Conditions d'utilisation" />,
+  [ROUTES.terms]: () => <Terms />,
   [ROUTES.privacy]: () => <PrivacyPolicy />,
 };
 

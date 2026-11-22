@@ -1,9 +1,9 @@
-/** Facts shared by the legal notice and the privacy policy, in one place so they never drift. */
+/** Facts shared by the legal pages, in one place so they never drift. */
 
 /** Address published for the legal notice and for data protection requests. */
 export const CONTACT_EMAIL: string | null = "contact@brickblaster.fr";
 
-/** Date of the last change to either legal page. */
+/** Date of the last change to any legal page. */
 export const LEGAL_UPDATED = "22 novembre 2026";
 
 /**
