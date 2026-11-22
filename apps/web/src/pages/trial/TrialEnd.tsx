@@ -5,11 +5,14 @@ interface ScoreRow {
   score: number;
 }
 
-/** First rows of the game's default table (packages/game/src/ui/scores.ts, defaultScores()). */
-const TABLE: readonly ScoreRow[] = Array.from({ length: 5 }, () => ({
-  name: "?".repeat(15),
-  score: 0,
-}));
+/** Invented rivals, so the trial table looks played and gives the player scores to beat. */
+const TABLE: readonly ScoreRow[] = [
+  { name: "NOVA", score: 48250 },
+  { name: "PIXELKID", score: 31900 },
+  { name: "MEGABRICK", score: 20400 },
+  { name: "ZORGLUB", score: 11750 },
+  { name: "RETROFAN", score: 5300 },
+];
 
 const formatScore = (score: number) => score.toLocaleString("fr-FR");
 const ordinal = (rank: number) => (rank === 1 ? "1re" : `${rank}e`);
