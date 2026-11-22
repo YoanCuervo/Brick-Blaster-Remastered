@@ -118,6 +118,12 @@ export function PrivacyPolicy() {
           Jouer à l'essai ne demande aucun compte.
         </p>
         <p>
+          Pour créer un compte, ton email et un mot de passe sont obligatoires : sans eux, pas de
+          compte, mais la partie d'essai reste ouverte. Le pseudo t'est d'abord donné par le site («
+          Joueur » suivi d'un numéro), puis tu le choisis dans ton profil. L'avatar est facultatif.
+          Les autres données du tableau sont produites par ton usage du site.
+        </p>
+        <p>
           Le contrat mentionné ci-dessous comme base légale, ce sont les{" "}
           <Link className="link" to={ROUTES.terms}>
             conditions d'utilisation
@@ -204,10 +210,12 @@ export function PrivacyPolicy() {
           </li>
           <li>
             <strong>Cloudflare, Inc.</strong> (États-Unis) : réseau placé devant le serveur pour le
-            protéger des attaques et accélérer le site. Toutes les requêtes le traversent, avec ton
-            adresse IP. Ce transfert hors de l'Union européenne est encadré par la certification de
-            Cloudflare au Data Privacy Framework UE–États-Unis et, à défaut, par les clauses
-            contractuelles types de la Commission européenne.
+            protéger des attaques et accélérer le site. Toutes les requêtes le traversent. Comme il
+            déchiffre la connexion HTTPS pour filtrer les attaques, Cloudflare voit ton adresse IP
+            et le contenu des requêtes, y compris l'email et le mot de passe saisis à l'inscription
+            ou à la connexion. Ce transfert hors de l'Union européenne est encadré par la
+            certification de Cloudflare au Data Privacy Framework UE–États-Unis et, à défaut, par
+            les clauses contractuelles types de la Commission européenne.
           </li>
         </ul>
       </LegalSection>
@@ -237,8 +245,13 @@ export function PrivacyPolicy() {
             immédiatement, puis des sauvegardes sous {BACKUP_RETENTION_DAYS} jours.
           </li>
           <li>
-            Pour tout le reste (copie de tes données, changement d'email, question), écris à{" "}
-            <ContactEmail />. Une réponse t'est apportée sous un mois.
+            Pour obtenir une copie de tes données ou les récupérer dans un format réutilisable
+            (portabilité), écris à <ContactEmail /> depuis l'adresse de ton compte. La réponse est
+            envoyée uniquement à cette adresse, avec tes données au format JSON, sous un mois.
+          </li>
+          <li>
+            Pour tout le reste (changement d'email, question), écris à <ContactEmail />. Une réponse
+            t'est apportée sous un mois.
           </li>
         </ul>
         <p>

@@ -66,6 +66,13 @@ export function ForgotPassword() {
       <Link className="link auth-back" to={ROUTES.signIn}>
         Retour à la connexion
       </Link>
+      <p className="hint auth-center" style={{ margin: 0 }}>
+        Tes données sont traitées comme l'explique notre{" "}
+        <Link className="link" to={ROUTES.privacy}>
+          politique de confidentialité
+        </Link>
+        .
+      </p>
     </AuthLayout>
   );
 }
