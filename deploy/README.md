@@ -56,6 +56,18 @@ sudo ls -l "$(dirname "$(docker inspect -f '{{.LogPath}}' "$(docker compose ps -
 
 Disabling the request logs of `/api/health`, lengthening the healthcheck interval or raising the sizes breaks that floor: change the policy along with it. Recreating the container (a new image) also deletes its logs.
 
+## Before opening
+
+What the GDPR audit (`docs/audits/audit-cnil.md`) could not check from this repository. Tick each one on the live services before the site opens to the public.
+
+- [ ] Brevo: open and click tracking off (D4). On a real email, links go straight to the site and there is no tracking pixel.
+- [ ] Cloudflare: SSL/TLS mode Full (strict), Always Use HTTPS, minimum TLS 1.2 (F5).
+- [ ] Cloudflare: Web Analytics, Zaraz, Rocket Loader and Email Address Obfuscation off. Any cookie Cloudflare still sets (`__cf_bm`, `cf_clearance`) is added to the privacy policy (D3).
+- [ ] Backups: the infra repository's lifecycle rule deletes the dumps after `BACKUP_RETENTION_DAYS` (30 days), in an EU region (C5, G2).
+- [ ] `contact@brickblaster.fr` exists and is read: it is the only channel for data protection requests (`CONTACT_EMAIL`).
+- [ ] DPAs of OVH, Brevo and Cloudflare accepted and archived (G5).
+- [ ] `docker compose config`, from the infra repository, shows the `logging` options of `brick-blaster-api`. A day after the first deployment, the log size matches § Logs.
+
 ## Variables
 
 `BRICK_BLASTER_HOME` (default `/srv/brick-blaster`) holds `api.env`, `pack/` and `web/`. `api.env` follows `api.env.example`: `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `SITE_URL` (https), `BREVO_API_KEY`, `MAIL_FROM`. Keep it `chmod 600`, outside any repository. `MAIL_FROM` is a no-reply address on the site's domain, authenticated in Brevo (SPF and DKIM), never a personal address. `compose.yaml` sets `API_HOST`, `API_PORT`, `API_TRUST_PROXY` and `GAME_DATA_DIR` itself.
