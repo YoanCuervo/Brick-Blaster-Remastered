@@ -39,6 +39,7 @@ export function PageLayout({
       {footer && (
         <footer className="footer">
           <Link to={ROUTES.legal}>Mentions légales</Link>
+          <Link to={ROUTES.terms}>Conditions d'utilisation</Link>
           <Link to={ROUTES.privacy}>Politique de confidentialité</Link>
         </footer>
       )}

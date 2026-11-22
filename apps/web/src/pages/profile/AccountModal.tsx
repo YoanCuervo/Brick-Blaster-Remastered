@@ -49,6 +49,7 @@ export function AccountModal({ open, onClose, onPick, onSignOut }: AccountModalP
       </div>
       <footer className="profile-footer">
         <Link to={ROUTES.legal}>Mentions légales</Link>
+        <Link to={ROUTES.terms}>Conditions</Link>
         <Link to={ROUTES.privacy}>Confidentialité</Link>
       </footer>
     </Modal>

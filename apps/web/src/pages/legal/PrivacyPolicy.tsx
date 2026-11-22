@@ -109,6 +109,13 @@ export function PrivacyPolicy() {
           publicité, pas de mesure d'audience, pas de réseau social, aucune donnée vendue ou prêtée.
           Jouer à l'essai ne demande aucun compte.
         </p>
+        <p>
+          Le contrat mentionné ci-dessous comme base légale, ce sont les{" "}
+          <Link className="link" to={ROUTES.terms}>
+            conditions d'utilisation
+          </Link>{" "}
+          que tu acceptes en créant un compte.
+        </p>
       </LegalSection>
 
       <LegalSection title="Les données, pourquoi, et combien de temps">
