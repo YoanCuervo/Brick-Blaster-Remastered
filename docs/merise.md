@@ -1,6 +1,6 @@
 # Modèle de données — méthode Merise
 
-Schéma MySQL de l'API (`apps/api`). Les tables des comptes (§ 1 à 5) reprennent exactement `apps/api/migrations/0001_create_accounts.sql`, celles des parties, scores et stats (§ 6) `0002_create_games.sql`, tirées de [`cadrage.md`](cadrage.md) (§ Scores et classements, § Stats). Les réglages (§ 7) sont deux colonnes de `users` ajoutées par `0003_add_user_settings.sql` ; les avatars personnels (§ 8) sont prévus.
+Schéma MySQL de l'API (`apps/api`). Les tables des comptes (§ 1 à 5) reprennent exactement `apps/api/migrations/0001_create_accounts.sql`, celles des parties, scores et stats (§ 6) `0002_create_games.sql`, tirées de [`cadrage.md`](cadrage.md) (§ Scores et classements, § Stats). Les réglages (§ 7) sont deux colonnes de `users` ajoutées par `0003_add_user_settings.sql` ; la date de dernière activité et l'avertissement avant suppression des comptes inactifs (§ 9) sont deux colonnes de `users` ajoutées par `0004_track_account_activity.sql` ; les avatars personnels (§ 8) sont prévus.
 
 Base : MySQL 8.0, InnoDB, jeu de caractères par défaut `utf8mb4`, collation `utf8mb4_0900_ai_ci`. Toutes les dates sont écrites en UTC par l'API (le pilote est réglé sur `timezone: "Z"`, `apps/api/src/db.ts`) ; MySQL ne l'impose pas.
 
@@ -16,6 +16,8 @@ Base : MySQL 8.0, InnoDB, jeu de caractères par défaut `utf8mb4`, collation `u
 | avatar | Index dans la galerie (10 avatars) | entier 0–9 | vide tant que le joueur n'a pas choisi |
 | email vérifié le | Date du clic sur le lien de vérification | date | vide : compte non vérifié, supprimé après 7 jours |
 | créé le | Date d'inscription | date | |
+| actif le | Dernière activité du compte (§ 9) | date | 3 ans sans activité : compte supprimé |
+| averti le | Envoi de l'email d'avertissement avant suppression (§ 9) | date | vide : pas averti, ou revenu depuis |
 | hash de session | SHA-256 de l'identifiant aléatoire du cookie `__Host-sid` | 32 octets | le cookie seul ne se retrouve pas en base |
 | session vue le | Dernière requête de la session | date | inactivité > 7 jours : session close |
 | session expire le | Fin absolue, création + 30 jours | date | |
@@ -80,7 +82,7 @@ erDiagram
 
 Notation : clé primaire **en gras**, clé étrangère précédée de `#`.
 
-- users (**id**, email, password_hash, pseudo, pseudo_chosen, avatar, email_verified_at, created_at)
+- users (**id**, email, password_hash, pseudo, pseudo_chosen, avatar, email_verified_at, created_at, last_active_at, inactivity_warned_at)
 - sessions (**id_hash**, #user_id, created_at, last_seen_at, expires_at)
 - account_tokens (**token_hash**, #user_id, purpose, expires_at)
 - login_throttle (**email_hash**, failures, lock_level, locked_until, updated_at)
@@ -103,6 +105,8 @@ erDiagram
         TINYINT_UNSIGNED avatar "NULL"
         DATETIME_3 email_verified_at "NULL"
         DATETIME_3 created_at
+        DATETIME_3 last_active_at
+        DATETIME_3 inactivity_warned_at "NULL"
     }
     sessions {
         BINARY_32 id_hash PK
@@ -140,6 +144,7 @@ Toutes les colonnes sont `NOT NULL` sauf celles marquées `NULL`. Toutes les tab
 | users | users_email | email | unique | connexion, unicité de l'email |
 | users | users_pseudo | pseudo | unique | unicité du pseudo, insensible à la casse et aux accents |
 | users | users_unverified | email_verified_at, created_at | index | purge des comptes non vérifiés après 7 jours |
+| users | users_inactive | last_active_at | index | avertissement et purge des comptes inactifs (§ 9) |
 | sessions | PRIMARY | id_hash | clé primaire | lecture de la session à chaque requête |
 | sessions | sessions_user | user_id | index | déconnexion de tous les appareils |
 | sessions | sessions_expiry | expires_at | index | purge des sessions expirées |
@@ -394,3 +399,22 @@ Ce sont les deux seuls réglages du jeu. Le jeu n'a pas de volume des bruitages 
 - avatars (**id**, kind, #owner_id, file, moderation_status, created_at) : `kind` vaut prédéfini ou envoyé ; `owner_id` est vide pour un avatar prédéfini ; `moderation_status` (en attente, accepté, refusé) n'a de sens que pour un avatar envoyé.
 - users : `avatar` (numéro dans la galerie) devient `#avatar_id`, clé étrangère vers `avatars` ; les avatars prédéfinis deviennent les premières lignes de `avatars`, et la migration réécrit les numéros actuels.
 - Un avatar envoyé appartient à un seul joueur (UTILISATEUR 0,n — AVATAR 0,1 par « envoie ») et un joueur en affiche un seul (UTILISATEUR 0,1 — AVATAR 0,n par « affiche »). À la suppression du compte, ses images sont supprimées avec lui (donnée personnelle).
+
+## 9. Comptes inactifs
+
+L'audit RGPD (`docs/audits/audit-cnil.md`, C2) demande une durée bornée pour un compte vérifié que plus personne n'utilise. La migration `apps/api/migrations/0004_track_account_activity.sql` ajoute à `users` :
+
+| Colonne | Type | Règle |
+|---|---|---|
+| users.last_active_at | `DATETIME(3) NOT NULL` | inscription, connexion, passage horaire d'une session (`TOUCH_EVERY_MS`, `apps/api/src/auth/sessions.ts`), réinitialisation du mot de passe ; ne recule jamais |
+| users.inactivity_warned_at | `DATETIME(3) NULL` | date d'envoi de l'avertissement ; remise à `NULL` à chaque activité |
+
+Pour les comptes déjà là, la migration prend la plus récente des dates connues : inscription, vérification, dernière session encore gardée.
+
+Règles (`apps/api/src/cleanup.ts`, `apps/api/src/account/inactivity.ts`), appliquées par la purge horaire :
+
+- **Avertissement** : un compte vérifié, inactif depuis 1 096 jours moins 30 (au moins 3 années civiles, moins un mois), reçoit un email une seule fois, avec la date de suppression. L'envoi n'est noté qu'une fois accepté par Brevo : un échec est journalisé sans l'adresse et retenté l'heure suivante. 10 avertissements au plus par passage, les plus anciens d'abord, soit 240 par jour, sous le quota gratuit de Brevo.
+- **Suppression** : 30 jours après l'avertissement, et jamais avant 1 096 jours d'inactivité. Le préavis de 30 jours tient même si l'avertissement part en retard (comptes anciens à la migration, serveur arrêté).
+- **Filet** : passé 1 096 + 61 jours d'inactivité, le compte est supprimé même sans avertissement, pour qu'une panne d'envoi durable ne rende pas la conservation illimitée. Le journal aura signalé l'échec toutes les heures pendant deux mois.
+- **Retour du joueur** : toute activité remet `last_active_at` à jour et efface l'avertissement ; un nouvel avertissement suivra une nouvelle absence. Un joueur revenu pendant l'envoi n'est pas noté averti (`markInactivityWarned` vérifie `last_active_at`).
+- La suppression passe par la même cascade que « Supprimer mon compte » (sessions, liens, parties, top, journaux, stats, meilleurs scores). La politique de confidentialité et les conditions d'utilisation l'annoncent.

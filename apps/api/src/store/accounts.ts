@@ -25,6 +25,13 @@ export interface AccountStore {
   /** Its sessions and links go with it. */
   deleteUser(userId: number): Promise<void>;
 
+  /** The player is back: the inactivity clock restarts and any warning is forgotten. */
+  markActive(userId: number, at: Date): Promise<void>;
+  /** Verified accounts inactive since `lastActiveBefore` and not yet warned, oldest first. */
+  findAccountsToWarn(lastActiveBefore: Date, limit: number): Promise<InactiveAccount[]>;
+  /** Not when the player came back in the meantime. */
+  markInactivityWarned(userId: number, at: Date, lastActiveBefore: Date): Promise<void>;
+
   createSession(session: Session): Promise<void>;
   findSession(idHash: Buffer): Promise<Session | null>;
   touchSession(idHash: Buffer, at: Date): Promise<void>;
@@ -48,6 +55,11 @@ export interface NewUser {
   passwordHash: string;
   pseudo: string;
   createdAt: Date;
+}
+
+export interface InactiveAccount {
+  id: number;
+  email: string;
 }
 
 export interface UserLogin {
@@ -89,6 +101,11 @@ export interface CleanupCutoffs {
   unverifiedBefore: Date;
   /** Locks untouched since. */
   throttleBefore: Date;
+  /** Accounts inactive since, if warned before `warnedBefore`. */
+  inactiveBefore: Date;
+  warnedBefore: Date;
+  /** Accounts inactive since, warned or not: a warning that never went out delays no more. */
+  abandonedBefore: Date;
 }
 
 type Row = mysql.RowDataPacket;
@@ -107,8 +124,9 @@ export function createMysqlAccountStore(pool: mysql.Pool): AccountStore {
     async createUser(user) {
       try {
         const result = await run(
-          "INSERT INTO users (email, password_hash, pseudo, created_at) VALUES (?, ?, ?, ?)",
-          [user.email, user.passwordHash, user.pseudo, user.createdAt],
+          "INSERT INTO users (email, password_hash, pseudo, created_at, last_active_at) " +
+            "VALUES (?, ?, ?, ?, ?)",
+          [user.email, user.passwordHash, user.pseudo, user.createdAt, user.createdAt],
         );
         return { id: result.insertId };
       } catch (error: unknown) {
@@ -198,6 +216,34 @@ export function createMysqlAccountStore(pool: mysql.Pool): AccountStore {
 
     async deleteUser(userId) {
       await run("DELETE FROM users WHERE id = ?", [userId]);
+    },
+
+    async markActive(userId, at) {
+      await run(
+        "UPDATE users SET last_active_at = GREATEST(last_active_at, ?), " +
+          "inactivity_warned_at = NULL WHERE id = ?",
+        [at, userId],
+      );
+    },
+
+    async findAccountsToWarn(lastActiveBefore, limit) {
+      if (!Number.isInteger(limit) || limit < 1) throw new Error(`bad limit ${limit}`);
+      // LIMIT takes no placeholder in a prepared statement: the integer is checked above.
+      const found = await rows(
+        "SELECT id, email FROM users WHERE email_verified_at IS NOT NULL " +
+          "AND inactivity_warned_at IS NULL AND last_active_at <= ? " +
+          `ORDER BY last_active_at LIMIT ${limit}`,
+        [lastActiveBefore],
+      );
+      return found.map((row) => ({ id: Number(row["id"]), email: String(row["email"]) }));
+    },
+
+    async markInactivityWarned(userId, at, lastActiveBefore) {
+      await run(
+        "UPDATE users SET inactivity_warned_at = ? " +
+          "WHERE id = ? AND inactivity_warned_at IS NULL AND last_active_at <= ?",
+        [at, userId, lastActiveBefore],
+      );
     },
 
     async createSession(s) {
@@ -295,6 +341,11 @@ export function createMysqlAccountStore(pool: mysql.Pool): AccountStore {
       await run("DELETE FROM users WHERE email_verified_at IS NULL AND created_at <= ?", [
         c.unverifiedBefore,
       ]);
+      await run(
+        "DELETE FROM users WHERE last_active_at <= ? AND " +
+          "(last_active_at <= ? OR inactivity_warned_at <= ?)",
+        [c.inactiveBefore, c.abandonedBefore, c.warnedBefore],
+      );
       await run("DELETE FROM login_throttle WHERE updated_at <= ?", [c.throttleBefore]);
     },
   };

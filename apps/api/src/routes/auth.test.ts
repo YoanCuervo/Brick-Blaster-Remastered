@@ -251,3 +251,45 @@ describe("a forgotten password", () => {
     expect(res.statusCode).toBe(200);
   });
 });
+
+describe("account activity, for the purge of inactive accounts", () => {
+  const userOf = (t: ReturnType<typeof testApp>) => [...t.store.users.values()][0]!;
+
+  it("starts at sign-up and moves at sign-in", async () => {
+    const t = testApp();
+    await call(t, "POST", "/auth/sign-up", { body: { email: EMAIL, password: PASSWORD } });
+    expect(userOf(t).lastActiveAt).toEqual(t.clock.now);
+    await call(t, "POST", "/auth/verify-email", { body: { token: tokenMailedTo(t, EMAIL) } });
+    t.clock.advance(5 * 24 * 3600_000);
+    await call(t, "POST", "/auth/sign-in", { body: { email: EMAIL, password: PASSWORD } });
+    expect(userOf(t).lastActiveAt).toEqual(t.clock.now);
+  });
+
+  it("moves with the session at most once an hour, and forgets a warning", async () => {
+    const t = testApp();
+    const cookie = await signedIn(t);
+    const signedInAt = t.clock.now;
+    userOf(t).inactivityWarnedAt = signedInAt;
+    t.clock.advance(3600_000 - 1);
+    await call(t, "GET", "/me", { cookie });
+    expect(userOf(t).lastActiveAt).toEqual(signedInAt);
+    expect(userOf(t).inactivityWarnedAt).toEqual(signedInAt);
+    t.clock.advance(1);
+    await call(t, "GET", "/me", { cookie });
+    expect(userOf(t).lastActiveAt).toEqual(t.clock.now);
+    expect(userOf(t).inactivityWarnedAt).toBeNull();
+  });
+
+  it("moves when the password is reset through the link", async () => {
+    const t = testApp();
+    await signedIn(t);
+    userOf(t).inactivityWarnedAt = t.clock.now;
+    t.clock.advance(24 * 3600_000);
+    await call(t, "POST", "/auth/forgot-password", { body: { email: EMAIL } });
+    await call(t, "POST", "/auth/reset-password", {
+      body: { token: tokenMailedTo(t, EMAIL), password: "Nouvelle-Brique8" },
+    });
+    expect(userOf(t).lastActiveAt).toEqual(t.clock.now);
+    expect(userOf(t).inactivityWarnedAt).toBeNull();
+  });
+});

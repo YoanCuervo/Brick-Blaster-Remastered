@@ -209,6 +209,8 @@ export function authRoutes(app: FastifyInstance, deps: AccountDeps): void {
       await store.setPasswordHash(userId, await hasher.hash(req.body.password));
       // The link reached the mailbox: the address is proven as well.
       await store.markEmailVerified(userId, now());
+      // A player back for their account, even without signing in yet.
+      await store.markActive(userId, now());
       await store.deleteUserSessions(userId);
       return res.code(204).send();
     },

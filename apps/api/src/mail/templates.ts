@@ -138,3 +138,34 @@ export const resetPasswordMail = (to: string, url: string, siteUrl: string): Mai
       "Le lien est valable 1 heure et ne sert qu'une fois. Si tu n'as rien demandé, ignore cet email : ton mot de passe reste le même.",
     ],
   });
+
+/** The date of the deletion, as a player in France reads it: "22 décembre 2026". */
+export const frenchDate = (date: Date): string =>
+  date.toLocaleDateString("fr-FR", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "Europe/Paris",
+  });
+
+/** Sent once, a month before an account unused for 3 years is deleted (src/cleanup.ts). */
+export const inactiveAccountMail = (
+  to: string,
+  deleteOn: Date,
+  signInUrl: string,
+  siteUrl: string,
+): Mail => {
+  const date = frenchDate(deleteOn);
+  return mail(to, siteUrl, {
+    subject: `Ton compte Brick Blaster sera supprimé le ${date}`,
+    heading: "Ton compte t'attend encore !",
+    intro: [
+      "Ton compte Brick Blaster n'a pas servi depuis bientôt 3 ans. Pour ne pas garder tes données sans raison, les comptes inutilisés pendant 3 ans sont supprimés.",
+      `Sans connexion de ta part d'ici le ${date}, ton compte sera effacé avec tes parties, tes stats et tes scores.`,
+    ],
+    button: { url: signInUrl, label: "Me connecter" },
+    outro: [
+      "Une connexion suffit pour garder ton compte. Si tu n'en veux plus, tu n'as rien à faire : il disparaîtra à cette date.",
+    ],
+  });
+};
