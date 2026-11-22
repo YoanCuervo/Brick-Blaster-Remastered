@@ -108,6 +108,11 @@ export interface MountOptions {
   /** Starts this game at once, without the slides or the menu. */
   start?: { world: World; difficulty: Difficulty };
   /**
+   * With `start`: the screen stays black until `GameHandle.begin()`, so the page can offer its
+   * settings first. begin() must run in a click or a key press: it locks the mouse.
+   */
+  waitForBegin?: boolean;
+  /**
    * "window": the canvas takes the largest integer scale the window allows.
    * "host": the page sizes the canvas itself, by CSS.
    */
@@ -131,6 +136,16 @@ export interface MountOptions {
   onSettingsChange?: (settings: Settings) => void;
 }
 
+/** What the page can do with a mounted game. */
+export interface GameHandle {
+  /** Launches the `start` game that `waitForBegin` held back; does nothing after that. */
+  begin(): void;
+  /** The settings in use, as the in-game menu shows them. */
+  readonly settings: Readonly<Settings>;
+  /** Changes settings from outside the game, as the in-game menu does (onSettingsChange too). */
+  setSettings(change: Partial<Settings>): void;
+}
+
 // Loaded once per page: a page that mounts the game again does not fetch the pack again.
 let assetsLoad: Promise<Assets> | null = null;
 
@@ -138,7 +153,7 @@ let assetsLoad: Promise<Assets> | null = null;
 export async function mountGame(
   canvas: HTMLCanvasElement,
   options: MountOptions = {},
-): Promise<void> {
+): Promise<GameHandle | null> {
   const signal = options.signal ?? new AbortController().signal;
   const listen = <E extends Event>(target: EventTarget, type: string, handler: (e: E) => void) =>
     target.addEventListener(type, handler as EventListener, { signal });
@@ -151,7 +166,7 @@ export async function mountGame(
   });
   const assets = await assetsLoad;
   const kept = await keptSettings;
-  if (signal.aborted) return;
+  if (signal.aborted) return null;
 
   const screen = new Screen(canvas, {
     autoFit: options.fit !== "host",
@@ -184,7 +199,16 @@ export async function mountGame(
   const backgroundAt = (w: World, level: number) => backgroundImage(w, level);
 
   type Scene =
-    "slides" | "menu" | "game" | "scores" | "film" | "final" | "transition" | "notice" | "seed";
+    | "slides"
+    | "menu"
+    | "game"
+    | "scores"
+    | "film"
+    | "final"
+    | "transition"
+    | "notice"
+    | "seed"
+    | "waiting";
   let scene: Scene = "slides";
   let menu = newMenu();
   let world: World = "space";
@@ -524,12 +548,14 @@ export async function mountGame(
         openScores(background, null, () => returnToMenu(true), coop),
       );
     }
-    if (event?.kind === "settings") {
-      audio.setMusicVolume(settings.musicVolume);
-      mouse.sensitivity = settings.mouseSensitivity;
-      saveSettings(storage, settings);
-      options.onSettingsChange?.({ ...settings });
-    }
+    if (event?.kind === "settings") applySettings();
+  }
+
+  function applySettings(): void {
+    audio.setMusicVolume(settings.musicVolume);
+    mouse.sensitivity = settings.mouseSensitivity;
+    saveSettings(storage, settings);
+    options.onSettingsChange?.({ ...settings });
   }
 
   let showStats = false;
@@ -706,6 +732,8 @@ export async function mountGame(
         case "seed":
           updateSeed();
           break;
+        case "waiting":
+          break;
       }
       anyKeyPressed = false;
       stats.ticks++;
@@ -719,7 +747,7 @@ export async function mountGame(
         applyFade(ctx, transition!.fade);
       } else if (scene === "slides") {
         drawSlide(ctx, show, assets.images, films);
-      } else if (scene === "seed") {
+      } else if (scene === "seed" || scene === "waiting") {
         black(ctx);
       } else if (scene === "film") {
         if (endFilm) films.draw(ctx, endFilm, endFilm.fade);
@@ -765,7 +793,29 @@ export async function mountGame(
     unbindPointerLock();
     if (locked()) document.exitPointerLock();
   });
-  if (options.start) startGame({ kind: "play", ...options.start, partner: null });
+  const start = options.start;
+  if (start && options.waitForBegin) setScene("waiting");
+  else if (start) startGame({ kind: "play", ...start, partner: null });
+
+  const handle: GameHandle = {
+    begin() {
+      if (start && scene === "waiting") startGame({ kind: "play", ...start, partner: null });
+    },
+    get settings() {
+      return { ...settings };
+    },
+    setSettings(change) {
+      // Checked like a stored setting: a value out of range falls back to the default.
+      const next = adoptSettings(null, { ...settings, ...change });
+      if (
+        next.musicVolume === settings.musicVolume &&
+        next.mouseSensitivity === settings.mouseSensitivity
+      )
+        return;
+      Object.assign(settings, next);
+      applySettings();
+    },
+  };
 
   function reportEnd(kind: GameEndReport["kind"]): void {
     if (kind !== "left") checkReplay(kind);
@@ -919,4 +969,6 @@ export async function mountGame(
       flasher.draw(ctx, sheet, background, game.bonus.icon, game.flash.shown, x, y);
     }
   }
+
+  return handle;
 }
