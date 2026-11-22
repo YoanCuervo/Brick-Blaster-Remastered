@@ -1,4 +1,8 @@
-import Fastify, { type FastifyInstance, type FastifyServerOptions } from "fastify";
+import Fastify, {
+  type FastifyInstance,
+  type FastifyRequest,
+  type FastifyServerOptions,
+} from "fastify";
 import type { Db } from "./db";
 import { authRoutes } from "./routes/auth";
 import type { AccountDeps, GameDeps } from "./routes/deps";
@@ -15,8 +19,18 @@ export interface AppOptions {
   accounts: AccountDeps;
   games: GameDeps;
   trustProxy?: boolean;
-  logger?: FastifyServerOptions["logger"];
+  /** Off when left out. */
+  logger?: Exclude<FastifyServerOptions["logger"], boolean>;
 }
+
+/**
+ * Fastify's own serializer adds the client's address and port (`remoteAddress`, `remotePort`) to
+ * every log line that carries the request. The IP only lives in the rate limiter's memory: it is
+ * never written, neither to the database nor to the logs (docs/cadrage.md, legal pages).
+ */
+const logSerializers = {
+  req: (req: FastifyRequest) => ({ method: req.method, url: req.url }),
+};
 
 /** Error bodies name a category, never the cause: details stay in the server log. */
 const ERRORS: Record<number, string> = {
@@ -31,7 +45,9 @@ const ERRORS: Record<number, string> = {
 
 export function buildApp(options: AppOptions): FastifyInstance {
   const app = Fastify({
-    logger: options.logger ?? false,
+    logger: options.logger
+      ? { ...options.logger, serializers: { ...options.logger.serializers, ...logSerializers } }
+      : false,
     bodyLimit: BODY_LIMIT,
     trustProxy: options.trustProxy ?? false,
     ajv: {
