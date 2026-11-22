@@ -1,11 +1,12 @@
 import { Link } from "../../router";
 import { ROUTES } from "../../routes";
-import { BACKUP_RETENTION_DAYS } from "./legalInfo";
+import { BACKUP_RETENTION_DAYS, SERVER_LOG_RETENTION_DAYS } from "./legalInfo";
 import { ContactEmail, LegalPage, LegalSection } from "./LegalPage";
 
 /**
  * Written from what the code does: apps/api/migrations (what is stored), apps/api/src/cleanup.ts,
- * auth/sessions.ts and auth/trial.ts (how long), http/rateLimit.ts (the IP, in memory only).
+ * auth/sessions.ts and auth/trial.ts (how long), http/rateLimit.ts (the IP, in memory only),
+ * app.ts and deploy/compose.yaml (the logs).
  * Any change there must be reflected here.
  */
 
@@ -91,6 +92,12 @@ const ROWS: Row[] = [
       "Limiter le nombre de requêtes par minute sur l'inscription, la connexion, le mot de passe oublié et l'envoi des parties",
     basis: SECURITY,
     kept: "Gardée en mémoire 2 minutes au plus, jamais écrite en base de données",
+  },
+  {
+    data: "Journaux techniques du serveur : date, adresse et résultat des requêtes (qui peuvent contenir un identifiant de partie ou un pseudo), erreurs ; ni adresse IP, ni email, ni mot de passe",
+    purpose: "Surveiller le bon fonctionnement du serveur et corriger les erreurs",
+    basis: SECURITY,
+    kept: `${SERVER_LOG_RETENTION_DAYS} jours au plus`,
   },
 ];
 

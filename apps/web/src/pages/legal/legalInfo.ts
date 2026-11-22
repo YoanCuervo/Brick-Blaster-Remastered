@@ -11,3 +11,9 @@ export const LEGAL_UPDATED = "22 novembre 2026";
  * lifecycle rule, which must match this value.
  */
 export const BACKUP_RETENTION_DAYS = 30;
+
+/**
+ * Upper bound on how long a line stays in the API's logs. Docker rotates them by size only:
+ * deploy/compose.yaml and deploy/README.md (§ Logs) explain why that size means this many days.
+ */
+export const SERVER_LOG_RETENTION_DAYS = 30;
