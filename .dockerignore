@@ -1,0 +1,13 @@
+# Allow-list: the Eclipse asset pack (assets/, original/, game/) and any secret must never
+# reach an image build, so only the sources the images need get in.
+*
+!package.json
+!package-lock.json
+!apps/
+!packages/
+
+**/node_modules
+**/dist
+**/dist-electron
+**/.env*
+**/*.tsbuildinfo

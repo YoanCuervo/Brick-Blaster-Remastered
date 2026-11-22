@@ -13,7 +13,7 @@ Scope, choices and legal: [`docs/cadrage.md`](docs/cadrage.md). Reverse-engineer
 - Desktop: Electron + electron-builder (Windows 10+ .exe).
 - Tests: Vitest, game logic only. Lint: ESLint (typescript-eslint) + Prettier.
 
-V2 (scope in `docs/cadrage.md`; done so far: monorepo, replay in `packages/game/src/game/replay.ts`, API skeleton and accounts, games and scores (server replay in worker threads), `packages/contracts`, `apps/web` wired to the API (server seed through `MountOptions.newSeed`), game settings on the account (`MountOptions.loadSettings` / `onSettingsChange`, `/jouer` only)): website hosting the game. npm-workspaces monorepo (`apps/web` React + TS + Vite, `apps/api` Node + TS + Fastify, `apps/desktop` Electron, `packages/game` the current engine, `packages/contracts` web/api schemas, `deploy/` this project's Dockerfiles and Caddy/compose fragments; the shared server config lives in a separate infra repo), MySQL, Brevo emails, OVH VPS behind Cloudflare. The backend decides everything: every score is replayed server-side from its seed and input log, never trusted from the client.
+V2 (scope in `docs/cadrage.md`; done so far: monorepo, replay in `packages/game/src/game/replay.ts`, API skeleton and accounts, games and scores (server replay in worker threads), `packages/contracts`, `apps/web` wired to the API (server seed through `MountOptions.newSeed`), game settings on the account (`MountOptions.loadSettings` / `onSettingsChange`, `/jouer` only), `deploy/` (API image, website export, Caddy block, compose fragment)): website hosting the game. npm-workspaces monorepo (`apps/web` React + TS + Vite, `apps/api` Node + TS + Fastify, `apps/desktop` Electron, `packages/game` the current engine, `packages/contracts` web/api schemas, `deploy/` this project's Dockerfiles and Caddy/compose fragments; the shared server config lives in a separate infra repo), MySQL, Brevo emails, OVH VPS behind Cloudflare. The backend decides everything: every score is replayed server-side from its seed and input log, never trusted from the client.
 
 ## Commands
 
@@ -31,6 +31,7 @@ npx vite --config tools/acceptance/vite.acceptance.config.ts   # dev server on p
 npm run electron:dev   # build, then run it in Electron (no HMR: use npm run dev to iterate)
 npm run electron:build # local Windows installer in release/ (holds Eclipse assets: never publish it); add -- --dir for release/win-unpacked only
 tools/.venv/Scripts/python.exe tools/extract/extract_assets.py   # regenerate assets/ from original/
+docker build -f deploy/api.Dockerfile -t brick-blaster-api .     # VPS only: build, deploy and migrations in deploy/README.md
 ```
 
 The installer build writes an uninstaller from an unknown .exe, which Windows Controlled Folder Access silently blocks under `Documents` (`__uninstaller.exe -> no files found`). Send the output elsewhere: `npm run electron:build -- -c.directories.output=C:/Users/cuerv/BrickBlaster-release`.
@@ -51,6 +52,8 @@ apps/web/       @brick-blaster/web: React website (charter E of the claude.ai de
   src/          routes.ts + router.tsx (in-house History API router), components/, pages/
 apps/api/       @brick-blaster/api: Fastify + MySQL, bundled by Vite into dist/server.js and dist/migrate.js
                 (Node cannot run the game sources as they are); migrations/NNNN_name.sql, applied in order
+deploy/         api.Dockerfile, web.Dockerfile (exports dist/ for Caddy), brick-blaster.caddy, compose.yaml,
+                api.env.example, README.md; the root .dockerignore allow-lists sources: no asset in an image
 assets/         asset pack generated from original/ (NOT versioned, served by Vite as publicDir)
 original/       read-only reference copy of the 1999 game (NOT versioned)
 game/           playable test copy of the original with test cfg/levels (NOT versioned)

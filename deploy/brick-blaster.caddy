@@ -1,0 +1,60 @@
+# Site block of Brick Blaster, imported by the infra Caddyfile. The infra mounts, read-only:
+#   /srv/brick-blaster/web   the website build (deploy/web.Dockerfile)
+#   /srv/brick-blaster/pack  the game's asset pack, never in an image (deploy/README.md)
+# and declares Cloudflare in its global options, so that {client_ip} is the visitor's address.
+{$BRICK_BLASTER_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		# 'wasm-unsafe-eval': the libopenmpt worklet of chiptune3 compiles its WASM in place.
+		Content-Security-Policy "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self'; font-src 'self'; media-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "fullscreen=(self), camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		Cross-Origin-Opener-Policy "same-origin"
+		-Server
+	}
+
+	handle /api/* {
+		reverse_proxy brick-blaster-api:3000 {
+			# Fastify trusts the leftmost X-Forwarded-For entry, which a client can forge:
+			# the API gets only the address Caddy established (CF-Connecting-IP from Cloudflare).
+			header_up X-Forwarded-For {client_ip}
+		}
+	}
+
+	handle {
+		@pack {
+			not file {
+				root /srv/brick-blaster/web
+			}
+			file {
+				root /srv/brick-blaster/pack
+			}
+		}
+		handle @pack {
+			root * /srv/brick-blaster/pack
+			# Not fingerprinted: purge the Cloudflare cache whenever the pack changes.
+			header Cache-Control "public, max-age=3600"
+			file_server
+		}
+
+		handle {
+			root * /srv/brick-blaster/web
+			# History API router: an unknown path is a page of the site, except a missing
+			# fingerprinted file, which must stay a 404 rather than become HTML.
+			@spa {
+				not path /assets/*
+				not file
+			}
+			rewrite @spa /index.html
+
+			@fingerprinted path /assets/*
+			header @fingerprinted Cache-Control "public, max-age=31536000, immutable"
+			@revalidate not path /assets/*
+			header @revalidate Cache-Control "no-cache"
+			file_server
+		}
+	}
+}

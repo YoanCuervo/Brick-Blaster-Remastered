@@ -1,0 +1,46 @@
+# Fragment included by the infra repository's compose file. Its shared network must hold the
+# Caddy and MySQL containers; Caddy reaches this service as brick-blaster-api:3000.
+services:
+  brick-blaster-api:
+    # Built on the server, never pushed to a public registry (deploy/README.md).
+    image: brick-blaster-api:latest
+    build:
+      context: ..
+      dockerfile: deploy/api.Dockerfile
+    restart: unless-stopped
+    # Secrets and per-site values, from an env file kept on the server only (api.env.example).
+    env_file: ${BRICK_BLASTER_HOME:-/srv/brick-blaster}/api.env
+    environment:
+      API_HOST: 0.0.0.0
+      API_PORT: "3000"
+      # Only Caddy reaches the API, and it sends one X-Forwarded-For: the visitor's address.
+      API_TRUST_PROXY: "true"
+      GAME_DATA_DIR: /data/game
+    volumes:
+      # config.json and levels.json, which the server replays games with.
+      - ${BRICK_BLASTER_HOME:-/srv/brick-blaster}/pack:/data/game:ro
+    networks:
+      - shared
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+networks:
+  shared:
+    external: true
+    name: ${INFRA_NETWORK:-infra}
