@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "Faithful remake of Brick Blaster (Eclipse, 1999)",
+  "author": "Brick Blaster Remastered",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -16,7 +17,11 @@
     "electron-builder": "26.18.0"
   },
   "build": {
-    "appId": "com.yoancuervo.brickblaster",
+    "appId": "fr.brickblaster.app",
+    "copyright": "Copyright © 2026 Brick Blaster Remastered",
+    "extraMetadata": {
+      "name": "brick-blaster-remastered"
+    },
     "directories": {
       "output": "../../release"
     },
