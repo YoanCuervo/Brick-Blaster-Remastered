@@ -7,6 +7,8 @@ import { SignUp } from "./pages/account/SignUp";
 import { VerifyEmail } from "./pages/account/VerifyEmail";
 import { Home } from "./pages/Home";
 import { LeaderboardPage } from "./pages/leaderboard/Leaderboard";
+import { LegalNotice } from "./pages/legal/LegalNotice";
+import { PrivacyPolicy } from "./pages/legal/PrivacyPolicy";
 import { MobileNotice } from "./pages/MobileNotice";
 import { NotFound } from "./pages/NotFound";
 import { Play } from "./pages/play/Play";
@@ -28,9 +30,9 @@ const PAGES: Record<string, () => ReactElement> = {
   [ROUTES.profile]: () => <ProfilePage />,
   [ROUTES.play]: () => <Play />,
   [ROUTES.leaderboard]: () => <LeaderboardPage />,
-  [ROUTES.legal]: () => <Placeholder title="Mentions légales" />,
+  [ROUTES.legal]: () => <LegalNotice />,
   [ROUTES.terms]: () => <Placeholder title="Conditions d'utilisation" />,
-  [ROUTES.privacy]: () => <Placeholder title="Politique de confidentialité" />,
+  [ROUTES.privacy]: () => <PrivacyPolicy />,
 };
 
 // The style guide is a review tool: it never ships in the production build.

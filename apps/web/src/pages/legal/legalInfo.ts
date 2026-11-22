@@ -1,0 +1,13 @@
+/** Facts shared by the legal notice and the privacy policy, in one place so they never drift. */
+
+/** Address published for the legal notice and for data protection requests. */
+export const CONTACT_EMAIL: string | null = "contact@brickblaster.fr";
+
+/** Date of the last change to either legal page. */
+export const LEGAL_UPDATED = "22 novembre 2026";
+
+/**
+ * Days the nightly MySQL dumps stay in OVH Object Storage. Set by the infra repository's
+ * lifecycle rule, which must match this value.
+ */
+export const BACKUP_RETENTION_DAYS = 30;

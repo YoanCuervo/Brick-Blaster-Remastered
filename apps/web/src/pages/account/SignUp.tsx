@@ -96,11 +96,11 @@ export function SignUp() {
         </Link>
       </p>
       <p className="hint auth-center" style={{ margin: 0 }}>
-        En continuant, tu acceptes nos{" "}
+        En créant un compte, tu acceptes nos{" "}
         <Link className="link" to={ROUTES.terms}>
           conditions d'utilisation
-        </Link>{" "}
-        et notre{" "}
+        </Link>
+        . Tes données sont traitées comme l'explique notre{" "}
         <Link className="link" to={ROUTES.privacy}>
           politique de confidentialité
         </Link>
