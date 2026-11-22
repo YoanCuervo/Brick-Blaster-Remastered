@@ -165,31 +165,17 @@ Les parties sont faites (`apps/api/src/routes/games.ts` et `scores.ts`, modèle 
 
 Le site est branché sur ces routes, sans plus aucune donnée factice. `mountGame` reçoit de la page une option `newSeed` : chaque partie solo demande sa graine au serveur pendant le fondu de lancement, et après un game over la partie suivante repart sur un nouveau moteur avec une nouvelle graine. Sans cette option, la version navigateur et le .exe gardent leur propre graine et l'enchaînement de l'original. Chaque fin de partie, Échap compris, envoie le journal ; `/jouer` affiche sous le jeu le résultat du serveur, et l'écran des scores du jeu garde sa table locale, comme dans l'original. La partie d'essai s'arrête à sa première fin et montre le score du serveur. La coop du site reste locale et n'envoie rien. Un journal envoyé pendant un rejeu saturé ou au-delà de la limite de débit est renvoyé, trois fois au plus. Limite connue : une page quittée en pleine partie perd son journal.
 
-## Hébergement et budget V2
+## Hébergement V2
 
-Un seul serveur pour ce site, le portfolio et les autres projets à venir. Tout est servi sous un même domaine (`/` pour le site, `/api` pour l'API), ce qui permet le cookie `SameSite=Strict` sans CORS.
+Un seul serveur pour ce site, le portfolio et les autres projets à venir. Tout est servi sous un même domaine, **`brickblaster.fr`** (`/` pour le site, `/api` pour l'API), ce qui permet le cookie `SameSite=Strict` sans CORS.
 
-- **VPS OVHcloud VPS-1** (2 vCores, 4 Go de RAM, 40 Go NVMe, trafic illimité, France) avec Docker Compose. Estimation de mémoire avec le portfolio et 2 à 3 autres petites API : environ 1,5 Go sur 4. On montera en VPS-2 seulement si le besoin apparaît.
+- **VPS** avec Docker Compose.
 - **Caddy** en reverse proxy : HTTPS automatique, et il sert lui-même les fronts statiques. Aucun Node ne tourne pour un front.
-- **Un seul MySQL** pour tous les projets, une base par projet, réglé pour une petite machine.
-- **Cloudflare** (offre gratuite) devant le serveur : DNS, anti-DDoS, cache des assets du jeu, IP du serveur masquée.
-- **Domaine .fr chez OVH** : Cloudflare ne vend pas le .fr, et c'est l'extension la moins chère des deux.
-- **Sauvegardes** : celle d'OVH ne garde que 24 heures. Un dump MySQL chaque nuit est copié dans OVH Object Storage.
-- Le serveur se maintient à la main : mises à jour, pare-feu, SSH par clé uniquement. Une procédure écrite accompagnera la mise en place.
+- **Un seul MySQL** pour tous les projets, une base par projet.
+- **Cloudflare** devant le serveur : DNS, anti-DDoS, cache des assets du jeu, IP du serveur masquée.
+- **Sauvegardes** : un dump MySQL chaque nuit, copié hors du serveur.
 
-Le serveur est commun à plusieurs projets : sa configuration (Caddy global, MySQL partagé, sauvegardes, durcissement, procédure) vit dans un **dépôt d'infrastructure séparé**. Ce dépôt-ci ne fournit que ce qui est propre à Brick Blaster, dans `deploy/` : les images de `apps/web` et `apps/api`, le bloc Caddy du site et le fragment docker-compose que l'infra inclut.
-
-Coûts relevés le 11/11/2026 sur les sites des fournisseurs, à revérifier à la commande (OVH annonce des hausses en 2026) :
-
-| Poste | Prix | Par an |
-|---|---|---|
-| VPS-1 OVHcloud | 3,81 € HT, soit 4,57 € TTC par mois | 54,84 € |
-| Domaine .fr OVH | 4,99 € HT la 1re année, puis 7,79 € HT | ≈ 6 € puis ≈ 9,35 € TTC |
-| OVH Object Storage | ≈ 0,014 € HT par Go et par mois, sortie gratuite | < 1 € |
-| Cloudflare, Brevo | offres gratuites | 0 € |
-| **Total** | | **≈ 61 € la 1re année, ≈ 64 € ensuite** |
-
-Non confirmé au moment du relevé : frais d'installation et remise d'engagement du VPS, à contrôler au panier.
+Le serveur est commun à plusieurs projets : son choix, son coût et sa configuration (Caddy global, MySQL partagé, sauvegardes, durcissement, procédure) vivent dans un **dépôt d'infrastructure séparé**. Ce dépôt-ci ne fournit que ce qui est propre à Brick Blaster, dans `deploy/` : les images de `apps/web` et `apps/api`, le bloc Caddy du site et le fragment docker-compose que l'infra inclut.
 
 ## Assets et droits
 
