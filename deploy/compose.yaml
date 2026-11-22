@@ -29,6 +29,16 @@ services:
     security_opt:
       - no-new-privileges:true
     mem_limit: 512m
+    # The privacy policy promises SERVER_LOG_RETENTION_DAYS (legalInfo.ts). Docker rotates by size
+    # only: the healthcheck's own request lines (about 1.4 MB a day) fill these 30 MB within about
+    # 21 days even without visitors, and traffic only shortens that. Silencing them, or raising
+    # these sizes, means revisiting that promise (deploy/README.md, § Logs).
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+        compress: "true"
     healthcheck:
       test:
         - CMD

@@ -42,6 +42,19 @@ The website export overwrites `index.html` and adds the new fingerprinted files;
   The site block then sends `{client_ip}` as the only `X-Forwarded-For` entry, and the API (`API_TRUST_PROXY=true`) rate-limits that address. A request that bypasses Cloudflare is limited on its own address.
 - In MySQL: the `brick_blaster` database and a user with rights on it alone.
 - A purge of the Cloudflare cache whenever the pack changes (Caddy lets it keep the pack an hour).
+- Bounded logs everywhere else on the server, which this repository cannot set: a default `log-opts` (`max-size`, `max-file`) in the Docker daemon's `daemon.json` for the Caddy and MySQL containers, a retention for the host's journald, and MySQL's general and slow query logs off. No Caddy access log: it would keep visitors' addresses (the site block declares none).
+
+## Logs
+
+The API logs one line when a request arrives and one when it ends (method, URL, status, duration), plus errors: never the visitor's address, a request body or an email (`apps/api/src/app.ts`). URLs can still hold a game id or a pseudo (`/api/players/:pseudo`), so these are personal data and the privacy policy announces how long they stay: `SERVER_LOG_RETENTION_DAYS` in `apps/web/src/pages/legal/legalInfo.ts`, 30 days.
+
+`compose.yaml` keeps at most 3 files of 10 MB. Docker cannot rotate by date, so the duration comes from a floor: the healthcheck calls `/api/health` every 30 seconds, about 1.4 MB of log lines a day, which pushes any line out within about 21 days even without visitors. On the first deployment, check that estimate on the server, from the infra repository (a day later, the newest file should hold about 1.4 MB):
+
+```bash
+sudo ls -l "$(dirname "$(docker inspect -f '{{.LogPath}}' "$(docker compose ps -q brick-blaster-api)")")"
+```
+
+Disabling the request logs of `/api/health`, lengthening the healthcheck interval or raising the sizes breaks that floor: change the policy along with it. Recreating the container (a new image) also deletes its logs.
 
 ## Variables
 
