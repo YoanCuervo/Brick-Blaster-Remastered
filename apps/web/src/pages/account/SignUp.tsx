@@ -5,14 +5,21 @@ import { AuthLayout } from "../../components/AuthLayout";
 import { TextField } from "../../components/TextField";
 import { Link } from "../../router";
 import { ROUTES } from "../../routes";
-import { PASSWORD_RULE, checkEmail, checkPassword, focusFirstError } from "./validation";
+import {
+  PASSWORD_RULE,
+  checkConfirmation,
+  checkEmail,
+  checkPassword,
+  focusFirstError,
+} from "./validation";
 import { VerifyEmailModal } from "./VerifyEmailModal";
 
-const ORDER = ["signup-email", "signup-password"] as const;
+const ORDER = ["signup-email", "signup-password", "signup-confirmation"] as const;
 
 export function SignUp() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmation, setConfirmation] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [pending, setPending] = useState(false);
   const [sentTo, setSentTo] = useState<string | null>(null);
@@ -21,6 +28,7 @@ export function SignUp() {
   const errors: Record<string, string | null> = {
     "signup-email": checkEmail(email),
     "signup-password": checkPassword(password),
+    "signup-confirmation": checkConfirmation(password, confirmation),
   };
   // Errors stay hidden until the first submit, then follow the typing.
   const shown = (id: (typeof ORDER)[number]) => (submitted ? errors[id] : null);
@@ -62,6 +70,15 @@ export function SignUp() {
           onChange={(event) => setPassword(event.target.value)}
           hint={PASSWORD_RULE}
           error={shown("signup-password")}
+        />
+        <TextField
+          id="signup-confirmation"
+          label="Confirmer le mot de passe"
+          type="password"
+          autoComplete="new-password"
+          value={confirmation}
+          onChange={(event) => setConfirmation(event.target.value)}
+          error={shown("signup-confirmation")}
         />
         <button className="btn btn-primary btn-lg" type="submit" aria-busy={pending}>
           Créer mon compte
